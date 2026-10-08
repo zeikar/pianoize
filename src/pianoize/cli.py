@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from enum import StrEnum
 from pathlib import Path
 from typing import Annotated
 
@@ -10,6 +11,7 @@ import mido
 import typer
 
 from . import __version__, checkpoints, report, score, timeline
+from . import chordotomy as chordotomy_module
 from . import render as render_module
 
 app = typer.Typer(no_args_is_help=True, add_completion=False)
@@ -32,6 +34,7 @@ def main(
 
 
 _CHORDS_SUFFIX = ".chords.json"
+_ROW_SUFFIXES = (_CHORDS_SUFFIX, ".mid", ".wav")
 
 
 def _fail(message: str) -> typer.Exit:
@@ -45,9 +48,13 @@ def _parse_rows(values: list[str]) -> list[tuple[str, Path]]:
         name, separator, path = value.partition("=")
         if not separator or not name or not path:
             raise typer.BadParameter(f"{value!r} is not name=path", param_hint="ROW")
-        if not path.endswith(_CHORDS_SUFFIX):
+        if not path.endswith(_ROW_SUFFIXES):
             raise typer.BadParameter(
-                f"{path}: rows must be {_CHORDS_SUFFIX} files", param_hint="ROW"
+                f"{path}: rows must be {', '.join(_ROW_SUFFIXES)} files", param_hint="ROW"
+            )
+        if name != Path(name).name or name in (".", ".."):
+            raise typer.BadParameter(
+                f"row name {name!r} is not a plain file name", param_hint="ROW"
             )
         if any(name == seen for seen, _ in rows):
             raise typer.BadParameter(f"row name {name!r} is used twice", param_hint="ROW")
@@ -55,9 +62,35 @@ def _parse_rows(values: list[str]) -> list[tuple[str, Path]]:
     return rows
 
 
+class Engine(StrEnum):
+    AUTO = "auto"
+    DSP = "dsp"
+    MODEL = "model"
+
+
+def _soundfont_path(value: Path | None) -> Path:
+    if value is not None:
+        return value
+    env = os.environ.get("PIANOIZE_SOUNDFONT")
+    if not env:
+        raise typer.BadParameter(
+            "give --soundfont or set PIANOIZE_SOUNDFONT", param_hint="--soundfont"
+        )
+    return Path(env)
+
+
+def _read_midi(path: Path) -> mido.MidiFile:
+    try:
+        return mido.MidiFile(path)
+    except (OSError, EOFError, ValueError) as exc:
+        raise _fail(f"{path}: cannot read MIDI: {exc}") from exc
+
+
 @app.command()
 def evaluate(
-    rows: Annotated[list[str], typer.Argument(help="name=path of a .chords.json result.")],
+    rows: Annotated[
+        list[str], typer.Argument(help="name=path of a .chords.json, .wav or .mid result.")
+    ],
     original: Annotated[
         Path, typer.Option(help="The original's timeline.", exists=True, dir_okay=False)
     ],
@@ -65,21 +98,65 @@ def evaluate(
         Path,
         typer.Option("--checkpoints", help="The checkpoint file.", exists=True, dir_okay=False),
     ],
-    out_dir: Annotated[Path, typer.Option(help="Where table.md is written.")],
+    out_dir: Annotated[
+        Path, typer.Option(help="Where table.md and the rendered and analyzed rows are written.")
+    ],
+    soundfont: Annotated[
+        Path | None,
+        typer.Option(help="The SoundFont for .mid rows; defaults to $PIANOIZE_SOUNDFONT."),
+    ] = None,
+    chordotomy: Annotated[
+        Path | None,
+        typer.Option(
+            help="The chordotomy executable; defaults to $PIANOIZE_CHORDOTOMY, then PATH."
+        ),
+    ] = None,
+    engine: Annotated[Engine, typer.Option(help="chordotomy's engine.")] = Engine.MODEL,
+    force: Annotated[
+        bool, typer.Option("--force", help="Render and analyze again over existing outputs.")
+    ] = False,
 ) -> None:
-    """Score results against the original at the checkpoints and write the table."""
+    """Score results against the original at the checkpoints and write the table.
+
+    A .mid row is rendered to OUT_DIR/NAME.wav, and a .wav row is analyzed to
+    OUT_DIR/NAME.chords.json. Both are reused when they exist, unless --force: a model
+    analysis takes minutes per song.
+    """
     parsed = _parse_rows(rows)
+    if any(path.suffix == ".mid" for _, path in parsed):
+        soundfont = _soundfont_path(soundfont)
     try:
         original_timeline = timeline.load(original)
         spans, excluded = checkpoints.load(checkpoints_path, original_timeline)
-        scored = [
-            (name, score.score(original_timeline, spans, excluded, timeline.load(path)))
-            for name, path in parsed
-        ]
-        table = report.markdown(original_timeline, scored)
         out_dir.mkdir(parents=True, exist_ok=True)
+        exe = None
+        scored = []
+        for name, path in parsed:
+            if path.name.endswith(_CHORDS_SUFFIX):
+                result = timeline.load(path)
+            else:
+                out = out_dir / f"{name}{_CHORDS_SUFFIX}"
+                if force or not out.exists():
+                    audio = path
+                    if path.suffix == ".mid":
+                        audio = out_dir / f"{name}.wav"
+                        if force or not audio.exists():
+                            render_module.render(_read_midi(path), audio, soundfont)
+                    exe = exe or chordotomy_module.executable(chordotomy)
+                    typer.echo(f"analyzing {name}...", err=True)
+                    result = chordotomy_module.analyze(audio, out, exe, engine.value)
+                else:
+                    result = timeline.load(out)
+            scored.append((name, score.score(original_timeline, spans, excluded, result)))
+        table = report.markdown(original_timeline, scored)
         (out_dir / "table.md").write_text(table, encoding="utf-8")
-    except (timeline.TimelineError, checkpoints.CheckpointError, OSError) as exc:
+    except (
+        timeline.TimelineError,
+        checkpoints.CheckpointError,
+        chordotomy_module.ChordotomyError,
+        render_module.RenderError,
+        OSError,
+    ) as exc:
         raise _fail(str(exc)) from exc
     typer.echo(table, nl=False)
 
@@ -98,17 +175,8 @@ def render(
     gain: Annotated[float, typer.Option(help="FluidSynth's master gain.")] = 0.5,
 ) -> None:
     """Render a MIDI file to a WAV with FluidSynth."""
-    if soundfont is None:
-        env = os.environ.get("PIANOIZE_SOUNDFONT")
-        if not env:
-            raise typer.BadParameter(
-                "give --soundfont or set PIANOIZE_SOUNDFONT", param_hint="--soundfont"
-            )
-        soundfont = Path(env)
-    try:
-        source = mido.MidiFile(midi)
-    except (OSError, EOFError, ValueError) as exc:
-        raise _fail(f"{midi}: cannot read MIDI: {exc}") from exc
+    soundfont = _soundfont_path(soundfont)
+    source = _read_midi(midi)
     try:
         peak = render_module.render(source, out, soundfont, gain=gain)
     except render_module.RenderError as exc:

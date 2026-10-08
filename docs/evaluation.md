@@ -44,7 +44,22 @@ A checkpoint passes when every counted segment passes. One whose segments are al
 
 ## The results table
 
-`pianoize evaluate --original TIMELINE --checkpoints FILE --out-dir DIR NAME=RESULT.chords.json ...` writes `DIR/table.md` (overwriting it) and prints it. Each result is a chordotomy timeline, analyzed from the rendered result.
+`pianoize evaluate --original TIMELINE --checkpoints FILE --out-dir DIR NAME=RESULT ...` writes `DIR/table.md` (overwriting it) and prints it. A result is one of:
+
+- `RESULT.chords.json`: a chordotomy timeline, used as it is.
+- `RESULT.wav`: analyzed by chordotomy into `DIR/NAME.chords.json`.
+- `RESULT.mid`: rendered with FluidSynth into `DIR/NAME.wav`, then analyzed as above.
+
+Existing `DIR/NAME.wav` and `DIR/NAME.chords.json` are reused, matched by name only, so pass `--force` after changing a source file. They are reused because a model-engine analysis takes minutes per song and rows get added one at a time. `--force` renders and analyzes again. A reused timeline is still checked against the schema.
+
+| option | meaning |
+| --- | --- |
+| `--soundfont` | the SoundFont for `.mid` rows; defaults to `$PIANOIZE_SOUNDFONT`. A `.mid` row without one is a usage error. |
+| `--chordotomy` | the chordotomy executable; defaults to `$PIANOIZE_CHORDOTOMY`, then `chordotomy` on `PATH`. Only looked for when a row needs analysis. |
+| `--engine` | chordotomy's `--engine`: `auto`, `dsp` or `model` (default `model`) |
+| `--force` | ignore existing outputs |
+
+chordotomy runs with pianoize's environment unchanged, so its Beat This! weights come from the cache it normally uses.
 
 | column | meaning |
 | --- | --- |
@@ -57,3 +72,7 @@ A checkpoint passes when every counted segment passes. One whose segments are al
 Below the summary each row has a detail table with one line per checkpoint: its name, its start time (`m:ss`, in the original), the original's labels (slash form, `C:maj/E`), the chords found for them, and a mark per segment: `✓` passed, `✗` failed, `–` excluded. For a failed segment the chord found is the one sounding at its start.
 
 The beat-grid distance says how far the two analyses' beat grids sit from each other, so a large value warns that the result's timing was analyzed against a different grid. It does not say whether the chords line up; that is what the pass counts are for.
+
+## Rendering a MIDI file
+
+`pianoize render MIDI -o OUT.wav [--soundfont SF2] [--gain G]` renders one MIDI file with FluidSynth, as `evaluate` does for `.mid` rows, and prints the peak amplitude. It warns when the peak could clip; lower `--gain` then.

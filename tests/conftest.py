@@ -1,6 +1,7 @@
 import json
 import shutil
 import subprocess
+import sys
 from collections.abc import Callable
 from pathlib import Path
 
@@ -56,10 +57,12 @@ def fake_fluidsynth(monkeypatch, synth) -> FakeFluidSynth:
     fake = FakeFluidSynth()
     fake.clip = synth
     monkeypatch.setattr(shutil, "which", lambda name: f"/fake/bin/{name}")
+    real_run = subprocess.run
 
     def run(argv, **kwargs):
+        if argv[0] != "/fake/bin/fluidsynth":  # e.g. a fake chordotomy in the same test
+            return real_run(argv, **kwargs)
         assert kwargs.get("check") is True
-        assert argv[0] == "/fake/bin/fluidsynth"
         assert argv[1:7] == ["-ni", "-q", "-R", "0", "-C", "0"]
         assert argv[7] == "-g"
         assert argv[9:13] == ["-r", "44100", "-T", "wav"]
@@ -81,3 +84,38 @@ def fake_fluidsynth(monkeypatch, synth) -> FakeFluidSynth:
 
     monkeypatch.setattr(subprocess, "run", run)
     return fake
+
+
+class FakeChordotomy:
+    def __init__(self, path: Path, log: Path) -> None:
+        self.path = path
+        self._log = log
+
+    def calls(self) -> list[tuple[str, ...]]:
+        if not self._log.exists():
+            return []
+        return [tuple(line.split("\t")) for line in self._log.read_text().splitlines()]
+
+
+@pytest.fixture
+def fake_chordotomy(tmp_path, write_timeline):
+    """A chordotomy script that checks its argv, counts its calls and copies a fixture timeline
+    to -o. `calls()` lists the (audio, engine) pairs it was given."""
+    fixture = write_timeline([("C:maj", 4)], name="fixture.json")
+    calls = tmp_path / "calls.txt"
+    script = tmp_path / "bin" / "chordotomy"
+    script.parent.mkdir()
+    script.write_text(
+        f"""#!{sys.executable}
+import shutil, sys
+argv = sys.argv[1:]
+assert argv[0] == "analyze" and argv[2] == "-o", argv
+assert argv[4] == "--force" and argv[5] == "--engine", argv
+with open({str(calls)!r}, "a") as f:
+    f.write(argv[1] + "\\t" + argv[6] + "\\n")
+shutil.copy({str(fixture)!r}, argv[3])
+""",
+        encoding="utf-8",
+    )
+    script.chmod(0o755)
+    return FakeChordotomy(script, calls)

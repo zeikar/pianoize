@@ -37,3 +37,11 @@ uv run pianoize --version
 uv run pytest
 uv run ruff check . && uv run ruff format --check .
 ```
+
+Scoring and rendering need [FluidSynth](https://www.fluidsynth.org/), a piano SoundFont and [chordotomy](https://github.com/zeikar/chordotomy), installed separately. Options and environment variables are in [docs/evaluation.md](docs/evaluation.md).
+
+```sh
+uv run pianoize render song.mid -o song.wav
+uv run pianoize evaluate --original original.chords.json --checkpoints checkpoints.json \
+  --out-dir work/trial name=result.mid
+```
