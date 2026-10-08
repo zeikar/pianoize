@@ -1,0 +1,25 @@
+# CLAUDE.md
+
+Project-specific instructions for pianoize. The global ~/.claude/CLAUDE.md still applies; this only adds project rules.
+
+## Documentation map
+
+- [README.md](README.md): direction, the rules, layout, dev commands
+- [docs/decisions.md](docs/decisions.md): design decisions and their reasons
+- chordotomy's [timeline-json.md](https://github.com/zeikar/chordotomy/blob/main/docs/timeline-json.md): the chord timeline pianoize reads (schema 11)
+- CLAUDE.md (this file): rules to follow while working
+
+## Rules
+
+The [rules in the README](README.md#rules) apply. The reasons for those and for the rules below are in [docs/decisions.md](docs/decisions.md).
+
+- **Don't change chordotomy.** pianoize reads its timeline JSON, checks `schema_version`, and runs its CLI as a separately installed tool. It doesn't import chordotomy or share its environment.
+- **No GPL/AGPL code in the repo or its dependencies.** That covers vendored code and anything imported or bundled, Python or npm; Neothesia and YourMT3+ are out. LGPL is allowed. A tool the user installs separately and pianoize runs as a subprocess is allowed whatever its license.
+- **Check the license before adding a dependency, model or sample library.** Weights included. Record the date and the source in docs/decisions.md. Weights with non-commercial terms are allowed, and are downloaded into `work/`.
+- **The CLI never calls an LLM.** An agent session writes the arrangement spec into `work/`. Code validates it and turns it into notes deterministically: the same inputs give byte-identical output.
+- **Arrangements are playable.** The generator enforces, and a check verifies, notes per hand, hand span and no crossed hands.
+- **Models with conflicting dependencies run in their own environments**, not in the core package.
+- Tests synthesize their audio. The default suite runs no model and downloads nothing.
+- The version lives only in `pyproject.toml`; code reads it through `importlib.metadata`.
+- Once the arrangement JSON has a schema, document it in docs/ and treat changes to it as breaking.
+- **Commit to `main` and push.** Work done on a separate branch is merged into `main` and pushed once it's finished. Commit messages are conventional commits (`feat(scope): …`, `chore: …`).
