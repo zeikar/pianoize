@@ -6,6 +6,7 @@ Project-specific instructions for pianoize. The global ~/.claude/CLAUDE.md still
 
 - [README.md](README.md): direction, the rules, layout, dev commands
 - [docs/decisions.md](docs/decisions.md): design decisions and their reasons
+- [docs/evaluation.md](docs/evaluation.md): the evaluation tooling and the checkpoint file format
 - chordotomy's [timeline-json.md](https://github.com/zeikar/chordotomy/blob/main/docs/timeline-json.md): the chord timeline pianoize reads (schema 11)
 - CLAUDE.md (this file): rules to follow while working
 
