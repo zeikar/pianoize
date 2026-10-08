@@ -10,7 +10,7 @@ from typing import Annotated
 import mido
 import typer
 
-from . import __version__, checkpoints, report, score, timeline
+from . import __version__, checkpoints, melody, report, score, timeline
 from . import chordotomy as chordotomy_module
 from . import render as render_module
 
@@ -184,3 +184,41 @@ def render(
     typer.echo(f"peak {peak:.3f}")
     if peak >= _CLIPPING:
         typer.echo(f"warning: peak {peak:.3f} may clip; lower --gain", err=True)
+
+
+def _percent(ratio: float | None) -> str:
+    return "n/a" if ratio is None else f"{ratio:.1%}"
+
+
+def _clock(seconds: float) -> str:
+    minutes, rest = divmod(round(seconds, 1), 60)
+    return f"{int(minutes)}:{rest:04.1f}"
+
+
+@app.command("melody-clashes")
+def melody_clashes(
+    melody_path: Annotated[Path, typer.Argument(metavar="MELODY.mid", exists=True, dir_okay=False)],
+    timeline_path: Annotated[
+        Path, typer.Argument(metavar="TIMELINE.chords.json", exists=True, dir_okay=False)
+    ],
+    mono: Annotated[
+        bool, typer.Option("--mono", help="Reduce the melody to one voice first.")
+    ] = False,
+) -> None:
+    """List the melody notes that clash with the chord under them."""
+    midi = _read_midi(melody_path)
+    try:
+        chords = timeline.load(timeline_path)
+    except timeline.TimelineError as exc:
+        raise _fail(str(exc)) from exc
+    found = melody.notes(midi)
+    if mono:
+        found = melody.monophonic(found)
+    result = melody.clashes(found, chords)
+    typer.echo(f"notes: {result.consonant_notes} consonant, {result.clashing_notes} clashing")
+    typer.echo(f"clash ratio by notes: {_percent(result.note_ratio)}")
+    consonant, clashing = result.consonant_seconds, result.clashing_seconds
+    typer.echo(f"time: {consonant:.1f} s consonant, {clashing:.1f} s clashing")
+    typer.echo(f"clash ratio by duration: {_percent(result.duration_ratio)}")
+    for clash in result.clashes:
+        typer.echo(f"{_clock(clash.time)}  {melody.pitch_name(clash.pitch)}  over {clash.chord}")

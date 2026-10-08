@@ -115,7 +115,8 @@ def candidates(original: dict, result: dict, segment: dict, held: dict | None) -
     return [s for s in result["segments"] if low <= s["start_time"] <= high or s is held]
 
 
-def _label(segment: dict) -> str:
+def label(segment: dict) -> str:
+    """The segment's chord in slash form, e.g. C:maj/E, when it is inverted."""
     if _inverted(segment):
         return f"{segment['chord']}/{segment['bass']}"
     return segment["chord"]
@@ -164,8 +165,8 @@ def score(
         scored.append(
             ScoredSegment(
                 start_beat=start,
-                original=_label(segment),
-                shown=_label(shown) if shown is not None else None,
+                original=label(segment),
+                shown=label(shown) if shown is not None else None,
                 passed=chosen is not None,
                 exact=chosen is not None and exact(segment, chosen),
                 excluded=any(_inside(start, e) for e in excluded),

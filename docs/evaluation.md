@@ -76,3 +76,17 @@ The beat-grid distance says how far the two analyses' beat grids sit from each o
 ## Rendering a MIDI file
 
 `pianoize render MIDI -o OUT.wav [--soundfont SF2] [--gain G]` renders one MIDI file with FluidSynth, as `evaluate` does for `.mid` rows, and prints the peak amplitude. It warns when the peak could clip; lower `--gain` then.
+
+## Melody chord clashes
+
+`pianoize melody-clashes MELODY.mid TIMELINE.chords.json [--mono]` lists the notes of a melody MIDI file that clash with the chord under them, to compare melody extractors (Basic Pitch, GAME) on the same song.
+
+- **Notes.** Every track is read through mido's merged seconds iteration, so the tempo map applies. Channel 9 (drums) is ignored. `note_on` with velocity 0 is a `note_off`. A note struck again while sounding ends at the new strike, and a note still sounding at the end of the file ends there.
+- **Consonant.** A note is consonant when its pitch class is in the chord's tones: the label's own tones (`chords.INTERVALS`, sevenths and ninths included) plus the slash bass, which sounds too. A melody note on the bass of `C:maj/B` is not a clash. Anything else clashes.
+- **By notes.** Each note is judged by the segment at its onset.
+- **By duration.** Each note is split over the segments it overlaps, and the consonant and clashing time are summed. A note that sustains across a chord change counts once by notes, judged at its onset, but its time is shared between the two chords.
+- **Left out of both.** Notes and time before the first beat (`beats[0]`) and under `N`.
+- **Ratio.** Clashing / (consonant + clashing). With nothing counted it prints `n/a`.
+- **`--mono`.** Reduces the melody to one voice first: of notes starting within 30 ms of the first one's onset the highest stays, and each note ends at the next one's onset. Basic Pitch is polyphonic and GAME can double a voice.
+
+The output is the note counts and the ratio by notes, the seconds and the ratio by duration, then one line per clashing note: its time (`m:ss.s`), its pitch (`F#4`, C4 is MIDI 60) and the chord over it in slash form.
