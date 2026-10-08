@@ -1,7 +1,7 @@
 """Scoring whether a result kept the original's harmony, checkpoint by checkpoint.
 
 A chord passes when its root and triad class match, and its bass too where the original is
-inverted; it is looked up at the same time within one beat either way (docs/decisions.md).
+inverted; it is looked up at the same time within one beat either way (docs/evaluation.md).
 """
 
 import bisect

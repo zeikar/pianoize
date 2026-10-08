@@ -33,7 +33,7 @@ A video carries only the piano pianoize renders, never the original audio or voc
 
 A piano result is rendered from MIDI to audio and analyzed with chordotomy. The result is then compared with the original's timeline at the same times. A checkpoint is a run of segments in the original timeline: a borrowed iv, a V7/vi, a chromatic bass line under the chorus, passing chords. The result's chords are looked up at the same time, within one beat either way.
 
-A chord passes when its root and triad quality (maj, min, aug, dim) match, and its bass as well where the original is inverted. Sevenths and tensions are ignored, because chordotomy's sevenths come and go between repeats of the same passage. The bass has to match because in a passage like C/E – Cm/E♭ – G/D – A/C♯ – D the descending bass is the point. Whether the exact labels match is shown as a separate column, for reference.
+A chord passes when its root, triad class and, for inverted originals, bass match; the full rule is in [docs/evaluation.md](evaluation.md#the-pass-rule). Sevenths and tensions are ignored, because chordotomy's sevenths come and go between repeats of the same passage. The bass has to match because in a passage like C/E – Cm/E♭ – G/D – A/C♯ – D the descending bass is the point.
 
 A human cover is scored the same way. That checks the scoring itself: the cover's simplifications have to come out as failures.
 
