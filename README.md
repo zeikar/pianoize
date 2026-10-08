@@ -22,6 +22,7 @@ Status: skeleton. `pianoize --version` runs; nothing else does yet.
 
 - `src/pianoize/`: the arrangement engine, in Python
 - `viewer/`: the falling-notes renderer, for the web (not started)
+- `experiments/`: [M1 model trial](experiments/m1/README.md) scripts; the scripts and their environments live in `work/m1/`
 - `docs/`: [design decisions](docs/decisions.md), and later the arrangement JSON schema
 - `work/`: recordings and everything made from them, gitignored
 

@@ -54,3 +54,19 @@ The pianoize CLI never calls an LLM. That way there is no API key and no cost, a
 Melody has no ground truth, and an extraction error would otherwise go straight into the video. So the extracted melody is exported as MIDI. A MIDI corrected by hand in a DAW can be fed back in its place. A report lists the notes that clash with the chord, to show where to look.
 
 Editing the generated arrangement itself is out of scope. Generating the song again would overwrite the edits.
+
+## M1 license check (2026-10-08)
+
+Upstream programs run as separately installed subprocess tools, each in its own environment under `work/m1/`. Homebrew's FFmpeg (built `--enable-gpl`) is loaded only inside the processes of tsumugi and Etude, through torchcodec. That is accepted because those run as separately installed subprocess tools and nothing committed imports or links FFmpeg. Rows are added as each candidate is tried.
+
+| candidate | code license | weight license | revision | SHA-256 | runs on this Mac? | runtime notes |
+| --- | --- | --- | --- | --- | --- | --- |
+| PiCoGen2 | MIT, [LICENSE](https://github.com/tanchihpin0517/PiCoGen/blob/v2/LICENSE) ([repo](https://github.com/tanchihpin0517/PiCoGen/tree/v2)) | CC BY-NC-SA 3.0 | not downloaded | not downloaded | no: excluded | documents Linux with a GPU of more than 16 GB |
+| Sheet Sage | MIT, [repo](https://github.com/chrisdonahue/sheetsage) | transcription weights CC BY-NC-SA 3.0 | not downloaded | not downloaded | no: excluded | Linux/Docker path; Jukebox features need CUDA |
+| sfizz | BSD-2, [repo](https://github.com/sfztools/sfizz) | none | 1.2.3 (last release) | not downloaded | no: rejected | archived March 2025; the macOS `sfizz_render` binary is x86-64 only |
+
+## MIDI is rendered with FluidSynth
+
+[FluidSynth](https://github.com/FluidSynth/fluidsynth) (LGPL-2.1) renders MIDI to audio. pianoize runs its CLI as a subprocess. It is installed with Homebrew, the one approved global install; the formulas it adds are recorded so they can be removed later. The flags are fixed, `-R 0 -C 0 -g 0.5 -r 44100` (no reverb, no chorus, gain 0.5, 44.1 kHz), so the same MIDI renders the same way. The FluidSynth version is recorded with the results.
+
+The SoundFont is Salamander Grand Piano V3 (SF2; CC BY 3.0, Alexander Holm; [FreePats](https://freepats.zenvoid.org/Piano/acoustic-grand-piano.html)). It is used for evaluation and for video audio. Every video description carries the credit line: "Piano sound: Salamander Grand Piano V3 by Alexander Holm (CC BY 3.0), via FreePats." Upright Piano KW (CC0 1.0, same page) is the fallback if the sound disappoints.
