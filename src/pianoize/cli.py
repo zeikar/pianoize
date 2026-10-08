@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Annotated
 
+import mido
 import typer
 
 from . import __version__, checkpoints, report, score, timeline
+from . import render as render_module
 
 app = typer.Typer(no_args_is_help=True, add_completion=False)
 
@@ -79,3 +82,37 @@ def evaluate(
     except (timeline.TimelineError, checkpoints.CheckpointError, OSError) as exc:
         raise _fail(str(exc)) from exc
     typer.echo(table, nl=False)
+
+
+_CLIPPING = 0.99
+
+
+@app.command()
+def render(
+    midi: Annotated[Path, typer.Argument(help="The MIDI file.", exists=True, dir_okay=False)],
+    out: Annotated[Path, typer.Option("-o", "--out", help="The WAV file to write.")],
+    soundfont: Annotated[
+        Path | None,
+        typer.Option(help="The SoundFont; defaults to $PIANOIZE_SOUNDFONT."),
+    ] = None,
+    gain: Annotated[float, typer.Option(help="FluidSynth's master gain.")] = 0.5,
+) -> None:
+    """Render a MIDI file to a WAV with FluidSynth."""
+    if soundfont is None:
+        env = os.environ.get("PIANOIZE_SOUNDFONT")
+        if not env:
+            raise typer.BadParameter(
+                "give --soundfont or set PIANOIZE_SOUNDFONT", param_hint="--soundfont"
+            )
+        soundfont = Path(env)
+    try:
+        source = mido.MidiFile(midi)
+    except (OSError, EOFError, ValueError) as exc:
+        raise _fail(f"{midi}: cannot read MIDI: {exc}") from exc
+    try:
+        peak = render_module.render(source, out, soundfont, gain=gain)
+    except render_module.RenderError as exc:
+        raise _fail(str(exc)) from exc
+    typer.echo(f"peak {peak:.3f}")
+    if peak >= _CLIPPING:
+        typer.echo(f"warning: peak {peak:.3f} may clip; lower --gain", err=True)
