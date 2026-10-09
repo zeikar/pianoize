@@ -6,18 +6,18 @@ The goal is falling-notes videos of piano arrangements for a personal, non-monet
 
 1. **M0**: these rules and the package skeleton.
 2. **M1**: run the existing audio-to-piano-cover models that run on a Mac, and the melody extractors, and score them together with a human piano cover.
-3. **M2**: correcting the M1 model's arrangement to the original's harmony.
+3. **M2**: polishing the M1 model's arrangement: its harmony, slips, voice leading and timing.
 4. **M3**: the renderer.
 
 If a model in M1 keeps the harmony, pianoize wraps it. If it simplifies the harmony the way the human cover does, M2 is the reason pianoize exists. The user makes that call from the M1 table; there is no fixed threshold.
 
-**Decision (2026-10-09): pianoize wraps tsumugi-piano-cover.** It scored the most checkpoints in M1 (11 of 20), and to the user's ear its render kept the harmony. Two of its misses are the analyzer reading Cm over E♭ as E♭ major, the same misreading the synthetic check found; the rest are a few passages (the bridge, the augmented passing chords, one passing chord, parts of two choruses). So M2 corrects tsumugi's cover where it departs from the original's harmony instead of arranging from scratch. Etude scored 10 of 20 but sounded less clear, and its ShareAlike weights complicate the videos; Pop2Piano has no license. The numbers are in [M1 results](#m1-results-2026-10-09).
+**Decision (2026-10-09): pianoize wraps tsumugi-piano-cover.** It scored the most checkpoints in M1 (11 of 20), and to the user's ear its render kept the harmony. Two of its misses are the analyzer reading Cm over E♭ as E♭ major, the same misreading the synthetic check found; the rest are a few passages (the bridge, the augmented passing chords, one passing chord, parts of two choruses). So M2 polishes tsumugi's cover instead of arranging from scratch: where it departs from the original's harmony, and where a note slips, a voice jumps or the timing stumbles. Etude scored 10 of 20 but sounded less clear, and its ShareAlike weights complicate the videos; Pop2Piano has no license. The numbers are in [M1 results](#m1-results-2026-10-09).
 
 ## Harmony from several sources; chordotomy stays as it is
 
 [chordotomy](https://github.com/zeikar/chordotomy) already gives chords, the bass and inversions, beats, key regions and Roman numerals. It deliberately stops there: melody → MIDI is outside it, so pianoize doesn't add it there. pianoize reads the timeline JSON and checks its `schema_version` (11 for now). To analyze audio it runs the `chordotomy` CLI as a separately installed tool. chordotomy's model extra pins torch, lv-chordia and beat-this, and the pianoize models in M1 bring their own pins, so the two don't share an environment.
 
-chordotomy's timeline is one reading, not the answer key. M1 showed it: scoring tsumugi's cover against it counted the analyzer's own misreadings as the model's mistakes. It read Cm over E♭ as E♭ major, an augmented chord as major, and a melody note on top of the piano as the chord. Reading the cover's notes found only two passages that really depart from the song. Web chord charts are transcribed by people and often get the harmony right, but they carry no timing and may be transposed or simplified; tsumugi's transcription brings its own chord, bass and melody tracks. So an LLM skill gathers these readings, weighs each disagreement against the others and against the notes, and writes one refined harmony timeline. That timeline, not chordotomy's, is what the cover is corrected against. Charts copied from websites stay in `work/`, like recordings.
+chordotomy's timeline is one reading, not the answer key. M1 showed it: scoring tsumugi's cover against it counted the analyzer's own misreadings as the model's mistakes. It read Cm over E♭ as E♭ major, an augmented chord as major, and a melody note on top of the piano as the chord. Reading the cover's notes found only two passages that really depart from the song. Web chord charts are transcribed by people and often get the harmony right, but they carry no timing and may be transposed or simplified; tsumugi's transcription brings its own chord, bass and melody tracks. So an LLM skill gathers these readings, weighs each disagreement against the others and against the notes, and writes one refined harmony timeline. That timeline, not chordotomy's, is what the cover's chords are checked against. Charts copied from websites stay in `work/`, like recordings.
 
 ## Downbeats from Beat This!, on chordotomy's beats
 
@@ -53,7 +53,7 @@ A falling-notes video reads as a piece someone could play. So arrangements are p
 
 ## An agent writes the correction spec, code applies it
 
-Where tsumugi's cover departs from the original's harmony, an LLM decides how to bring it back: which chord the passage should sound, and which bass. Code applies those choices to the cover's notes. The LLM is an agent session, such as Claude Code. It reads the timeline, the cover and the scoring, and writes the spec as a file in `work/`.
+tsumugi's cover is kept; M2 polishes it rather than generating a new one. Four kinds of problem are worth fixing: a chord that doesn't match the song, a note that sounds like a slip, a voice that jumps or a bass line that breaks off, and timing that stumbles. An LLM can't listen, so code reads the cover's notes and lists candidates of each kind with the notes around them. The LLM judges each candidate against the refined harmony and the music around it, and writes a correction spec for those worth fixing, with a reason for each one it keeps. Code applies the spec to a copy of the cover. The LLM is an agent session, such as Claude Code; it writes the spec as a file in `work/`.
 
 The pianoize CLI never calls an LLM. That way there is no API key and no cost, and the spec can be read and edited by hand. The same cover and spec give byte-identical output. A CLI that calls an API could later write the same file format.
 
@@ -61,7 +61,7 @@ The pianoize CLI never calls an LLM. That way there is no API key and no cost, a
 
 tsumugi's cover already carries the melody, so no separate melody extractor feeds pianoize; GAME, Basic Pitch and torchcrepe were compared in M1 only for an arrangement built from scratch. tsumugi's transcription also writes a `melody` track, which can mark the cover's melody notes so a correction leaves them alone.
 
-Corrections live in the spec, not in hand edits to the cover's MIDI, so they apply again to a regenerated cover.
+Corrections live in the spec, not in hand edits to the cover's MIDI: the cover stays untouched, and each change can be read and undone.
 
 ## M1 license check (2026-10-08)
 

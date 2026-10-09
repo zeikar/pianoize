@@ -8,7 +8,7 @@ Status: M1 tooling runs: `pianoize evaluate`, `render` and `melody-clashes`. The
 
 - **Harmony from several imperfect sources, refined by an LLM.** A [chordotomy](https://github.com/zeikar/chordotomy) timeline gives beats, chords, bass and key; web chord charts and tsumugi's transcription give other readings. Each gets things wrong, so none is the answer key. An LLM skill weighs them against each other and against the notes, and writes one refined harmony timeline. chordotomy itself stays an analyzer.
 - **The arrangement starts from tsumugi-piano-cover.** M1 compared the audio-to-piano models that run on a Mac; tsumugi-piano-cover kept the most harmony and sounded best, so pianoize starts from its cover ([decision](docs/decisions.md#the-arrangement-first-the-video-last)).
-- **An LLM corrects the cover, code applies it.** Where the cover departs from the refined harmony, an agent writes a correction spec. Deterministic code applies it to the cover.
+- **An LLM polishes the cover, code applies it.** The cover is kept, not regenerated. Code lists the places that may need work: chords that disagree with the refined harmony, notes that sound like slips, awkward voice leading and stumbling timing. An agent judges each one and writes a correction spec for those worth fixing. Deterministic code applies it to a copy of the cover.
 - **Falling-notes output.** A piano roll drawn over time needs no bar lines or time signature.
 
 ## Rules
