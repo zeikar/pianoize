@@ -11,9 +11,9 @@ The scripts read two recordings, kept in `work/` and never committed:
 
 Each script takes them from the environment (`SONG_MP3=... COVER_MP3=... bash experiments/m1/02_decode_input.sh`). Scripts that need only one say so in their header.
 
-## Scripts, in planned order
+## Scripts, in order
 
-The scripts land in later tasks; until then only `env.sh` exists. Run each with `bash`, from anywhere. Each sources `env.sh`.
+Run each with `bash`, from anywhere. Each sources `env.sh`.
 
 | script | does |
 | --- | --- |
