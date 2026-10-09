@@ -25,7 +25,7 @@ The scripts land in later tasks; until then only `env.sh` exists. Run each with 
 | `04_demucs.sh` | separates stems |
 | `05_game.sh` | melody with GAME |
 | `06_basic_pitch.sh` | melody with Basic Pitch |
-| `07_torchcrepe.sh` | pitch track with torchcrepe |
+| `07_torchcrepe.sh` | fallback melody with torchcrepe; written only if neither GAME nor Basic Pitch yields a melody (not needed in this run) |
 | `08_tsumugi.sh` | piano cover with tsumugi |
 | `09_etude.sh` | piano cover with Etude |
 | `10_results.sh` | builds the results table |
