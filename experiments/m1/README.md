@@ -21,7 +21,7 @@ The scripts land in later tasks; until then only `env.sh` exists. Run each with 
 | `00_fluidsynth.sh` | installs FluidSynth with Homebrew, records the formulas |
 | `01_soundfont.sh` | downloads the piano SoundFont |
 | `02_decode_input.sh` | decodes the recordings into `input/` |
-| `03_validate.sh` | checks the scoring on the human cover |
+| `03_validate.sh` | checks render, analysis and scoring on a synthetic progression (`make_synthetic.py`), then scores the human cover and the decoded original |
 | `04_demucs.sh` | separates stems |
 | `05_game.sh` | melody with GAME |
 | `06_basic_pitch.sh` | melody with Basic Pitch |

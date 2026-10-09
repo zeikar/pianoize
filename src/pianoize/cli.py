@@ -68,6 +68,25 @@ class Engine(StrEnum):
     MODEL = "model"
 
 
+def _refuse_overwriting_inputs(
+    parsed: list[tuple[str, Path]], out_dir: Path, inputs: list[Path]
+) -> None:
+    # A row's outputs share OUT_DIR with whatever else is there: a name that lands on an input
+    # would make that input pass for the row's analysis, or overwrite it under --force.
+    taken = {path.resolve() for path in inputs} | {path.resolve() for _, path in parsed}
+    for name, path in parsed:
+        if path.name.endswith(_CHORDS_SUFFIX):
+            continue
+        outputs = [out_dir / f"{name}{_CHORDS_SUFFIX}"]
+        if path.suffix == ".mid":
+            outputs.append(out_dir / f"{name}.wav")
+        for output in outputs:
+            if output.resolve() in taken:
+                raise typer.BadParameter(
+                    f"row {name!r} would overwrite an input: {output}", param_hint="ROW"
+                )
+
+
 def _soundfont_path(value: Path | None) -> Path:
     if value is not None:
         return value
@@ -123,6 +142,7 @@ def evaluate(
     analysis takes minutes per song.
     """
     parsed = _parse_rows(rows)
+    _refuse_overwriting_inputs(parsed, out_dir, [original, checkpoints_path])
     if any(path.suffix == ".mid" for _, path in parsed):
         soundfont = _soundfont_path(soundfont)
     try:

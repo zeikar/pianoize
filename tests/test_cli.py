@@ -75,6 +75,25 @@ def test_evaluate_refuses_a_row_name_that_is_not_a_file_name(tmp_path, write_tim
     assert not (tmp_path / "out").exists()
 
 
+def test_evaluate_refuses_a_row_that_would_overwrite_an_input(tmp_path, write_timeline, synth):
+    original = write_timeline([("C:maj", 4)], name="song.chords.json")
+    checkpoints = tmp_path / "checkpoints.json"
+    checkpoints.write_text(
+        json.dumps({"checkpoints": [{"name": "all", "start_beat": 0, "end_beat": 4}]})
+    )
+    wav = _wav(tmp_path, synth)
+
+    result = CliRunner().invoke(
+        app,
+        ["evaluate", "--original", str(original), "--checkpoints", str(checkpoints),
+         "--out-dir", str(tmp_path), f"song={wav}"],
+    )  # fmt: skip
+
+    assert result.exit_code == 2
+    assert "would overwrite an input" in " ".join(result.output.split())
+    assert json.loads(original.read_text())["schema_version"] == 11
+
+
 def test_evaluate_refuses_a_repeated_row_name(tmp_path, write_timeline):
     row = f"a={write_timeline([('C:maj', 4)], name='r.chords.json')}"
 
