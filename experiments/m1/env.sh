@@ -4,6 +4,12 @@
 # Points every cache and temp dir under work/m1 so it can be removed in one step.
 # 11_leak_check.sh is what verifies that nothing escaped.
 
+# Outside bash (zsh, sh) BASH_SOURCE is empty and REPO would resolve against the current
+# directory, putting work/m1 somewhere else entirely.
+if [ -z "${BASH_SOURCE[0]:-}" ]; then
+  echo "experiments/m1/env.sh must be sourced from bash" >&2
+  return 1 2>/dev/null || exit 1
+fi
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 M1="$REPO/work/m1"
 export REPO M1
