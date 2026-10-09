@@ -196,10 +196,12 @@ def render(
 ) -> None:
     """Render a MIDI file to a WAV with FluidSynth."""
     soundfont = _soundfont_path(soundfont)
+    if out.resolve() in (midi.resolve(), soundfont.resolve()):
+        raise typer.BadParameter(f"would overwrite an input: {out}", param_hint="--out")
     source = _read_midi(midi)
     try:
         peak = render_module.render(source, out, soundfont, gain=gain)
-    except render_module.RenderError as exc:
+    except (render_module.RenderError, OSError) as exc:
         raise _fail(str(exc)) from exc
     typer.echo(f"peak {peak:.3f}")
     if peak >= _CLIPPING:

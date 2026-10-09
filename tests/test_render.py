@@ -73,21 +73,34 @@ def test_render_returns_the_clips_peak(tmp_path, make_midi, fake_fluidsynth):
     peak = render.render(make_midi([("C:maj", 4)]), wav, tmp_path / "font.sf2")
 
     assert peak == pytest.approx(float(abs(fake_fluidsynth.clip).max()), abs=1e-4)
-    assert fake_fluidsynth.calls[0]["wav"] == wav
+    assert fake_fluidsynth.calls[0]["wav"].parent.parent == tmp_path
+    assert [p.name for p in tmp_path.iterdir()] == ["out.wav"]
     assert not fake_fluidsynth.calls[0]["mid"].exists()
 
 
-def test_failed_render_raises_with_stderr_and_leaves_no_temp_file(
+def test_failed_render_raises_with_stderr_and_keeps_an_existing_destination(
     tmp_path, make_midi, fake_fluidsynth
 ):
     fake_fluidsynth.fail = "bad soundfont"
+    (tmp_path / "out.wav").write_bytes(b"old")
 
     with pytest.raises(render.RenderError, match="bad soundfont"):
         render.render(make_midi([("C:maj", 4)]), tmp_path / "out.wav", tmp_path / "font.sf2")
 
     assert not fake_fluidsynth.calls[0]["mid"].exists()
     assert not fake_fluidsynth.calls[0]["mid"].parent.exists()
-    assert not (tmp_path / "out.wav").exists()
+    assert (tmp_path / "out.wav").read_bytes() == b"old"
+    assert [p.name for p in tmp_path.iterdir()] == ["out.wav"]
+
+
+def test_render_leaves_an_unrelated_partial_file_alone(tmp_path, make_midi, fake_fluidsynth):
+    other = tmp_path / ".partial-out.wav"
+    other.write_bytes(b"another render's")
+
+    render.render(make_midi([("C:maj", 4)]), tmp_path / "out.wav", tmp_path / "font.sf2")
+
+    assert other.read_bytes() == b"another render's"
+    assert sorted(p.name for p in tmp_path.iterdir()) == [".partial-out.wav", "out.wav"]
 
 
 def test_empty_audio_raises(tmp_path, make_midi, fake_fluidsynth):
@@ -97,13 +110,17 @@ def test_empty_audio_raises(tmp_path, make_midi, fake_fluidsynth):
         render.render(make_midi([("C:maj", 4)]), tmp_path / "out.wav", tmp_path / "font.sf2")
 
 
-def test_silent_audio_raises_and_leaves_no_file(tmp_path, make_midi, fake_fluidsynth):
+def test_silent_audio_raises_and_keeps_an_existing_destination(
+    tmp_path, make_midi, fake_fluidsynth
+):
     fake_fluidsynth.clip = fake_fluidsynth.clip * 0
+    (tmp_path / "out.wav").write_bytes(b"old")
 
     with pytest.raises(render.RenderError, match="silent"):
         render.render(make_midi([("C:maj", 4)]), tmp_path / "out.wav", tmp_path / "font.sf2")
 
-    assert not (tmp_path / "out.wav").exists()
+    assert [p.name for p in tmp_path.iterdir()] == ["out.wav"]
+    assert (tmp_path / "out.wav").read_bytes() == b"old"
 
 
 def test_normalize_fails_when_the_drum_channel_cannot_move():
@@ -160,6 +177,30 @@ def test_cli_render_prints_the_peak_from_the_env_soundfont(
     assert result.stdout.startswith("peak 0.5")
 
 
+@pytest.mark.parametrize("target", ["in.mid", "font.sf2"])
+def test_cli_render_refuses_to_overwrite_an_input(tmp_path, make_midi, fake_fluidsynth, target):
+    mid = tmp_path / "in.mid"
+    make_midi([("C:maj", 4)]).save(mid)
+    (tmp_path / "font.sf2").write_bytes(b"font")
+    before = (tmp_path / target).read_bytes()
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "render",
+            str(mid),
+            "--soundfont",
+            str(tmp_path / "font.sf2"),
+            "-o",
+            str(tmp_path / target),
+        ],
+    )
+
+    assert result.exit_code == 2
+    assert (tmp_path / target).read_bytes() == before
+    assert not fake_fluidsynth.calls
+
+
 def test_cli_render_reports_a_render_error(tmp_path, make_midi, fake_fluidsynth, monkeypatch):
     monkeypatch.setenv("PIANOIZE_SOUNDFONT", str(tmp_path / "font.sf2"))
     fake_fluidsynth.fail = "boom"
@@ -170,6 +211,20 @@ def test_cli_render_reports_a_render_error(tmp_path, make_midi, fake_fluidsynth,
 
     assert result.exit_code == 1
     assert "error:" in result.output and "boom" in result.output
+
+
+def test_cli_render_reports_a_missing_output_directory(
+    tmp_path, make_midi, fake_fluidsynth, monkeypatch
+):
+    monkeypatch.setenv("PIANOIZE_SOUNDFONT", str(tmp_path / "font.sf2"))
+    mid = tmp_path / "in.mid"
+    make_midi([("C:maj", 4)]).save(mid)
+
+    result = CliRunner().invoke(app, ["render", str(mid), "-o", str(tmp_path / "gone" / "out.wav")])
+
+    assert result.exit_code == 1
+    assert "error:" in result.output
+    assert not isinstance(result.exception, OSError)
 
 
 @pytest.mark.fluidsynth

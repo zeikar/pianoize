@@ -63,28 +63,27 @@ def render(
     binary = shutil.which(fluidsynth)
     if binary is None:
         raise RenderError(f"{fluidsynth} not found on PATH; install FluidSynth")
-    # A stale file from an earlier run must not pass for this run's output.
-    wav.unlink(missing_ok=True)
-    try:
-        with tempfile.TemporaryDirectory() as tmp:
-            mid = Path(tmp) / "normalized.mid"
-            normalize(midi).save(mid)
-            command = [
-                binary, "-ni", "-q", "-R", "0", "-C", "0", "-g", str(gain), "-r", str(sample_rate),
-                "-T", "wav", "-F", str(wav), str(soundfont), str(mid),
-            ]  # fmt: skip
-            try:
-                subprocess.run(command, check=True, capture_output=True, text=True)
-            except subprocess.CalledProcessError as exc:
-                raise RenderError(
-                    f"{fluidsynth} failed ({exc.returncode}): {exc.stderr.strip()}"
-                ) from exc
-            except OSError as exc:
-                raise RenderError(f"cannot run {fluidsynth}: {exc}") from exc
-        return _peak(wav, fluidsynth)
-    except RenderError:
-        wav.unlink(missing_ok=True)  # a failed render leaves no file behind
-        raise
+    # The scratch directory sits beside the destination, so the final replace is atomic and a
+    # failed render leaves any existing destination as it was.
+    with tempfile.TemporaryDirectory(dir=wav.parent, prefix=".render-") as tmp:
+        mid = Path(tmp) / "normalized.mid"
+        partial = Path(tmp) / "out.wav"
+        normalize(midi).save(mid)
+        command = [
+            binary, "-ni", "-q", "-R", "0", "-C", "0", "-g", str(gain), "-r", str(sample_rate),
+            "-T", "wav", "-F", str(partial), str(soundfont), str(mid),
+        ]  # fmt: skip
+        try:
+            subprocess.run(command, check=True, capture_output=True, text=True)
+        except subprocess.CalledProcessError as exc:
+            raise RenderError(
+                f"{fluidsynth} failed ({exc.returncode}): {exc.stderr.strip()}"
+            ) from exc
+        except OSError as exc:
+            raise RenderError(f"cannot run {fluidsynth}: {exc}") from exc
+        peak = _peak(partial, fluidsynth)
+        partial.replace(wav)
+    return peak
 
 
 def _peak(wav: Path, fluidsynth: str) -> float:

@@ -99,4 +99,5 @@ def midi(progression: Progression, bpm: float = 120) -> mido.MidiFile:
                     mido.Message("note_off", note=note, velocity=0, time=gate if n == 0 else 0)
                 )
             rest = ticks - gate if notes else rest + ticks
+    track.append(mido.MetaMessage("end_of_track", time=rest))
     return mid
