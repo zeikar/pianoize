@@ -54,9 +54,10 @@ XDG_CACHE_HOME="$CHORDOTOMY_XDG_CACHE_HOME" "$PIANOIZE" evaluate \
 
 for midi in "$M1"/melody/*.mid; do
   name="$(basename "$midi" .mid)"
-  # Basic Pitch is polyphonic. GAME is monophonic by design, so it is scored as extracted.
+  # Basic Pitch and tsumugi's melody track are polyphonic (tsumugi's stacks up to 4 notes).
+  # GAME is monophonic by design, so it is scored as extracted.
   mono=""
-  case "$name" in basic-pitch*) mono=--mono ;; esac
+  case "$name" in basic-pitch* | tsumugi-vocal*) mono=--mono ;; esac
   "$PIANOIZE" melody-clashes ${mono:+"$mono"} "$midi" "$ORIGINAL" > "$RESULTS/melody-$name.txt"
   echo "melody-$name:"
   head -n 4 "$RESULTS/melody-$name.txt"
