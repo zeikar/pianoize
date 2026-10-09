@@ -13,9 +13,11 @@ If a model in M1 keeps the harmony, pianoize wraps it. If it simplifies the harm
 
 **Decision (2026-10-09): pianoize wraps tsumugi-piano-cover.** It scored the most checkpoints in M1 (11 of 20), and to the user's ear its render kept the harmony. Two of its misses are the analyzer reading Cm over E♭ as E♭ major, the same misreading the synthetic check found; the rest are a few passages (the bridge, the augmented passing chords, one passing chord, parts of two choruses). So M2 corrects tsumugi's cover where it departs from the original's harmony instead of arranging from scratch. Etude scored 10 of 20 but sounded less clear, and its ShareAlike weights complicate the videos; Pop2Piano has no license. The numbers are in [M1 results](#m1-results-2026-10-09).
 
-## Harmony from chordotomy, which stays as it is
+## Harmony from several sources; chordotomy stays as it is
 
 [chordotomy](https://github.com/zeikar/chordotomy) already gives chords, the bass and inversions, beats, key regions and Roman numerals. It deliberately stops there: melody → MIDI is outside it, so pianoize doesn't add it there. pianoize reads the timeline JSON and checks its `schema_version` (11 for now). To analyze audio it runs the `chordotomy` CLI as a separately installed tool. chordotomy's model extra pins torch, lv-chordia and beat-this, and the pianoize models in M1 bring their own pins, so the two don't share an environment.
+
+chordotomy's timeline is one reading, not the answer key. M1 showed it: scoring tsumugi's cover against it counted the analyzer's own misreadings as the model's mistakes. It read Cm over E♭ as E♭ major, an augmented chord as major, and a melody note on top of the piano as the chord. Reading the cover's notes found only two passages that really depart from the song. Web chord charts are transcribed by people and often get the harmony right, but they carry no timing and may be transposed or simplified; tsumugi's transcription brings its own chord, bass and melody tracks. So an LLM skill gathers these readings, weighs each disagreement against the others and against the notes, and writes one refined harmony timeline. That timeline, not chordotomy's, is what the cover is corrected against. Charts copied from websites stay in `work/`, like recordings.
 
 ## Downbeats from Beat This!, on chordotomy's beats
 
@@ -24,6 +26,8 @@ The timeline has beats but no downbeats. Beat This! (MIT) predicts both, so pian
 ## Licenses
 
 Nothing is monetized, so weights with non-commercial terms are usable. They are never committed. They are downloaded into `work/` on first use, with their terms shown. Each model's code and weight licenses are checked again before it is used, because these change. The date and the source are recorded here.
+
+A weight license binds the use of the model, and the repository holds none of its code or weights, so the repository's own license is unaffected. Whether a model's output counts as material adapted from its weights is unsettled, so output of a non-commercial model is treated as non-commercial too: the video stays non-monetized and credits the model. That is why tsumugi-piano-cover (CC BY-NC 4.0), whose cover is the arrangement's base, is credited, while tsumugi's transcriber (MIT code and weights), used only as evidence for the harmony, carries no such terms.
 
 The code license is undecided and the repository is private. It may later be published under MIT, so no GPL or AGPL code goes into the repository or its dependencies, Python or npm, vendored, imported or bundled. Neothesia and YourMT3+ are out for this reason. LGPL is allowed, as in chordotomy. A tool the user installs separately and pianoize runs as a subprocess, such as a MIDI synthesizer, is not part of what is published, so its license doesn't matter.
 
@@ -38,6 +42,8 @@ A piano result is rendered from MIDI to audio and analyzed with chordotomy. The 
 A chord passes when its root, triad class and, for inverted originals, bass match; the full rule is in [docs/evaluation.md](evaluation.md#the-pass-rule). Sevenths and tensions are ignored, because chordotomy's sevenths come and go between repeats of the same passage. The bass has to match because in a passage like C/E – Cm/E♭ – G/D – A/C♯ – D the descending bass is the point.
 
 A human cover is scored the same way. That checks the scoring itself: the cover's simplifications have to come out as failures.
+
+M1 scored against chordotomy's timeline, so its numbers include the analyzer's misreadings (see [Harmony from several sources](#harmony-from-several-sources-chordotomy-stays-as-it-is)). From M2 on, results are compared with the refined harmony timeline.
 
 The checkpoints for a particular song are made from its recording, so they stay in `work/`. The repository keeps only their format and synthetic examples.
 

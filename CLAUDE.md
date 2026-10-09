@@ -15,6 +15,7 @@ Project-specific instructions for pianoize. The global ~/.claude/CLAUDE.md still
 The [rules in the README](README.md#rules) apply. The reasons for those and for the rules below are in [docs/decisions.md](docs/decisions.md).
 
 - **Don't change chordotomy.** pianoize reads its timeline JSON, checks `schema_version`, and runs its CLI as a separately installed tool. It doesn't import chordotomy or share its environment.
+- **No analysis is the answer key.** chordotomy's timeline, web chord charts and tsumugi's transcription are evidence to weigh, not truth. Where they disagree, check the notes before calling anything a mistake.
 - **No GPL/AGPL code in the repo or its dependencies.** That covers vendored code and anything imported or bundled, Python or npm; Neothesia and YourMT3+ are out. LGPL is allowed. A tool the user installs separately and pianoize runs as a subprocess is allowed whatever its license.
 - **Check the license before adding a dependency, model or sample library.** Weights included. Record the date and the source in docs/decisions.md. Weights with non-commercial terms are allowed, and are downloaded into `work/`.
 - **The CLI never calls an LLM.** An agent session writes the correction spec into `work/`. Code validates it and applies it to the cover deterministically: the same inputs give byte-identical output.
