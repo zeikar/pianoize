@@ -181,7 +181,8 @@ def test_real_render(tmp_path, make_midi):
 
     info = soundfile.info(wav)
     assert peak > 0.01
-    assert info.duration == pytest.approx(2.0, abs=1.5)
+    # 4 beats at 120 BPM is 2.0 s; Salamander's release tail adds about 3 s (4.88 s measured).
+    assert 2.0 < info.duration < 8.0
 
 
 def test_cli_render_warns_when_the_peak_is_near_clipping(
