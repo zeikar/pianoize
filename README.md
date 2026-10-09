@@ -2,7 +2,7 @@
 
 Turn a song recording into a piano arrangement, rendered as falling notes.
 
-Status: skeleton. `pianoize --version` runs; nothing else does yet.
+Status: M1 tooling runs: `pianoize evaluate`, `render` and `melody-clashes`. The M1 experiment scripts are in [`experiments/m1/`](experiments/m1/README.md); their outputs stay in `work/`.
 
 ## Direction so far
 

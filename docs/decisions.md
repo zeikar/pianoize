@@ -57,7 +57,7 @@ Editing the generated arrangement itself is out of scope. Generating the song ag
 
 ## M1 license check (2026-10-08)
 
-Upstream programs run as separately installed subprocess tools, each in its own environment under `work/m1/`. Homebrew's FFmpeg (built `--enable-gpl`) is loaded only inside the processes of tsumugi and Etude, through torchcodec. That is accepted because those run as separately installed subprocess tools and nothing committed imports or links FFmpeg. Rows are added as each candidate is tried.
+Upstream programs run as separately installed subprocess tools, each in its own environment under `work/m1/`. Homebrew's FFmpeg (built `--enable-gpl`) is loaded only inside the processes of tsumugi and Etude, through torchcodec. That is accepted because those run as separately installed subprocess tools and nothing committed imports or links FFmpeg. Rows are added as each candidate is tried. PiCoGen2, Sheet Sage and sfizz were judged on 2026-10-08 from their documentation and were never downloaded. Every other row was checked on 2026-10-09, when its weights were downloaded or recorded (`TERMS.txt` and `SHA256SUMS` under `work/m1/models/`, `WEIGHTS.txt` under `work/m1/stems/`).
 
 | candidate | code license | weight license | revision | SHA-256 | runs on this Mac? | runtime notes |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -65,7 +65,7 @@ Upstream programs run as separately installed subprocess tools, each in its own 
 | Sheet Sage | MIT, [repo](https://github.com/chrisdonahue/sheetsage) | transcription weights CC BY-NC-SA 3.0 | not downloaded | not downloaded | no: excluded | Linux/Docker path; Jukebox features need CUDA |
 | sfizz | BSD-2, [repo](https://github.com/sfztools/sfizz) | none | 1.2.3 (last release) | not downloaded | no: rejected | archived March 2025; the macOS `sfizz_render` binary is x86-64 only |
 | Demucs 4.1.0 (`htdemucs_ft`) | MIT, [repo](https://github.com/adefossez/demucs) | none stated: the [model card](https://huggingface.co/adefossez/HTDemucs-ft) carries no license statement | HF `adefossez/HTDemucs-ft` d74ac89c3a1e874fc78f152555cf4d8533f06cd4 | `04573f0d.safetensors` 68854b0d7c2b3274723b5761f6fd9f5aec5f1bcd3f0de7c1669546fdb7871b7c; `92cfc3b6.safetensors` a241863551f30d01c42bd7b97da40839922ead3acb0f1fcab25682f55b4eeb59; `d12395a8.safetensors` 5b01a97567ae9a3178a6236fb520251045c03eb8834bc8c24a4eec11d6c8fb56; `f7e0c4bc.safetensors` 2c85ab3c62dd6edd8e0b965e38b16fd1cdde357cc25de6b6bc9ce7c83f60925f; `htdemucs_ft.yaml` 69470b8c1bbd674437b51bc9fb491327a10ab0396b702c93389b9cf750016346 | yes: CPU, 396 s for a 251 s song | stems never leave `work/` and never enter a video; needs `--with numpy` (not declared by demucs 4.1.0); see `work/m1/stems/WEIGHTS.txt` |
-| Basic Pitch 0.4.0 | Apache-2.0, [repo](https://github.com/spotify/basic-pitch) | Apache-2.0, bundled in the wheel | 0.4.0 (PyPI) | wheel: bundled, see the wheel; `icassp_2022/nmp.onnx` 2c3c1d144bfa61ad236e92e169c13535c880469a12a047d4e73451f2c059a0ec | yes: ONNX backend (`--model-serialization onnx`), CPU, 9 s for the 251 s vocals stem | Python 3.11 (3.12 is broken on macOS); needs `setuptools<81` (resampy imports `pkg_resources`); its env also holds soxr (LGPL-2.1-or-later), installed only, not imported by committed code; no GPL found |
+| Basic Pitch 0.4.0 | Apache-2.0, [repo](https://github.com/spotify/basic-pitch) | Apache-2.0, bundled in the wheel | 0.4.0 (PyPI) | wheel file: not recorded (uv's cache keeps only the unpacked wheel); `icassp_2022/nmp.onnx` 2c3c1d144bfa61ad236e92e169c13535c880469a12a047d4e73451f2c059a0ec | yes: ONNX backend (`--model-serialization onnx`), CPU, 9 s for the 251 s vocals stem | Python 3.11 (3.12 is broken on macOS); needs `setuptools<81` (resampy imports `pkg_resources`); its env also holds soxr (LGPL-2.1-or-later), installed only, not imported by committed code; no GPL found |
 | Pop2Piano (reference only) | none stated, [repo](https://github.com/sweetcocoa/pop2piano) (GitHub `license: null`); HF transformers port Apache-2.0 | none stated: the [model card](https://huggingface.co/sweetcocoa/pop2piano) has no license field | HF `sweetcocoa/pop2piano` 142e8ed35614bcf77a3515b979e48ed528342349 (refs/main) | `pytorch_model.bin` 4ebff90f182961d1dc7c8cf481289b5c926610fe89993b5b02f1a61fb29dfa45 | yes: CPU, transformers 5.19.0, 7 s for the 75 s clip, 14.5 s for the 251 s song (weights cached) | AGPL Essentia in its env (`essentia==2.1b6.dev1389`); runner kept in `work/` and never committed; never in a video |
 | GAME v1.0.3 (`GAME-1.0-medium`) | MIT, [repo](https://github.com/openvpi/GAME) | CC BY-NC-SA 4.0, stated in the [v1.0.0 release notes](https://github.com/openvpi/GAME/releases/tag/v1.0.0) | code: tag v1.0.3, commit 475a8ee781fe8cca980b3b12fbe6c80c768a813a; weights: `GAME-1.0-medium.zip` (184,550,485 bytes) from release v1.0.0, since v1.0.3 ships ONNX only | `GAME-1.0-medium.zip` 8c5b3e531e2905b935e664e2f533921cd637243770fab5282413bdb5051ca60c (matches GitHub's asset digest) | yes: CPU, 138 s for the 251 s vocals stem, 190 s for the 251 s mix; MPS not usable: the vocals run ran out of MPS memory (`work/m1/melody/game.run.txt`), and an earlier MPS run that finished dropped whole sections | audio read by `librosa.load` through soundfile, no FFmpeg (librosa falls back to audioread only when soundfile fails, which did not happen); torch 2.8.0 (upstream's tested version) and lightning live only in its env; that env also holds soxr (LGPL-2.1-or-later), installed only, not imported by committed code; no GPL found; not deterministic: D3PM sampling draws from an unseeded `torch.rand_like` and `infer.py` has no seed option, so a second CPU run on the vocals gives a different CSV (366 lines differ; `game.run.txt`) |
 | Etude | MIT, [LICENSE](https://github.com/Xiugapurin/Etude/blob/main/LICENSE) Part 1 ([repo](https://github.com/Xiugapurin/Etude)) | CC BY-NC-SA 4.0, [LICENSE](https://github.com/Xiugapurin/Etude/blob/main/LICENSE) Part 2; its Demucs separation uses `htdemucs_6s`, none stated: the [model card](https://huggingface.co/adefossez/HTDemucs-6s) carries no license statement | code: commit eb661ca1e280cb70bf15bf500b6e686772550e2d; checkpoints: `checkpoints.zip` (170,665,865 bytes) from release `latest`, a tag that can move; HF `adefossez/HTDemucs-6s` 3c5ee475be622df764938de97e4281a7b07ffa58 | `checkpoints.zip` 2788ca56e431b1636d60be27b574c8c85ce271c3a2c851330c2807e34a247f8a; `5c90dfd2.safetensors` d2a1745f0744721f6b8ca5bf469b67c651ea5ed1b52998cab033b2158609d411; `htdemucs_6s.yaml` 207405151270af8fd81c2373c25d27950916682ac91dca7884a11ce13dad6f58 (both in `work/m1/cache/huggingface/hub/models--adefossez--HTDemucs-6s/snapshots/3c5ee475…`) | yes: MPS (Etude runs its Demucs separation on CPU when there is no CUDA); 69 s for the 75 s clip, 246 s for the 251 s song (`work/m1/covers/etude/run.txt`); the first clip run, which also downloaded the Demucs weights, was slower and its time was not kept | Demucs separation backend (`experiments/m1/etude-config.yaml`) instead of Spleeter, which needs conda; upstream warns it gives less accurate beats; torch 2.14.1, torchaudio 2.11.0, torchcodec 0.17.0, transformers 5.19.0 (requirements.txt's torch 2.6.0 and transformers 4.51.3 pins not used); loads Homebrew's FFmpeg 9.0.1 (`--enable-gpl`) through torchcodec inside its own process, found through torchcodec's own rpath, no `DYLD_FALLBACK_LIBRARY_PATH`; its env also holds lameenc (LGPL-3.0-or-later) and soxr (LGPL-2.1-or-later), installed only, not imported by committed code; no GPL found; madmom's bundled models (CC BY-NC-SA 4.0) are not loaded, only its DBN trackers; not deterministic: two runs on the 75 s clip gave different note counts (the first run's MIDI was not kept), likely from the unseeded random shift Demucs' `apply_model` applies by default (not isolated) |
@@ -77,3 +77,62 @@ Upstream programs run as separately installed subprocess tools, each in its own 
 [FluidSynth](https://github.com/FluidSynth/fluidsynth) (LGPL-2.1) renders MIDI to audio. pianoize runs its CLI as a subprocess. It is installed with Homebrew, the one approved global install; the formulas it adds are recorded so they can be removed later. The flags are fixed, `-R 0 -C 0 -g 0.5 -r 44100` (no reverb, no chorus, gain 0.5, 44.1 kHz), so the same MIDI renders the same way. The FluidSynth version is recorded with the results. Installed 2026-10-09: FluidSynth 2.6.1 (Homebrew `fluid-synth`).
 
 The SoundFont is Salamander Grand Piano V3 (SF2; CC BY 3.0, Alexander Holm; [FreePats](https://freepats.zenvoid.org/Piano/acoustic-grand-piano.html)). It is used for evaluation and for video audio. Every video description carries the credit line: "Piano sound: Salamander Grand Piano V3 by Alexander Holm (CC BY 3.0), via FreePats." Upright Piano KW (CC0 1.0, same page) is the fallback if the sound disappoints. Downloaded 2026-10-09: `SalamanderGrandPiano-SF2-V3+20200602.tar.xz`, SHA-256 `15edb061d7ba60d58332f72dba8f8ce40988048cc703f935e6320f37d650e213`; the extracted `SalamanderGrandPiano-V3+20200602.sf2` is 1.27 GB.
+
+## M1 results (2026-10-09)
+
+The runs were on 2026-10-09, one day after the license check above. The song is one recording, scored on 20 checkpoints (68 segments) taken from it; how a row is scored is in [docs/evaluation.md](evaluation.md), including the beat-grid distance. The checkpoint times and chords stay in `work/m1/momonone.checkpoints.json`. Everything below is from `work/m1/results/table.md`, `melody.md`, `not-run.md` and `first-note.txt`, unless another file is named.
+
+GAME, Etude and tsumugi's transcriber are not deterministic (GAME and Etude were seen to give different output on a second run), so their rows are one draw. tsumugi-piano-cover's generator is seeded (seed 0).
+
+### Does the harmony survive
+
+| row | checkpoints passed | segments passed | exact labels | beat-grid distance (s) |
+| --- | --- | --- | --- | --- |
+| human | 3/20 | 23/68 | 3/68 | 0.000 |
+| original-wav | 20/20 | 68/68 | 68/68 | 0.000 |
+| pop2piano (reference) | 6/20 | 40/68 | 30/68 | 0.000 |
+| tsumugi | 11/20 | 55/68 | 45/68 | 0.023 |
+| etude | 10/20 | 45/68 | 35/68 | 0.024 |
+
+Checkpoints passed by kind, from the detail tables in `table.md` (a checkpoint passes when none of its segments fails):
+
+| kind | n | human | original-wav | pop2piano | tsumugi | etude |
+| --- | --- | --- | --- | --- | --- | --- |
+| ascent | 3 | 3 | 3 | 3 | 3 | 3 |
+| B7→Em | 4 | 0 | 4 | 2 | 4 | 4 |
+| chorus descent | 6 | 0 | 6 | 0 | 2 | 0 |
+| passing bIII | 2 | 0 | 2 | 0 | 1 | 2 |
+| aug passing | 2 | 0 | 2 | 0 | 0 | 0 |
+| borrowed iv | 2 | 0 | 2 | 1 | 1 | 0 |
+| bridge | 1 | 0 | 1 | 0 | 0 | 1 |
+
+- **Human cover.** It passes 3 of 20, all of them the ascent. Its simplifications come out as failures, as the scoring is meant to show.
+- **original-wav.** The original recording decoded to WAV and analyzed again scores 20/20. That shows only that decoding changes nothing. It does not test the analyzer.
+- **Synthetic check.** The render, analysis and scoring path was first run on a synthetic progression (`work/m1/validate/table.md`): 3/4 checkpoints, 14/15 segments. The one miss is the analyzer reading a minor chord over its own E♭ bass as E♭ major (`work/m1/validate/notes.md`). The same reading is excluded at one place in the song's checkpoints.
+- **Chorus descents.** In Etude's six chorus descents, three have found labels that hold the descending-bass chords one segment later than the original. tsumugi's chorus descents keep that bass at the right segment in three of six, but the triad class differs from the original's (major where it is minor), a miss in class rather than a shift. Whether these are real displacements or a different reading of the same music is for the ear to settle.
+- **Pop2Piano.** Reference only. Its weights have no stated license and its environment holds AGPL code; it is never in a video.
+
+### First-note diagnostic
+
+`first-note.txt` holds the time of the first note of each result against the original's first chord (1.416 s, `beats[2]`): pop2piano 0.871 s, tsumugi 1.060 s, Etude 1.089 s. All three start earlier than the first chord. Pop2Piano trims at its first Essentia beat. Whether any result is displaced in time is to be settled by ear.
+
+### Models that did not run
+
+Only torchcrepe, the fallback melody extractor. It was not needed because Basic Pitch on the vocals stem produced notes (`work/m1/melody/torchcrepe.run.txt`, checked 2026-10-09). GAME did not run on MPS (out of memory, `game.run.txt`) and ran on CPU.
+
+### Melody candidates
+
+Each melody is scored with `pianoize melody-clashes` against the original's timeline.
+
+| candidate | notes scored | clash ratio by notes | clash ratio by duration | runtime | device |
+| --- | --- | --- | --- | --- | --- |
+| game-vocals | 381 | 41.5% | 30.8% | 138 s | CPU |
+| game-mix | 594 | 37.9% | 34.6% | 190 s | CPU |
+| basic-pitch-vocals (`--mono`) | 638 | 31.3% | 31.9% | 9 s | CPU, ONNX |
+| tsumugi-vocal (`--mono`) | 366 | 43.4% | 30.6% | by-product of the tsumugi cover (worker 496 s) | MPS |
+
+The vocals rows also need the Demucs separation (CPU, 396 s). `work/m1/results/melody.md` lists the inputs, the per-candidate notes and the coverage caveats. game-vocals has no notes in three stretches where Basic Pitch does; whether GAME dropped sung passages is to be checked by ear with `melody-game-vocals.wav`.
+
+### Left to the user
+
+Listening to the renders (`work/m1/results/*.wav`, `melody-*.wav`) and deciding which model to wrap, or whether to go to M2, is the user's call after listening. These numbers do not settle it.
