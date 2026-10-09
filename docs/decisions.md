@@ -6,10 +6,12 @@ The goal is falling-notes videos of piano arrangements for a personal, non-monet
 
 1. **M0**: these rules and the package skeleton.
 2. **M1**: run the existing audio-to-piano-cover models that run on a Mac, and the melody extractors, and score them together with a human piano cover.
-3. **M2**: pianoize's own arrangement engine.
+3. **M2**: correcting the M1 model's arrangement to the original's harmony.
 4. **M3**: the renderer.
 
 If a model in M1 keeps the harmony, pianoize wraps it. If it simplifies the harmony the way the human cover does, M2 is the reason pianoize exists. The user makes that call from the M1 table; there is no fixed threshold.
+
+**Decision (2026-10-09): pianoize wraps tsumugi-piano-cover.** It scored the most checkpoints in M1 (11 of 20), and to the user's ear its render kept the harmony. Two of its misses are the analyzer reading Cm over E♭ as E♭ major, the same misreading the synthetic check found; the rest are a few passages (the bridge, the augmented passing chords, one passing chord, parts of two choruses). So M2 corrects tsumugi's cover where it departs from the original's harmony instead of arranging from scratch. Etude scored 10 of 20 but sounded less clear, and its ShareAlike weights complicate the videos; Pop2Piano has no license. The numbers are in [M1 results](#m1-results-2026-10-09).
 
 ## Harmony from chordotomy, which stays as it is
 
@@ -27,7 +29,7 @@ The code license is undecided and the repository is private. It may later be pub
 
 ## What goes into a video
 
-A video carries only the piano pianoize renders, never the original audio or vocals separated from it. Its description credits the song, the artist and the composer. Songs under a creator's fan-work guidelines follow them. For モモノネ that is hololive's music guidelines: the credit is required, no Content ID registration, no commercial or corporate use. Before uploading, check that the song is not on the guidelines' exclusion list.
+A video carries only the piano pianoize renders, never the original audio or vocals separated from it. Its description credits the song, the artist and the composer, and the arrangement model, tsumugi-piano-cover (anime-song, CC BY-NC 4.0), whose license asks for attribution. Songs under a creator's fan-work guidelines follow them. For モモノネ that is hololive's music guidelines: the credit is required, no Content ID registration, no commercial or corporate use. Before uploading, check that the song is not on the guidelines' exclusion list.
 
 ## Scoring whether the harmony survived
 
@@ -41,19 +43,19 @@ The checkpoints for a particular song are made from its recording, so they stay 
 
 ## Playable arrangements
 
-A falling-notes video reads as a piece someone could play. So arrangements are pitched at an intermediate-to-advanced player. The generator enforces, and a check verifies, a limit on notes per hand, a hand span (about a ninth) and no crossed hands.
+A falling-notes video reads as a piece someone could play. So arrangements are pitched at an intermediate-to-advanced player. tsumugi's cover is one piano part with no hands assigned; pianoize splits it into hands, and a check verifies a limit on notes per hand, a hand span (about a ninth) and no crossed hands. A correction must keep that check passing.
 
-## An agent writes the arrangement spec, code plays it
+## An agent writes the correction spec, code applies it
 
-For each passage, an LLM chooses the texture, the register and the voicing style. Code turns those choices into notes. The LLM is an agent session, such as Claude Code. It reads the timeline, the melody and the downbeats, and writes the spec as a file in `work/`.
+Where tsumugi's cover departs from the original's harmony, an LLM decides how to bring it back: which chord the passage should sound, and which bass. Code applies those choices to the cover's notes. The LLM is an agent session, such as Claude Code. It reads the timeline, the cover and the scoring, and writes the spec as a file in `work/`.
 
-The pianoize CLI never calls an LLM. That way there is no API key and no cost, and the spec can be read and edited by hand. A song can also be generated again from the same file with byte-identical output. A CLI that calls an API could later write the same file format.
+The pianoize CLI never calls an LLM. That way there is no API key and no cost, and the spec can be read and edited by hand. The same cover and spec give byte-identical output. A CLI that calls an API could later write the same file format.
 
-## A hand-corrected melody can replace the extracted one
+## The melody comes with the cover
 
-Melody has no ground truth, and an extraction error would otherwise go straight into the video. So the extracted melody is exported as MIDI. A MIDI corrected by hand in a DAW can be fed back in its place. A report lists the notes that clash with the chord, to show where to look.
+tsumugi's cover already carries the melody, so no separate melody extractor feeds pianoize; GAME, Basic Pitch and torchcrepe were compared in M1 only for an arrangement built from scratch. tsumugi's transcription also writes a `melody` track, which can mark the cover's melody notes so a correction leaves them alone.
 
-Editing the generated arrangement itself is out of scope. Generating the song again would overwrite the edits.
+Corrections live in the spec, not in hand edits to the cover's MIDI, so they apply again to a regenerated cover.
 
 ## M1 license check (2026-10-08)
 
@@ -133,6 +135,6 @@ Each melody is scored with `pianoize melody-clashes` against the original's time
 
 The vocals rows also need the Demucs separation (CPU, 396 s). `work/m1/results/melody.md` lists the inputs, the per-candidate notes and the coverage caveats. game-vocals has no notes in three stretches where Basic Pitch does; whether GAME dropped sung passages is to be checked by ear with `melody-game-vocals.wav`.
 
-### Left to the user
+### Listening
 
-Listening to the renders (`work/m1/results/*.wav`, `melody-*.wav`) and deciding which model to wrap, or whether to go to M2, is the user's call after listening. These numbers do not settle it.
+The user listened to the renders in `work/m1/results/` on 2026-10-09. tsumugi's sounded good, its harmony included; Etude's and Pop2Piano's were less clear. The decision that followed is under [The arrangement first, the video last](#the-arrangement-first-the-video-last).

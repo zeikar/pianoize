@@ -7,8 +7,8 @@ Status: M1 tooling runs: `pianoize evaluate`, `render` and `melody-clashes`. The
 ## Direction so far
 
 - **Harmony from chordotomy.** Chords, bass line, beats and key come from a [chordotomy](https://github.com/zeikar/chordotomy) chord timeline. pianoize reads that JSON; chordotomy itself stays an analyzer.
-- **Melody from a pretrained model.** The first candidate is openvpi's GAME (singing to notes); the fallback is Demucs vocal separation followed by Spotify's Basic Pitch. They are compared on one song before either is chosen. A melody corrected by hand in a DAW can replace the extracted one.
-- **An LLM writes the arrangement, code plays it.** An agent reads the timeline and picks a texture per passage. Deterministic code turns that into notes.
+- **The arrangement starts from tsumugi-piano-cover.** M1 compared the audio-to-piano models that run on a Mac; tsumugi-piano-cover kept the most harmony and sounded best, so pianoize starts from its cover ([decision](docs/decisions.md#the-arrangement-first-the-video-last)).
+- **An LLM corrects the harmony, code applies it.** Where the cover departs from the chord timeline, an agent writes a correction spec. Deterministic code applies it to the cover.
 - **Falling-notes output.** A piano roll drawn over time needs no bar lines or time signature.
 
 ## Rules
