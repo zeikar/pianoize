@@ -1,0 +1,15 @@
+{
+  "name": "pianoize",
+  "owner": {
+    "name": "zeikar",
+    "url": "https://github.com/zeikar"
+  },
+  "description": "The pianoize plugin: a song's harmony refined from several analyses, and a tsumugi piano cover polished against it, by the local pianoize CLI.",
+  "plugins": [
+    {
+      "name": "pianoize",
+      "description": "Refine a song's harmony timeline and polish a tsumugi-piano-cover MIDI in Claude Code: weighs chordotomy's chords, tsumugi's transcription and the cover's notes into one refined timeline, judges the cover's candidate clashes, slips, voice leading and timing, and has the local pianoize CLI apply the corrections deterministically.",
+      "source": "./"
+    }
+  ]
+}

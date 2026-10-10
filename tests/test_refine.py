@@ -141,6 +141,7 @@ def test_edited_parts_tile_and_take_their_times_from_the_beats(original, edits, 
         ([edit(0, 2, chord="Bb:maj", bass="A#")], "edits[0]: chord 'Bb:maj'"),
         ([edit(0, 2, bass="Db")], "edits[0]: bass 'Db'"),
         ([edit(0, 2, chord="N", bass="C")], "edits[0]: N takes no bass"),
+        ([edit(0, 2, chord="C:maj", bass=None)], "edits[0]: C:maj needs a bass"),
         ([edit(0, 2, root="A")], "edits[0] does not take root"),
     ],
 )

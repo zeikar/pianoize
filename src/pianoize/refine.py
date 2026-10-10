@@ -62,6 +62,11 @@ def _edit(item, where: str, original: dict) -> Edit:
         raise RefineError(f"{where}: bass {bass!r} must be a sharp root or null")
     if chord == "N" and bass is not None:
         raise RefineError(f"{where}: N takes no bass")
+    # In schema 11 a null bass means none was heard, which drops the segment from the bass checks.
+    if chord != "N" and bass is None:
+        raise RefineError(
+            f"{where}: {chord} needs a bass: name the bass note, the root for a root-position chord"
+        )
     if not isinstance(reason, str) or not reason.strip():
         raise RefineError(f"{where}: reason must be a non-empty string")
     if not isinstance(item.get("readings", {}), dict):

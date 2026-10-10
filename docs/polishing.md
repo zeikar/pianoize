@@ -246,7 +246,7 @@ Pitch classes are spelled with sharps: B♭ reads `A#`. Of two pitch classes sou
 | `inputs.timeline.sha256` | the SHA-256 of the timeline the edits were written for, given as `ORIGINAL`; `path` is informational |
 | `edits[].start_beat`, `end_beat` | int, the beats the edit covers, `end_beat` exclusive: `0 <= start_beat < end_beat <= len(beats)` |
 | `edits[].chord` | a label chordotomy writes: `N`, or `<root>:<quality>` with a sharp root and one of the schema's fifteen qualities |
-| `edits[].bass` | a sharp root, or `null`; `null` for `N` |
+| `edits[].bass` | the bass note, a sharp root: the chord's root for a root-position chord. `null` only with `N` |
 | `edits[].reason` | str |
 | `edits[].readings` | optional object, informational: each source's reading of the span |
 
@@ -255,6 +255,7 @@ Pitch classes are spelled with sharps: B♭ reads `A#`. Of two pitch classes sou
 - `ORIGINAL` is plain JSON, without the `NaN` or `Infinity` that Python reads and the browser's `JSON.parse` refuses, passes the viewer's rules (below), and its hash is `inputs.timeline.sha256`.
 - The file has no keys but `inputs` and `edits`, an edit none but the fields above, and every field its type. A reason is a non-empty string.
 - An edit's beats lie inside the timeline, and no two edits overlap; edits may touch.
+- A chord names its bass, and `N` none. In schema 11 a `null` bass means none was heard, which would drop the segment from the bass checks, so an edit to a chord with `bass` `null` is refused.
 - An edit changes something: a segment it covers has another chord or bass.
 
 **What changes.** A segment is cut where an edit that changes it starts or ends, as the viewer's split cuts one: each part keeps the segment's fields and takes its `start_time` and `end_time` from `beats` (`source.duration` at the end), copied, since the viewer compares them exactly. A part inside an edit takes the edit's `chord` and `bass`, the `inversion` they make, `edited: true`, and `null` for `numeral`, `role`, `function` and `target`. A part already on the edit's chord and bass is neither cut nor marked, as the viewer takes a chord picked again for no edit.
@@ -266,3 +267,7 @@ Pitch classes are spelled with sharps: B♭ reads `A#`. Of two pitch classes sou
 **Beats only.** An edit is a beat range, so a chord change between two beats, or a chord shorter than a beat, cannot be written: it goes to a beat.
 
 **The viewer opens it.** The original and the result are checked with a port of the viewer's `timelineProblem` (chordotomy's `viewer/core.js`) for schema 11, and the command fails, writing nothing, on the viewer's message: `beats` finite and ascending; `source.duration` finite and `source.url` a string or `null`; `generator.engine.name` and `version` strings; `global_key` `null`, or a key label with `source` `estimated` or `given` and key labels as `candidates`; every segment's `chord` a label, `bass` `null` or a sharp root, `inversion` `root`, `first`, `second`, `third`, `non_chord` or `null`, `numeral`, `role`, `function` and `target` strings or `null`, `edited` a boolean; the segments tiling the beats from 0 to `len(beats)`, each `start_time` equal to `beats[start_beat]` and each `end_time` to `beats[end_beat]`, or `source.duration` for the last; the key regions tiling the beats, each after the first starting where a segment starts, a given key one region, and a lone region labelled with the key.
+
+## Running the skill
+
+The repository is a Claude Code plugin: `.claude-plugin/plugin.json` and `marketplace.json` at its root, and the `polish-cover` skill in `skills/polish-cover/`, its `SKILL.md` and the judgment it draws on in `references/`. The skill runs the four commands above in two phases, the refined harmony timeline and then the polished cover, and ends with the user listening to both covers rendered by `pianoize render` (see [docs/evaluation.md](evaluation.md)). In Claude Code, install it with `/plugin marketplace add zeikar/pianoize` and `/plugin install pianoize@pianoize`; the plugin then runs its own copy of pianoize through `uv run --project`. In a checkout, `.claude/settings.json` registers the checkout as a plugin marketplace and enables the plugin, so the skill runs from the working tree once the first session's trust prompt is accepted; `claude plugin marketplace add .` does the same by hand.

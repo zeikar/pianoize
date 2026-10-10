@@ -1,0 +1,13 @@
+{
+  "extraKnownMarketplaces": {
+    "pianoize": {
+      "source": {
+        "source": "directory",
+        "path": "."
+      }
+    }
+  },
+  "enabledPlugins": {
+    "pianoize@pianoize": true
+  }
+}
