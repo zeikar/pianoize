@@ -18,7 +18,7 @@ _MISSING_ATTACKS = 2
 _MISSING_BEATS = 1
 
 
-def _held(note: notes.Note, start: float, end: float) -> float:
+def held(note: notes.Note, start: float, end: float) -> float:
     """Seconds the note sounds between start and end."""
     return max(0.0, min(note.offset, end) - max(note.onset, start))
 
@@ -30,10 +30,10 @@ def coverage(
     `chord_tones`; None when no note sounds there."""
     total = on_tones = 0.0
     for note in played:
-        held = _held(note, start, end)
-        total += held
+        seconds = held(note, start, end)
+        total += seconds
         if note.pitch % 12 in chord_tones:
-            on_tones += held
+            on_tones += seconds
     return on_tones / total if total else None
 
 
@@ -43,7 +43,7 @@ def missing(played: list[notes.Note], start: float, end: float, segment: dict) -
     wanted = list(chord_pitch_classes(segment["chord"])[:3])
     if segment["bass"] is not None and ROOT_NAMES.index(segment["bass"]) not in wanted:
         wanted.append(ROOT_NAMES.index(segment["bass"]))
-    heard = {note.pitch % 12 for note in played if _held(note, start, end) > 0}
+    heard = {note.pitch % 12 for note in played if held(note, start, end) > 0}
     return [pc for pc in wanted if pc not in heard]
 
 
@@ -114,7 +114,7 @@ def _on_segment(
         },
         measurements=measurements,
         # A segment's context is every note sounding in it, held ones included.
-        context=[context_note(cover, n) for n in cover.played if _held(n, start, end) > 0],
+        context=[context_note(cover, n) for n in cover.played if held(n, start, end) > 0],
         suggested=None,
     )
 
@@ -134,7 +134,7 @@ def find(cover: Cover, limits: Thresholds) -> Iterator[Candidate]:
             clashes = [
                 _clash(cover, n, chord_tones)
                 for n in accompaniment
-                if _held(n, start, end) > 0
+                if held(n, start, end) > 0
                 and n.pitch % 12 not in chord_tones
                 and not _passing(cover, limits, n, *around[n.id])
             ]

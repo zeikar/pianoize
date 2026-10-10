@@ -17,6 +17,7 @@ from . import (
     candidates,
     checkpoints,
     corrections,
+    evidence,
     files,
     melody,
     notes,
@@ -451,3 +452,58 @@ def refine_timeline(
     except (timeline.TimelineError, refine.RefineError, OSError) as exc:
         raise _fail(str(exc)) from exc
     typer.echo(f"segments changed: {changed}")
+
+
+@app.command("harmony-evidence")
+def harmony_evidence(
+    cover: Annotated[Path, typer.Argument(metavar="COVER.mid", exists=True, dir_okay=False)],
+    timeline_path: Annotated[
+        Path, typer.Argument(metavar="TIMELINE.chords.json", exists=True, dir_okay=False)
+    ],
+    source: Annotated[
+        Path | None,
+        typer.Option(
+            metavar="SOURCE.mid",
+            help="tsumugi's transcription: its markers and its bass track.",
+            exists=True,
+            dir_okay=False,
+        ),
+    ] = None,
+    bass_track: Annotated[
+        str, typer.Option(help="The source's bass track; an empty name reads none.")
+    ] = "electric_bass",
+    melody_path: Annotated[
+        Path | None,
+        typer.Option(
+            "--melody",
+            metavar="MELODY.mid",
+            help="tsumugi's melody track: the melody column, and the cover notes that carry it, "
+            "which the cover's tones and coverage leave out.",
+            exists=True,
+            dir_okay=False,
+        ),
+    ] = None,
+    out: Annotated[Path | None, typer.Option("-o", "--out", help="Also write the table.")] = None,
+) -> None:
+    """Print per chord segment what the timeline, the transcription and the cover's notes say.
+
+    On a refined timeline and a polished cover, the direct check of the notes against the harmony.
+    """
+    _refuse_input(out, [p for p in (cover, timeline_path, source, melody_path) if p], "--out")
+    played = notes.read(_read_midi(cover))
+    melody_notes = [] if melody_path is None else notes.read(_read_midi(melody_path))
+    marked, bass = [], []
+    try:
+        chords = timeline.load(timeline_path)
+        if source is not None:
+            transcription = _read_midi(source)
+            marked = evidence.markers(transcription)
+            if bass_track:  # tsumugi writes no bass track for a song it hears no bass in
+                bass = evidence.track_notes(transcription, bass_track)
+    except (timeline.TimelineError, evidence.EvidenceError) as exc:
+        raise _fail(str(exc)) from exc
+    guarded = notes.protected(played, melody_notes)
+    table = evidence.markdown(evidence.rows(chords, played, guarded, marked, bass, melody_notes))
+    if out is not None:
+        _write({out: table})
+    typer.echo(table, nl=False)

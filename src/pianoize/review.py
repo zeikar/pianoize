@@ -65,8 +65,9 @@ def kind(candidate: str) -> str:
     return "/".join(candidate.split(":")[:2])
 
 
-def _cell(text: str) -> str:
-    # Reasons are free text: a line break or a pipe would split the row.
+def cell(text: str) -> str:
+    """Free text, such as a reason, as a markdown table cell: a line break or a pipe would split
+    the row."""
     return " ".join(text.split()).replace("|", "\\|")
 
 
@@ -76,8 +77,8 @@ def markdown(found: list[Line]) -> str:
         "| --- | --- | --- | --- | --- |",
     ]
     rows += [
-        f"| {_cell(line.candidate)} | {_cell(kind(line.candidate))} | {clock(line.time)} "
-        f"| {line.status} | {_cell(line.reason)} |"
+        f"| {cell(line.candidate)} | {cell(kind(line.candidate))} | {clock(line.time)} "
+        f"| {line.status} | {cell(line.reason)} |"
         for line in found
     ]
     return "\n".join(rows) + "\n"

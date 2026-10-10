@@ -203,6 +203,29 @@ A cover note that carries the melody never changes pitch: a `modify` that gives 
 
 **Determinism.** The same cover and spec give byte-identical output. A spec with no edits writes the cover's own bytes back, for any cover mido writes the way it was read; tsumugi-piano-cover's covers are such files.
 
+## Harmony evidence
+
+`pianoize harmony-evidence COVER.mid TIMELINE.chords.json --source SOURCE.mid --melody MELODY.mid -o evidence.md` prints a markdown table, one row per segment of the timeline, `N` included, of what each source says there: chordotomy's timeline, tsumugi's transcription (its `source.mid`) and the cover's notes. None of them is the answer key; the agent weighs them. `-o` also writes the table, and is refused when it is one of the inputs, under any spelling the disk takes for it. `--bass-track` names the transcription's bass track, `electric_bass` by default; a name no track has is an error. tsumugi writes a track only for an instrument it hears, so for a song without bass `--bass-track ""` reads none: the transcribed bass column stays empty and the markers are kept. Without `--source` the marker and transcribed bass columns are empty; without `--melody` the melody column is empty and every cover note counts as accompaniment.
+
+| column | meaning |
+| --- | --- |
+| `#` | the segment's index in the timeline's `segments` |
+| `time` | the segment's start, `m:ss.ss` |
+| `beats` | `start_beat-end_beat`, the end exclusive: the range an edit of the [refined timeline](#refined-harmony-timeline) names |
+| `chord` | the timeline's chord, in slash form (`C:maj/E`) when inverted |
+| `candidates` | chordotomy's candidate labels for the segment |
+| `edited` | `yes` where the timeline marks the segment `edited` |
+| `marker` | the transcription's marker sounding at the segment's start, then every one starting inside it, as written: tsumugi's chord names are not Harte labels |
+| `transcribed bass` | the pitch class the transcription's bass track sounds longest in the segment, with its share of the track's sounding time there |
+| `cover tones` | the four pitch classes the accompaniment sounds longest in the segment, each with its share of the accompaniment's sounding time there |
+| `coverage` | the accompaniment's share of sounding time on the chord's tones, as `harmony:coverage` measures it (see [Harmony](#harmony)), to three decimals, as in the candidate; empty under `N` or when no accompaniment sounds |
+| `missing` | the triad tones and slash bass that no cover note strikes or holds in the segment, the melody's included, as `harmony:missing` names them, but for every segment, whatever its length and attacks |
+| `melody` | the pitch classes of `--melody`'s notes in the segment, most sounding time first, each with its share: the transcription's own reading of the melody, notes the cover never plays included |
+
+Pitch classes are spelled with sharps: B♭ reads `A#`. Of two pitch classes sounding as long, the one with the lower note comes first, so a power chord's bass leads. A note counts for the time it sounds inside the segment, from its note-on to its note-off: pedal is ignored, as by the harmony candidates. The accompaniment is the cover's notes that don't carry the melody, matched against `--melody` (see [Melody protection](#melody-protection)). The transcription's times come from its own tempo map; a type 2 file, whose tracks share no timeline, is refused. Of its meta messages only the markers are read, never the text and lyrics messages, which can carry the song's lyrics.
+
+**The direct note-vs-harmony check.** Run with the refined timeline and the polished cover, the same command shows whether the notes now sound the harmony decided: `missing` empty and `coverage` high where a chord was fixed. No render and no chordotomy reanalysis stand between the notes and the check.
+
 ## Refined harmony timeline
 
 `pianoize refine-timeline ORIGINAL.chords.json EDITS.json -o REFINED.chords.json` writes a copy of chordotomy's timeline (schema 11, see chordotomy's [timeline-json.md](https://github.com/zeikar/chordotomy/blob/main/docs/timeline-json.md)) with the chords an agent decided over beat ranges, and prints how many segments the edits changed. Name the output `<stem>.refined.chords.json`: chordotomy's viewer saves its own corrections as `<stem>.edited.chords.json`, so a save there never overwrites it. The command refuses an `-o` that is one of its inputs, under any spelling the disk takes for it, and writes through a temporary file beside it. The same timeline and edits write the same bytes, formatted as chordotomy writes a timeline: a two-space indent, UTF-8 characters as themselves, a trailing newline.

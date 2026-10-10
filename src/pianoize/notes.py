@@ -88,12 +88,13 @@ def pairs(track: mido.MidiTrack) -> Iterator[tuple[int, int | None, int, int]]:
         yield on_index, None, on_tick, now
 
 
-def read(midi: mido.MidiFile) -> list[Note]:
-    """Every note by onset, without drums, paired per track. That equals melody.notes for the
-    single-track covers check_editable accepts; see docs/evaluation.md for the pairing."""
+def read(midi: mido.MidiFile, tracks: list[int] | None = None) -> list[Note]:
+    """Every note by onset, without drums, paired per track; with `tracks`, only the notes of the
+    tracks at those indexes, still timed by every track's tempo changes. That equals melody.notes
+    for the single-track covers check_editable accepts; see docs/evaluation.md for the pairing."""
     segments = _tempo_map(midi)
     found: list[Note] = []
-    for track in midi.tracks:
+    for track in midi.tracks if tracks is None else [midi.tracks[i] for i in tracks]:
         for on_index, _, on_tick, off_tick in pairs(track):
             on = track[on_index]
             found.append(
