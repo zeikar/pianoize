@@ -20,6 +20,7 @@ from . import (
     files,
     melody,
     notes,
+    refine,
     report,
     review,
     score,
@@ -424,3 +425,29 @@ def apply_corrections(
     typer.echo(
         f"notes: {counts['delete']} deleted, {counts['modify']} modified, {counts['add']} added"
     )
+
+
+@app.command("refine-timeline")
+def refine_timeline(
+    original_path: Annotated[
+        Path, typer.Argument(metavar="ORIGINAL.chords.json", exists=True, dir_okay=False)
+    ],
+    edits_path: Annotated[Path, typer.Argument(metavar="EDITS.json", exists=True, dir_okay=False)],
+    out: Annotated[
+        Path,
+        typer.Option(
+            "-o", "--out", help="The refined timeline to write, named <stem>.refined.chords.json."
+        ),
+    ],
+) -> None:
+    """Write chordotomy's timeline with the edits' chords over their beats, checked by the
+    viewer's rules."""
+    _refuse_input(out, [original_path, edits_path], "--out")
+    try:
+        original = timeline.load(original_path)
+        edits = refine.load_edits(edits_path, original_path, original)
+        result, changed = refine.apply(original, edits)
+        refine.write(result, out)
+    except (timeline.TimelineError, refine.RefineError, OSError) as exc:
+        raise _fail(str(exc)) from exc
+    typer.echo(f"segments changed: {changed}")

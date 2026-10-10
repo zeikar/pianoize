@@ -202,3 +202,44 @@ A cover note that carries the melody never changes pitch: a `modify` that gives 
 - `end_of_track` stays last, moved later if an edited or added note now ends after it. Markers, tempo changes, pedal (CC64), the program change and every other message are untouched.
 
 **Determinism.** The same cover and spec give byte-identical output. A spec with no edits writes the cover's own bytes back, for any cover mido writes the way it was read; tsumugi-piano-cover's covers are such files.
+
+## Refined harmony timeline
+
+`pianoize refine-timeline ORIGINAL.chords.json EDITS.json -o REFINED.chords.json` writes a copy of chordotomy's timeline (schema 11, see chordotomy's [timeline-json.md](https://github.com/zeikar/chordotomy/blob/main/docs/timeline-json.md)) with the chords an agent decided over beat ranges, and prints how many segments the edits changed. Name the output `<stem>.refined.chords.json`: chordotomy's viewer saves its own corrections as `<stem>.edited.chords.json`, so a save there never overwrites it. The command refuses an `-o` that is one of its inputs, under any spelling the disk takes for it, and writes through a temporary file beside it. The same timeline and edits write the same bytes, formatted as chordotomy writes a timeline: a two-space indent, UTF-8 characters as themselves, a trailing newline.
+
+```json
+{
+  "inputs": {"timeline": {"path": "work/song/song.chords.json", "sha256": "c7e1…"}},
+  "edits": [
+    {"start_beat": 24, "end_beat": 28, "chord": "A:min", "bass": "C",
+     "reason": "the cover and the transcribed bass agree on Am over C",
+     "readings": {"chordotomy": "C:maj", "marker": "Am/C", "bass": "C"}}
+  ]
+}
+```
+
+| field | meaning |
+| --- | --- |
+| `inputs.timeline.sha256` | the SHA-256 of the timeline the edits were written for, given as `ORIGINAL`; `path` is informational |
+| `edits[].start_beat`, `end_beat` | int, the beats the edit covers, `end_beat` exclusive: `0 <= start_beat < end_beat <= len(beats)` |
+| `edits[].chord` | a label chordotomy writes: `N`, or `<root>:<quality>` with a sharp root and one of the schema's fifteen qualities |
+| `edits[].bass` | a sharp root, or `null`; `null` for `N` |
+| `edits[].reason` | str |
+| `edits[].readings` | optional object, informational: each source's reading of the span |
+
+`edits` may be left out; the copy then changes nothing. Loading fails on the first broken rule, naming the item: `edits[1]: beats 2-6 overlap edits[0] (0-4)`.
+
+- `ORIGINAL` is plain JSON, without the `NaN` or `Infinity` that Python reads and the browser's `JSON.parse` refuses, passes the viewer's rules (below), and its hash is `inputs.timeline.sha256`.
+- The file has no keys but `inputs` and `edits`, an edit none but the fields above, and every field its type. A reason is a non-empty string.
+- An edit's beats lie inside the timeline, and no two edits overlap; edits may touch.
+- An edit changes something: a segment it covers has another chord or bass.
+
+**What changes.** A segment is cut where an edit that changes it starts or ends, as the viewer's split cuts one: each part keeps the segment's fields and takes its `start_time` and `end_time` from `beats` (`source.duration` at the end), copied, since the viewer compares them exactly. A part inside an edit takes the edit's `chord` and `bass`, the `inversion` they make, `edited: true`, and `null` for `numeral`, `role`, `function` and `target`. A part already on the edit's chord and bass is neither cut nor marked, as the viewer takes a chord picked again for no edit.
+
+**What is kept.** `candidates` stays the analyzer's, which is what the schema keeps on an edited segment, and `generator`, `source`, `beats`, `global_key` and `key_regions` are copied as they are, so the key is still the one chordotomy estimated from its own chords.
+
+**Numerals are `null` on changed segments.** pianoize does not port chordotomy's harmonic analysis. The viewer accepts `null`, and its reanalysis recomputes the numerals, the key and the key regions from the chords at the first edit made there.
+
+**Beats only.** An edit is a beat range, so a chord change between two beats, or a chord shorter than a beat, cannot be written: it goes to a beat.
+
+**The viewer opens it.** The original and the result are checked with a port of the viewer's `timelineProblem` (chordotomy's `viewer/core.js`) for schema 11, and the command fails, writing nothing, on the viewer's message: `beats` finite and ascending; `source.duration` finite and `source.url` a string or `null`; `generator.engine.name` and `version` strings; `global_key` `null`, or a key label with `source` `estimated` or `given` and key labels as `candidates`; every segment's `chord` a label, `bass` `null` or a sharp root, `inversion` `root`, `first`, `second`, `third`, `non_chord` or `null`, `numeral`, `role`, `function` and `target` strings or `null`, `edited` a boolean; the segments tiling the beats from 0 to `len(beats)`, each `start_time` equal to `beats[start_beat]` and each `end_time` to `beats[end_beat]`, or `source.duration` for the last; the key regions tiling the beats, each after the first starting where a segment starts, a given key one region, and a lone region labelled with the key.

@@ -63,7 +63,11 @@ def timeline(progression: Progression, bpm: float = 120, offset: float = 0.05) -
         start = end
     return {
         "schema_version": SCHEMA_VERSION,
-        "generator": {"name": "pianoize-synthetic", "version": "0"},
+        "generator": {
+            "name": "pianoize-synthetic",
+            "version": "0",
+            "engine": {"name": "pianoize-synthetic", "version": "0"},
+        },
         "source": {"path": "synthetic.wav", "duration": duration, "url": None},
         "beats": beats,
         "global_key": None,

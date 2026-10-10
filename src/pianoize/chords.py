@@ -27,6 +27,14 @@ INTERVALS = {
 INVERSIONS = ("root", "first", "second", "third")
 
 
+def is_label(label) -> bool:
+    """Whether a value is a chord label chordotomy writes: N, or a sharp root and a quality."""
+    if not isinstance(label, str):
+        return False
+    root, _, quality = label.partition(":")
+    return label == "N" or (root in ROOT_NAMES and quality in INTERVALS)
+
+
 def parse_chord(label: str) -> tuple[int, str] | None:
     """A Harte label as (root pitch class, quality); None for N."""
     if label == "N":
