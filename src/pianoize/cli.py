@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 from collections import Counter
+from collections.abc import Callable
 from enum import StrEnum
 from pathlib import Path
 from typing import Annotated
@@ -16,9 +17,11 @@ from . import (
     candidates,
     checkpoints,
     corrections,
+    files,
     melody,
     notes,
     report,
+    review,
     score,
     timeline,
 )
@@ -79,12 +82,25 @@ class Engine(StrEnum):
     MODEL = "model"
 
 
+def _is_one_of(path: Path, others: list[Path]) -> bool:
+    """Whether a path names one of the files: the same resolved path, or the same existing file
+    under another spelling, as on a case-insensitive disk."""
+    if path.resolve() in {other.resolve() for other in others}:
+        return True
+    return path.exists() and any(other.exists() and path.samefile(other) for other in others)
+
+
+def _refuse_input(out: Path | None, inputs: list[Path], hint: str) -> None:
+    if out is not None and _is_one_of(out, inputs):
+        raise typer.BadParameter(f"would overwrite an input: {out}", param_hint=hint)
+
+
 def _refuse_overwriting_inputs(
     parsed: list[tuple[str, Path]], out_dir: Path, inputs: list[Path]
 ) -> None:
     # A row's outputs share OUT_DIR with whatever else is there: a name that lands on an input
     # would make that input pass for the row's analysis, or overwrite it under --force.
-    taken = {path.resolve() for path in inputs} | {path.resolve() for _, path in parsed}
+    taken = [*inputs, *(path for _, path in parsed)]
     for name, path in parsed:
         if path.name.endswith(_CHORDS_SUFFIX):
             continue
@@ -92,7 +108,7 @@ def _refuse_overwriting_inputs(
         if path.suffix == ".mid":
             outputs.append(out_dir / f"{name}.wav")
         for output in outputs:
-            if output.resolve() in taken:
+            if _is_one_of(output, taken):
                 raise typer.BadParameter(
                     f"row {name!r} would overwrite an input: {output}", param_hint="ROW"
                 )
@@ -207,8 +223,7 @@ def render(
 ) -> None:
     """Render a MIDI file to a WAV with FluidSynth."""
     soundfont = _soundfont_path(soundfont)
-    if out.resolve() in (midi.resolve(), soundfont.resolve()):
-        raise typer.BadParameter(f"would overwrite an input: {out}", param_hint="--out")
+    _refuse_input(out, [midi, soundfont], "--out")
     source = _read_midi(midi)
     try:
         peak = render_module.render(source, out, soundfont, gain=gain)
@@ -267,6 +282,33 @@ def _candidate_line(found: candidates.Candidate) -> str:
     return f"{_clock(found.time)}  {found.category}/{found.kind}  {where}  {key}={value}"
 
 
+def _saving(text: str) -> Callable[[Path], None]:
+    return lambda path: path.write_text(text, encoding="utf-8")
+
+
+def _write(outputs: dict[Path, str]) -> None:
+    """Write the text files, every one saved before any replaces an existing file."""
+    try:
+        files.write_all({path: _saving(text) for path, text in outputs.items()})
+    except OSError as exc:
+        raise _fail(str(exc)) from exc
+
+
+def _print_statuses(lines: list[review.Line]) -> None:
+    """Print the lines a spec leaves open and a count per status; exit 1 when any is open."""
+    for line in lines:
+        if line.status in review.OPEN:
+            typer.echo(
+                f"{_clock(line.time)}  {review.kind(line.candidate)}  {line.candidate}  "
+                f"{line.status}"
+            )
+    counts = Counter(line.status for line in lines)
+    typer.echo("candidates: " + ", ".join(f"{counts[s]} {s}" for s in review.STATUSES))
+    if any(counts[s] for s in review.OPEN):
+        raise typer.Exit(1)
+    typer.echo("all candidates judged")
+
+
 @app.command("find-candidates")
 def find_candidates(
     cover: Annotated[Path, typer.Argument(metavar="COVER.mid", exists=True, dir_okay=False)],
@@ -275,7 +317,7 @@ def find_candidates(
         typer.Option(
             "--timeline",
             metavar="TIMELINE.chords.json",
-            help="The harmony timeline whose beats the timing grid divides.",
+            help="The harmony timeline: the beats the timing grid divides and the chords.",
             exists=True,
             dir_okay=False,
         ),
@@ -291,11 +333,39 @@ def find_candidates(
         ),
     ],
     out: Annotated[Path, typer.Option("-o", "--out", help="The candidates JSON to write.")],
+    spec_path: Annotated[
+        Path | None,
+        typer.Option(
+            "--spec",
+            metavar="SPEC.json",
+            help="A correction spec for the cover: find the candidates left once it is applied, "
+            "under the cover's note ids, and check every candidate has a verdict.",
+            exists=True,
+            dir_okay=False,
+        ),
+    ] = None,
+    report_path: Annotated[
+        Path | None,
+        typer.Option(
+            "--report",
+            metavar="REPORT.md",
+            help="With --spec, the markdown table of every candidate's status to write.",
+        ),
+    ] = None,
 ) -> None:
-    """List the places in a cover that may need polishing, for an agent to judge."""
+    """List the places in a cover that may need polishing, for an agent to judge.
+
+    With --spec, exit 1 while a candidate has no verdict or a fixed one is still found.
+    """
     inputs = {"cover": cover, "timeline": timeline_path, "melody": melody_path}
-    if out.resolve() in {path.resolve() for path in inputs.values()}:
-        raise typer.BadParameter(f"would overwrite an input: {out}", param_hint="--out")
+    if spec_path is not None:
+        inputs["spec"] = spec_path
+    elif report_path is not None:
+        raise typer.BadParameter("needs --spec", param_hint="--report")
+    _refuse_input(out, list(inputs.values()), "--out")
+    _refuse_input(report_path, list(inputs.values()), "--report")
+    if report_path is not None and _is_one_of(report_path, [out]):
+        raise typer.BadParameter(f"{report_path} is also --out", param_hint="--report")
     midi = _read_midi(cover)
     try:
         corrections.check_cover(midi)
@@ -303,19 +373,27 @@ def find_candidates(
         raise _fail(f"{cover}: {exc}") from exc
     try:
         chords = timeline.load(timeline_path)
-    except timeline.TimelineError as exc:
+        spec = None if spec_path is None else corrections.load(spec_path, cover, melody_path)
+    except (timeline.TimelineError, corrections.CorrectionError) as exc:
         raise _fail(str(exc)) from exc
-    guarded = notes.protected(notes.read(midi), notes.read(_read_midi(melody_path)))
+    melody_notes = notes.read(_read_midi(melody_path))
+    guarded = notes.protected(notes.read(midi), melody_notes)
     thresholds = candidates.Thresholds()
     found = candidates.find(midi, chords, guarded, thresholds)
-    try:
-        out.write_text(candidates.to_json(found, inputs, thresholds), encoding="utf-8")
-    except OSError as exc:
-        raise _fail(str(exc)) from exc
-    for candidate in found:
-        typer.echo(_candidate_line(candidate))
-    counts = Counter(candidate.category for candidate in found)
-    typer.echo("candidates: " + ", ".join(f"{counts[c]} {c}" for c in candidates.CATEGORIES))
+    if spec is None:
+        _write({out: candidates.to_json(found, inputs, thresholds)})
+        for candidate in found:
+            typer.echo(_candidate_line(candidate))
+        counts = Counter(candidate.category for candidate in found)
+        typer.echo("candidates: " + ", ".join(f"{counts[c]} {c}" for c in candidates.CATEGORIES))
+        return
+    remaining = review.after(midi, spec, chords, melody_notes, thresholds)
+    lines = review.lines(found, remaining, spec.verdicts)
+    outputs = {out: candidates.to_json(remaining, inputs, thresholds)}
+    if report_path is not None:
+        outputs[report_path] = review.markdown(lines)
+    _write(outputs)
+    _print_statuses(lines)
 
 
 @app.command("apply-corrections")
@@ -335,8 +413,7 @@ def apply_corrections(
     out: Annotated[Path, typer.Option("-o", "--out", help="The corrected MIDI file to write.")],
 ) -> None:
     """Apply a correction spec to a copy of the cover."""
-    if out.resolve() in (cover.resolve(), spec_path.resolve(), melody_path.resolve()):
-        raise typer.BadParameter(f"would overwrite an input: {out}", param_hint="--out")
+    _refuse_input(out, [cover, spec_path, melody_path], "--out")
     try:
         spec = corrections.load(spec_path, cover, melody_path)
         result, _ = corrections.apply(_read_midi(cover), spec)

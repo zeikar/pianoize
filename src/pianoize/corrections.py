@@ -6,7 +6,6 @@ import hashlib
 import json
 import math
 import re
-import tempfile
 from dataclasses import dataclass
 from itertools import accumulate, pairwise
 from pathlib import Path
@@ -14,7 +13,7 @@ from typing import NamedTuple
 
 import mido
 
-from . import notes
+from . import files, notes
 from .melody import _DRUM_CHANNEL
 
 SPEC_VERSION = 1
@@ -395,9 +394,5 @@ def apply(midi: mido.MidiFile, spec: Spec) -> tuple[mido.MidiFile, dict[str, str
 
 
 def write(midi: mido.MidiFile, out: Path) -> None:
-    # The scratch directory sits beside the destination, so the replace is atomic and a failed
-    # write leaves any existing file as it was.
-    with tempfile.TemporaryDirectory(dir=out.parent, prefix=".corrections-") as tmp:
-        partial = Path(tmp) / "out.mid"
-        midi.save(partial)
-        partial.replace(out)
+    """Write the MIDI file so that a failed write leaves any existing file as it was."""
+    files.write_all({out: midi.save})

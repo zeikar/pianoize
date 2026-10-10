@@ -94,12 +94,24 @@ class Report:
         return self.clashing_seconds / total if total else None
 
 
-def _tones(segment: dict) -> set[int]:
-    tones = set(chord_pitch_classes(segment["chord"]))
-    # The slash bass sounds too, so a melody note on it is not a clash.
+def tones(segment: dict) -> set[int]:
+    """The pitch classes of a segment's chord, plus its slash bass."""
+    found = set(chord_pitch_classes(segment["chord"]))
+    # The slash bass sounds too, so a note on it is not a clash.
     if segment["bass"] is not None:
-        tones.add(ROOT_NAMES.index(segment["bass"]))
-    return tones
+        found.add(ROOT_NAMES.index(segment["bass"]))
+    return found
+
+
+def spans(timeline: dict) -> list[tuple[float, float, dict]]:
+    """(start, end, segment) of every segment with a chord, starting no earlier than the first
+    beat."""
+    first_beat = beat_time(timeline, 0)
+    return [
+        (max(s["start_time"], first_beat), s["end_time"], s)
+        for s in timeline["segments"]
+        if s["chord"] != "N"
+    ]
 
 
 def clashes(melody: list[Note], timeline: dict) -> Report:
@@ -108,18 +120,13 @@ def clashes(melody: list[Note], timeline: dict) -> Report:
     By count, each note is judged by the segment at its onset. By duration, each note is split
     over the segments it overlaps. Time before the first beat and under N is left out of both.
     """
-    first_beat = beat_time(timeline, 0)
-    spans = [
-        (max(s["start_time"], first_beat), s["end_time"], s, _tones(s))
-        for s in timeline["segments"]
-        if s["chord"] != "N"
-    ]
+    chords = [(start, end, s, tones(s)) for start, end, s in spans(timeline)]
     consonant_notes = clashing_notes = 0
     consonant_seconds = clashing_seconds = 0.0
     found = []
     for onset, offset, pitch in melody:
-        for start, end, segment, tones in spans:
-            consonant = pitch % 12 in tones
+        for start, end, segment, chord_tones in chords:
+            consonant = pitch % 12 in chord_tones
             overlap = min(offset, end) - max(onset, start)
             if overlap > 0:
                 if consonant:
