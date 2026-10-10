@@ -19,6 +19,8 @@ If a model in M1 keeps the harmony, pianoize wraps it. If it simplifies the harm
 
 chordotomy's timeline is one reading, not the answer key. M1 showed it: scoring tsumugi's cover against it counted the analyzer's own misreadings as the model's mistakes. It read Cm over E♭ as E♭ major, an augmented chord as major, and a melody note on top of the piano as the chord. Reading the cover's notes found only two passages that really depart from the song. Web chord charts are transcribed by people and often get the harmony right, but they carry no timing and may be transposed or simplified; tsumugi's transcription brings its own chord, bass and melody tracks. So an LLM skill gathers these readings, weighs each disagreement against the others and against the notes, and writes one refined harmony timeline. That timeline, not chordotomy's, is what the cover's chords are checked against. Charts copied from websites stay in `work/`, like recordings.
 
+M2 leaves web charts out (2026-10-10). U-FRET draws its chords with JavaScript, and its terms forbid use outside the service, analysis and heavy load; ChordWiki refuses automated requests. Charts can come back later as a chord sequence the user pastes.
+
 ## Downbeats from Beat This!, on chordotomy's beats
 
 The timeline has beats but no downbeats. Beat This! (MIT) predicts both, so pianoize calls it directly. Each predicted downbeat is moved to the nearest beat in chordotomy's list, so chords, melody and bars all count the same beats instead of two grids that drift apart.
@@ -49,7 +51,7 @@ The checkpoints for a particular song are made from its recording, so they stay 
 
 ## Playable arrangements
 
-A falling-notes video reads as a piece someone could play. So arrangements are pitched at an intermediate-to-advanced player. tsumugi's cover is one piano part with no hands assigned; pianoize splits it into hands, and a check verifies a limit on notes per hand, a hand span (about a ninth) and no crossed hands. A correction must keep that check passing.
+A falling-notes video reads as a piece someone could play. So arrangements are pitched at an intermediate-to-advanced player. tsumugi's cover is one piano part with no hands assigned; from M3, pianoize splits it into hands, and a check verifies a limit on notes per hand, a hand span (about a ninth) and no crossed hands. A correction must keep that check passing.
 
 ## An agent writes the correction spec, code applies it
 

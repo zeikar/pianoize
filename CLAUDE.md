@@ -19,7 +19,7 @@ The [rules in the README](README.md#rules) apply. The reasons for those and for 
 - **No GPL/AGPL code in the repo or its dependencies.** That covers vendored code and anything imported or bundled, Python or npm; Neothesia and YourMT3+ are out. LGPL is allowed. A tool the user installs separately and pianoize runs as a subprocess is allowed whatever its license.
 - **Check the license before adding a dependency, model or sample library.** Weights included. Record the date and the source in docs/decisions.md. Weights with non-commercial terms are allowed, and are downloaded into `work/`.
 - **The CLI never calls an LLM.** An agent session writes the correction spec into `work/`. Code validates it and applies it to the cover deterministically: the same inputs give byte-identical output.
-- **Arrangements are playable.** A check verifies notes per hand, hand span and no crossed hands, and a correction must keep it passing.
+- **Arrangements are playable.** Once pianoize splits the cover into hands (M3), a check verifies notes per hand, hand span and no crossed hands, and a correction must keep it passing.
 - **Models with conflicting dependencies run in their own environments**, not in the core package.
 - Tests synthesize their audio. The default suite runs no model and downloads nothing.
 - The version lives only in `pyproject.toml`; code reads it through `importlib.metadata`.
