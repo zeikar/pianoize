@@ -27,6 +27,36 @@ def make_midi() -> Callable[..., mido.MidiFile]:
 
 
 @pytest.fixture
+def tick_midi() -> Callable[..., mido.MidiFile]:
+    """A one-track MIDI from (on_tick, off_tick, pitch, velocity) tuples, a list of (tick, bpm)
+    tempo changes (120 bpm from tick 0 when empty) and extra (tick, message) pairs, any mido
+    message, which sort before a note on the same tick."""
+
+    def build(
+        notes: list[tuple[int, int, int, int]],
+        tempos: list[tuple[int, float]] | None = None,
+        meta: list[tuple[int, mido.Message | mido.MetaMessage]] | None = None,
+        ticks_per_beat: int = 480,
+    ) -> mido.MidiFile:
+        events = [(tick, 1, mido.MetaMessage("set_tempo", tempo=mido.bpm2tempo(bpm)))
+                  for tick, bpm in tempos or []]  # fmt: skip
+        events += [(tick, 0, message) for tick, message in meta or []]
+        for on, off, pitch, velocity in notes:
+            events.append((on, 3, mido.Message("note_on", note=pitch, velocity=velocity)))
+            events.append((off, 2, mido.Message("note_off", note=pitch)))
+        track = mido.MidiTrack()
+        now = 0
+        for tick, _, message in sorted(events, key=lambda e: e[:2]):
+            track.append(message.copy(time=tick - now))
+            now = tick
+        midi = mido.MidiFile(ticks_per_beat=ticks_per_beat)
+        midi.tracks.append(track)
+        return midi
+
+    return build
+
+
+@pytest.fixture
 def write_timeline(tmp_path: Path) -> Callable[..., Path]:
     def write(progression: Progression, name: str = "timeline.json", **kwargs) -> Path:
         path = tmp_path / name
