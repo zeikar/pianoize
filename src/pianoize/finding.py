@@ -22,7 +22,7 @@ class Thresholds:
     alone_ms: float = 30
     stutter_ms: float = 120
     velocity_above: float = 20
-    off_grid_ms: float = 45
+    off_grid_ms: float = 50
     roll_ms: float = 60
     density_factor: float = 3
     density_beats: int = 4

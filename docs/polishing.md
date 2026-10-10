@@ -14,7 +14,7 @@ How pianoize polishes a tsumugi-piano-cover MIDI. `pianoize find-candidates` lis
     "melody": {"path": "work/song/melody.mid", "sha256": "41d0…"}
   },
   "thresholds": {"short_ms": 50, "alone_ms": 30, "stutter_ms": 120, "velocity_above": 20,
-                 "off_grid_ms": 45, "roll_ms": 60, "density_factor": 3, "density_beats": 4,
+                 "off_grid_ms": 50, "roll_ms": 60, "density_factor": 3, "density_beats": 4,
                  "duration_beats": 8, "coverage_below": 0.6, "leap_above": 12,
                  "register_above": 12, "late_beats": 0.25},
   "candidates": [
@@ -98,21 +98,23 @@ The voice kinds read the bass line: the lowest note of each accompaniment attack
 
 ### Thresholds
 
-| threshold | default | rule |
-| --- | --- | --- |
-| `short_ms` | 50 | `short`: duration below this |
-| `alone_ms` | 30 | `short`: no other onset within this |
-| `stutter_ms` | 120 | `stutter`: the pitch struck again within this |
-| `velocity_above` | 20 | `velocity`: at least this over the median of its role |
-| `off_grid_ms` | 45 | `off-grid`: more than this from the nearest line |
-| `roll_ms` | 60 | rolls: each attack within this of the previous |
-| `density_factor` | 3 | `density`: a spike at this times the median, a dip at the median divided by this |
-| `density_beats` | 4 | `density`: the beats on each side the median is taken over |
-| `duration_beats` | 8 | `duration`: longer than this |
-| `coverage_below` | 0.6 | `coverage`: a share of the accompaniment's sounding time on the chord's tones below this |
-| `leap_above` | 12 | `leap`: more semitones than this between the basses of two segments |
-| `register_above` | 12 | `register`: the median bass pitch moves more semitones than this |
-| `late_beats` | 0.25 | `bass-late`: the bass pitch class arrives at least this late |
+| threshold | default | rule | first real cover |
+| --- | --- | --- | --- |
+| `short_ms` | 50 | `short`: duration below this | `short` 21 |
+| `alone_ms` | 30 | `short`: no other onset within this | `short` 21 |
+| `stutter_ms` | 120 | `stutter`: the pitch struck again within this | `stutter` 8 |
+| `velocity_above` | 20 | `velocity`: at least this over the median of its role | `velocity` 45 |
+| `off_grid_ms` | 50 | `off-grid`: more than this from the nearest line | `off-grid` 45 (73 at 45) |
+| `roll_ms` | 60 | rolls: each attack within this of the previous | |
+| `density_factor` | 3 | `density`: a spike at this times the median, a dip at the median divided by this | `density` 10 |
+| `density_beats` | 4 | `density`: the beats on each side the median is taken over | `density` 10 |
+| `duration_beats` | 8 | `duration`: longer than this | `duration` 3 |
+| `coverage_below` | 0.6 | `coverage`: a share of the accompaniment's sounding time on the chord's tones below this | `coverage` 13 |
+| `leap_above` | 12 | `leap`: more semitones than this between the basses of two segments | `leap` 6 |
+| `register_above` | 12 | `register`: the median bass pitch moves more semitones than this | `register` 16 |
+| `late_beats` | 0.25 | `bass-late`: the bass pitch class arrives at least this late | `bass-late` 6 |
+
+The defaults were tuned once on the first real cover, a full-length tsumugi-piano-cover MIDI with its refined timeline: a kind giving more than about 60 candidates floods the judging. Only `off-grid` did, with 73 at 45 ms, 28 of them between 45 and 50 ms; at 50 ms it gives 45, and no other kind's count changes, though `off_grid_ms` also sets the passing-tone, segment-bass and `bass-late` tolerances. The last column is the kind's count on that cover at these defaults, 181 candidates in all; `harmony:missing` gave 8.
 
 ### Checking a spec
 

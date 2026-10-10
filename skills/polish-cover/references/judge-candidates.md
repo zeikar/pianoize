@@ -37,7 +37,7 @@ Judged against the refined timeline, the harmony decided in Phase 1.
 - **`bass-late`:** the bass reaches the new chord's bass after the change.
   - With a `suggested` move: apply it where the late bass is a stumble; keep a deliberate delay, such as a walk-up into the new bass.
   - With `suggested` `null`, first see where the first bass note, `measurements.first`, starts: its onset is in `context`, and the segment starts at beat `beat` − `late_beats`, whose time the evidence table's row with those `beats` gives.
-    - **At the change,** within about 45 ms (`off_grid_ms`) of it: that note is not the new bass. Decide about it first: delete it, re-pitch it to the bass, or keep it as an intended pedal. Then move or keep the late bass note. Those are edits on two notes, both citing this candidate; a first note re-pitched to the bass must not overlap the late bass note.
+    - **At the change,** within about 50 ms (`off_grid_ms`) of it: that note is not the new bass. Decide about it first: delete it, re-pitch it to the bass, or keep it as an intended pedal. Then move or keep the late bass note. Those are edits on two notes, both citing this candidate; a first note re-pitched to the bass must not overlap the late bass note.
     - **After the change:** the move was left out because the moved note would overlap a note of its own pitch. Shorten that note in the same spec and write the move yourself, or keep.
 
 ### timing (`off-grid`, `density`, `duration`)
