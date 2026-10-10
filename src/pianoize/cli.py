@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from collections import Counter
 from enum import StrEnum
 from pathlib import Path
 from typing import Annotated
@@ -10,7 +11,7 @@ from typing import Annotated
 import mido
 import typer
 
-from . import __version__, checkpoints, melody, report, score, timeline
+from . import __version__, checkpoints, corrections, melody, report, score, timeline
 from . import chordotomy as chordotomy_module
 from . import render as render_module
 
@@ -244,3 +245,34 @@ def melody_clashes(
     typer.echo(f"clash ratio by duration: {_percent(result.duration_ratio)}")
     for clash in result.clashes:
         typer.echo(f"{_clock(clash.time)}  {melody.pitch_name(clash.pitch)}  over {clash.chord}")
+
+
+@app.command("apply-corrections")
+def apply_corrections(
+    cover: Annotated[Path, typer.Argument(metavar="COVER.mid", exists=True, dir_okay=False)],
+    spec_path: Annotated[Path, typer.Argument(metavar="SPEC.json", exists=True, dir_okay=False)],
+    melody_path: Annotated[
+        Path,
+        typer.Option(
+            "--melody",
+            metavar="MELODY.mid",
+            help="tsumugi's melody track, whose notes keep the cover's melody at its pitch.",
+            exists=True,
+            dir_okay=False,
+        ),
+    ],
+    out: Annotated[Path, typer.Option("-o", "--out", help="The corrected MIDI file to write.")],
+) -> None:
+    """Apply a correction spec to a copy of the cover."""
+    if out.resolve() in (cover.resolve(), spec_path.resolve(), melody_path.resolve()):
+        raise typer.BadParameter(f"would overwrite an input: {out}", param_hint="--out")
+    try:
+        spec = corrections.load(spec_path, cover, melody_path)
+        result, _ = corrections.apply(_read_midi(cover), spec)
+        corrections.write(result, out)
+    except (corrections.CorrectionError, OSError) as exc:
+        raise _fail(str(exc)) from exc
+    counts = Counter(edit.op for edit in spec.edits)
+    typer.echo(
+        f"notes: {counts['delete']} deleted, {counts['modify']} modified, {counts['add']} added"
+    )

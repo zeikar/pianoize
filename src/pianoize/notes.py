@@ -1,6 +1,7 @@
 """A MIDI file's notes at tick level, so an edit lands on an exact tick and a note keeps an id."""
 
 import bisect
+from collections.abc import Iterator
 from dataclasses import dataclass
 
 import mido
@@ -27,7 +28,11 @@ class Note:
 
     @property
     def id(self) -> str:
-        return f"t{self.on_tick}p{self.pitch}"
+        return note_id(self.on_tick, self.pitch)
+
+
+def note_id(on_tick: int, pitch: int) -> str:
+    return f"t{on_tick}p{pitch}"
 
 
 def _tempo_map(midi: mido.MidiFile) -> list[tuple[int, float, int]]:
@@ -60,24 +65,27 @@ def _seconds(segments: list[tuple[int, float, int]], ticks_per_beat: int, tick: 
     return seconds + mido.tick2second(tick - start, ticks_per_beat, tempo)
 
 
-def _close(
-    open_notes: dict[tuple[int, int], tuple[int, int]],
-    key: tuple[int, int],
-    off_tick: int,
-    segments: list[tuple[int, float, int]],
-    ticks_per_beat: int,
-) -> Note:
-    on_tick, velocity = open_notes.pop(key)
-    channel, pitch = key
-    return Note(
-        on_tick,
-        off_tick,
-        pitch,
-        velocity,
-        channel,
-        _seconds(segments, ticks_per_beat, on_tick),
-        _seconds(segments, ticks_per_beat, off_tick),
-    )
+def pairs(track: mido.MidiTrack) -> Iterator[tuple[int, int | None, int, int]]:
+    """(note-on index, ending message index, on_tick, off_tick) of each note of a track, without
+    drums. A strike of a sounding pitch ends it there, and a note still sounding ends at the end
+    of the track; the ending index is None for both."""
+    open_notes: dict[tuple[int, int], tuple[int, int]] = {}  # -> (on index, on_tick)
+    now = 0
+    for index, message in enumerate(track):
+        now += message.time
+        if message.is_meta or message.type not in ("note_on", "note_off"):
+            continue
+        if message.channel == _DRUM_CHANNEL:
+            continue
+        key = (message.channel, message.note)
+        struck = message.type == "note_on" and message.velocity > 0
+        if key in open_notes:
+            on_index, on_tick = open_notes.pop(key)
+            yield on_index, None if struck else index, on_tick, now
+        if struck:
+            open_notes[key] = (index, now)
+    for on_index, on_tick in open_notes.values():
+        yield on_index, None, on_tick, now
 
 
 def read(midi: mido.MidiFile) -> list[Note]:
@@ -86,21 +94,19 @@ def read(midi: mido.MidiFile) -> list[Note]:
     segments = _tempo_map(midi)
     found: list[Note] = []
     for track in midi.tracks:
-        open_notes: dict[tuple[int, int], tuple[int, int]] = {}  # -> (on_tick, velocity)
-        now = 0
-        for message in track:
-            now += message.time
-            if message.is_meta or message.type not in ("note_on", "note_off"):
-                continue
-            if message.channel == _DRUM_CHANNEL:
-                continue
-            key = (message.channel, message.note)
-            if key in open_notes:
-                found.append(_close(open_notes, key, now, segments, midi.ticks_per_beat))
-            if message.type == "note_on" and message.velocity > 0:
-                open_notes[key] = (now, message.velocity)
-        for key in list(open_notes):
-            found.append(_close(open_notes, key, now, segments, midi.ticks_per_beat))
+        for on_index, _, on_tick, off_tick in pairs(track):
+            on = track[on_index]
+            found.append(
+                Note(
+                    on_tick,
+                    off_tick,
+                    on.note,
+                    on.velocity,
+                    on.channel,
+                    _seconds(segments, midi.ticks_per_beat, on_tick),
+                    _seconds(segments, midi.ticks_per_beat, off_tick),
+                )
+            )
     return sorted(found, key=lambda n: (n.onset, n.pitch, n.on_tick))
 
 
