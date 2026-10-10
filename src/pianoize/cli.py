@@ -11,7 +11,17 @@ from typing import Annotated
 import mido
 import typer
 
-from . import __version__, checkpoints, corrections, melody, report, score, timeline
+from . import (
+    __version__,
+    candidates,
+    checkpoints,
+    corrections,
+    melody,
+    notes,
+    report,
+    score,
+    timeline,
+)
 from . import chordotomy as chordotomy_module
 from . import render as render_module
 
@@ -245,6 +255,67 @@ def melody_clashes(
     typer.echo(f"clash ratio by duration: {_percent(result.duration_ratio)}")
     for clash in result.clashes:
         typer.echo(f"{_clock(clash.time)}  {melody.pitch_name(clash.pitch)}  over {clash.chord}")
+
+
+def _candidate_line(found: candidates.Candidate) -> str:
+    if found.note is not None:
+        where = f"{found.note['id']} {found.note['pitch_name']}"
+    else:
+        segment = found.segment
+        where = f"b{segment['start_beat']}-{segment['end_beat']} {segment['chord'] or ''}".rstrip()
+    key, value = next(iter(found.measurements.items()))
+    return f"{_clock(found.time)}  {found.category}/{found.kind}  {where}  {key}={value}"
+
+
+@app.command("find-candidates")
+def find_candidates(
+    cover: Annotated[Path, typer.Argument(metavar="COVER.mid", exists=True, dir_okay=False)],
+    timeline_path: Annotated[
+        Path,
+        typer.Option(
+            "--timeline",
+            metavar="TIMELINE.chords.json",
+            help="The harmony timeline whose beats the timing grid divides.",
+            exists=True,
+            dir_okay=False,
+        ),
+    ],
+    melody_path: Annotated[
+        Path,
+        typer.Option(
+            "--melody",
+            metavar="MELODY.mid",
+            help="tsumugi's melody track, which marks the cover's melody notes.",
+            exists=True,
+            dir_okay=False,
+        ),
+    ],
+    out: Annotated[Path, typer.Option("-o", "--out", help="The candidates JSON to write.")],
+) -> None:
+    """List the places in a cover that may need polishing, for an agent to judge."""
+    inputs = {"cover": cover, "timeline": timeline_path, "melody": melody_path}
+    if out.resolve() in {path.resolve() for path in inputs.values()}:
+        raise typer.BadParameter(f"would overwrite an input: {out}", param_hint="--out")
+    midi = _read_midi(cover)
+    try:
+        corrections.check_cover(midi)
+    except corrections.CorrectionError as exc:
+        raise _fail(f"{cover}: {exc}") from exc
+    try:
+        chords = timeline.load(timeline_path)
+    except timeline.TimelineError as exc:
+        raise _fail(str(exc)) from exc
+    guarded = notes.protected(notes.read(midi), notes.read(_read_midi(melody_path)))
+    thresholds = candidates.Thresholds()
+    found = candidates.find(midi, chords, guarded, thresholds)
+    try:
+        out.write_text(candidates.to_json(found, inputs, thresholds), encoding="utf-8")
+    except OSError as exc:
+        raise _fail(str(exc)) from exc
+    for candidate in found:
+        typer.echo(_candidate_line(candidate))
+    counts = Counter(candidate.category for candidate in found)
+    typer.echo("candidates: " + ", ".join(f"{counts[c]} {c}" for c in candidates.CATEGORIES))
 
 
 @app.command("apply-corrections")

@@ -1,6 +1,96 @@
 # Polishing
 
-How pianoize polishes a tsumugi-piano-cover MIDI. An agent session judges the candidate problems and writes a correction spec into `work/`; `pianoize apply-corrections` validates the spec and applies it to a copy of the cover. The CLI never calls an LLM. The reasons are in [docs/decisions.md](decisions.md#an-agent-writes-the-correction-spec-code-applies-it).
+How pianoize polishes a tsumugi-piano-cover MIDI. `pianoize find-candidates` lists the candidate problems; an agent session judges them and writes a correction spec into `work/`; `pianoize apply-corrections` validates the spec and applies it to a copy of the cover. The CLI never calls an LLM. The reasons are in [docs/decisions.md](decisions.md#an-agent-writes-the-correction-spec-code-applies-it).
+
+## Candidates
+
+`pianoize find-candidates COVER.mid --timeline TIMELINE.chords.json --melody MELODY.mid -o candidates.json` finds the places that may need work and writes them, each with the notes around it, for the agent to judge. It prints one line per candidate (time, category/kind, the note or beats, the key measurement) and ends with a count per category. It refuses an `-o` that is one of its inputs, and any cover the applier refuses: notes on several tracks or channels, two notes sharing an id, or a note not ended by its own note-off (see [Validation](#validation)). The same inputs write the same bytes.
+
+```json
+{
+  "inputs": {
+    "cover": {"path": "work/song/cover.mid", "sha256": "9f2c…"},
+    "timeline": {"path": "work/song/song.refined.chords.json", "sha256": "c7e1…"},
+    "melody": {"path": "work/song/melody.mid", "sha256": "41d0…"}
+  },
+  "thresholds": {"short_ms": 50, "alone_ms": 30, "stutter_ms": 120, "velocity_above": 20,
+                 "off_grid_ms": 45, "roll_ms": 60, "density_factor": 3, "density_beats": 4,
+                 "duration_beats": 8},
+  "candidates": [
+    {
+      "id": "timing:off-grid:t20160p62",
+      "category": "timing",
+      "kind": "off-grid",
+      "time": 21.252,
+      "beat": 30.425,
+      "note": {"id": "t20160p62", "pitch_name": "D4", "on_tick": 20160, "off_tick": 20400,
+               "velocity": 84, "duration_ms": 104.2, "protected": false},
+      "segment": null,
+      "measurements": {"off_ms": -52.2, "subdivisions": 4, "grid_beat": 30.5},
+      "context": [
+        "t19920p50 0:21.15 D3 600ms v72",
+        "t20160p62 0:21.25 D4 104ms v84",
+        "t20280p74 0:21.30 D5 300ms v96 *"
+      ],
+      "suggested": {"op": "modify", "note": "t20160p62", "on_tick": 20280, "off_tick": 20520}
+    }
+  ]
+}
+```
+
+| field | meaning |
+| --- | --- |
+| `inputs.cover`, `inputs.timeline`, `inputs.melody` | the path as given and the SHA-256 of each input; a correction spec copies the cover's and the melody's |
+| `thresholds` | the values this run used (below) |
+| `candidates` | sorted by `time`, then `id` |
+| `id` | `{category}:{kind}:{anchor}` |
+| `category`, `kind` | `glitch` or `timing` and a kind below; `voice` and `harmony` are the other two categories |
+| `time` | seconds, to the millisecond: the note's onset, or the start of the beat. A verdict copies it |
+| `beat` | `time` as a fractional chordotomy beat |
+| `note` | a note candidate's note: `id`, `pitch_name` (the MIDI pitch is in the id), `on_tick`, `off_tick`, `velocity`, `duration_ms`, and `protected`, true when it carries the melody (see [Melody protection](#melody-protection)) and so keeps its pitch. `null` for a beat or segment candidate |
+| `segment` | a beat or segment candidate's `start_beat`, `end_beat` and `chord` in slash form (`C:maj/E`); `chord` is `null` for a beat before the timeline's first segment or after its last. The whole field is `null` for a note candidate |
+| `measurements` | what was measured, the key measurement first; per kind below. Counts, subdivisions and velocities are integers and every other number a float: milliseconds to one decimal, beats to three, medians to one |
+| `context` | every note starting within one beat of the candidate (of the beat's middle for a beat candidate), by onset, one string each: `t1234p60 1:02.35 C4 120ms v90` is the id, the onset as `m:ss.ss`, the pitch name, the duration in whole milliseconds and the velocity, followed by ` *` when the note carries the melody |
+| `suggested` | an edit in the correction spec's format with exact ticks, or `null`: the agent copies it, changes it or writes its own |
+
+**Ids come from content.** The anchor is the note's id, `b{beat}` for a beat (`timing:density:b42`) or `s{start_beat}` for a segment, never a position in the list. A note no edit touches keeps its id whatever moves around it, so a later run lists an untouched candidate under the same id, and a fixed candidate simply disappears instead of renumbering the rest. A spec's verdicts stay attached to their candidates as the spec is revised.
+
+**Melody notes are flagged too.** A slip in the melody is still a slip, so the glitch and timing kinds check the notes that carry the melody like the others and mark them `protected`. None of their suggestions changes a pitch.
+
+**Pedal is ignored.** A note lasts from its note-on to its note-off, though the pedal may let it ring.
+
+### The grid
+
+Timing is measured against chordotomy's beats, not the cover's ticks: tsumugi's tempo map changes tempo and counts twice as fast as the song's beats. An attack is an onset cluster, the notes starting within 30 ms of the cluster's first, placed at its first note, so a chord is one attack. Each beat is divided into 4, or into 3 when at least two of its attacks lie nearer a triplet line inside the beat (a third or two thirds in) than its start or end, and the 3-grid cuts the total distance from its attacks to their nearest lines by at least a third. So a triplet beat is not flagged, one stray attack can't switch a beat, and the rest stays on sixteenths. A beat without attacks takes 4. Before the first beat and after the last, the beats continue at the neighbouring beat interval.
+
+An ordered roll counts as one attack: its notes after the first attack are left out of the grid, `off-grid` and `density`. A roll is a run of at least three attacks, each starting within `roll_ms` of the previous and lying wholly above it throughout or wholly below it throughout. An attack that turns back starts a new run with the one before it. Two attacks make no roll, so a note played just after a chord is checked whether it is higher or lower.
+
+`density` counts attacks, each in the beat of its nearest grid line, so one played a little early still counts on its beat. Beats from the first attack's to the last attack's count, empty ones included.
+
+### Kinds
+
+| kind | flagged | `measurements` | `suggested` |
+| --- | --- | --- | --- |
+| `glitch:short` | a note shorter than `short_ms` with no other onset within `alone_ms` | `duration_ms`, `nearest_onset_ms` (`null` for the only note) | `delete` |
+| `glitch:stutter` | a note whose pitch was struck within `stutter_ms` before it; the anchor is the second attack | `after_ms`, `previous` (the first attack's id) | `delete` the shorter of the two strikes, the second when they are as long: mostly one is a sliver and the other the held note |
+| `glitch:velocity` | a velocity at least `velocity_above` over the median velocity of the other notes of its role starting within a beat of it: a melody note against the melody, an accompaniment note against the accompaniment, since the melody is voiced louder. A note with no other note of its role within a beat is not checked | `velocity`, `median`, `above` | `modify` the velocity to the median, rounded |
+| `timing:off-grid` | an onset more than `off_grid_ms` from its nearest grid line, roll notes after the first attack skipped | `off_ms` (signed, positive is late), `subdivisions` (4 or 3), `grid_beat` (the line) | `modify` `on_tick` to the line and `off_tick` by as many ticks, so the length stays; `null` when the line falls before tick 0 or the moved note would overlap a note of its pitch, which the applier refuses |
+| `timing:density` | a beat with at least `density_factor` times the median attacks of the `density_beats` beats on each side, when that median is at least 1; or with at most the median divided by `density_factor`, when the median is at least `density_factor`, so at least one attack was expected | `attacks`, `median` | `null` |
+| `timing:duration` | a note longer than `duration_beats` | `beats` | `modify` `off_tick` to `duration_beats` after the onset; `null` if that rounds onto the note's own end |
+
+### Thresholds
+
+| threshold | default | rule |
+| --- | --- | --- |
+| `short_ms` | 50 | `short`: duration below this |
+| `alone_ms` | 30 | `short`: no other onset within this |
+| `stutter_ms` | 120 | `stutter`: the pitch struck again within this |
+| `velocity_above` | 20 | `velocity`: at least this over the median of its role |
+| `off_grid_ms` | 45 | `off-grid`: more than this from the nearest line |
+| `roll_ms` | 60 | rolls: each attack within this of the previous |
+| `density_factor` | 3 | `density`: a spike at this times the median, a dip at the median divided by this |
+| `density_beats` | 4 | `density`: the beats on each side the median is taken over |
+| `duration_beats` | 8 | `duration`: longer than this |
 
 ## Correction spec
 

@@ -48,3 +48,11 @@ def test_non_json_names_path(tmp_path):
 
     with pytest.raises(tl.TimelineError, match="bad.json"):
         tl.load(path)
+
+
+def test_undecodable_bytes_name_path(tmp_path):
+    path = tmp_path / "song.mid"  # a MIDI file passed as the timeline
+    path.write_bytes(b"MThd\x00\x00\x00\x06\x00\x01\x00\x02\x01\xe0MTrk\xff\xfe")
+
+    with pytest.raises(tl.TimelineError, match=r"song\.mid: not valid JSON"):
+        tl.load(path)

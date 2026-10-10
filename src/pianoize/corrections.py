@@ -275,15 +275,24 @@ def load(path: str | Path, cover_path: str | Path, melody_path: str | Path) -> S
 
     cover = _read_midi(cover_path)
     try:
-        notes.check_editable(cover)
-        for track in cover.tracks:
-            _note_messages(track)
-    except (notes.NoteError, CorrectionError) as exc:
+        check_cover(cover)
+    except CorrectionError as exc:
         raise CorrectionError(f"{cover_path}: {exc}") from exc
     cover_notes = notes.read(cover)
     guarded = notes.protected(cover_notes, notes.read(_read_midi(melody_path)))
     _check(verdicts, edits, cover_notes, guarded)
     return Spec(verdicts, edits)
+
+
+def check_cover(midi: mido.MidiFile) -> None:
+    """Raise CorrectionError unless the cover can be edited: its notes on one track and channel,
+    no two sharing an id, and every note ended by its own note-off."""
+    try:
+        notes.check_editable(midi)
+    except notes.NoteError as exc:
+        raise CorrectionError(str(exc)) from exc
+    for track in midi.tracks:
+        _note_messages(track)
 
 
 def _is_note_on(message: mido.Message) -> bool:

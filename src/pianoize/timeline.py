@@ -19,7 +19,7 @@ def load(path: str | Path) -> dict:
     path = Path(path)
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as exc:
+    except ValueError as exc:  # also undecodable bytes
         raise TimelineError(f"{path}: not valid JSON ({exc})") from exc
     version = data.get("schema_version", "missing") if isinstance(data, dict) else "missing"
     if version != SCHEMA_VERSION:
