@@ -67,6 +67,18 @@ def write_timeline(tmp_path: Path) -> Callable[..., Path]:
 
 
 @pytest.fixture
+def write_score(tmp_path: Path) -> Callable[..., Path]:
+    """Writes `format 1` and the lines given to score.txt and returns its path."""
+
+    def write(*lines: str) -> Path:
+        path = tmp_path / "score.txt"
+        path.write_text("\n".join(["format 1", *lines]) + "\n", encoding="utf-8")
+        return path
+
+    return write
+
+
+@pytest.fixture
 def synth() -> np.ndarray:
     """One second of a 440 Hz sine at amplitude 0.5: a clip with a known, nonzero peak."""
     t = np.arange(SAMPLE_RATE) / SAMPLE_RATE
