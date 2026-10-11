@@ -35,7 +35,7 @@ def note_id(on_tick: int, pitch: int) -> str:
     return f"t{on_tick}p{pitch}"
 
 
-def _tempo_map(midi: mido.MidiFile) -> list[tuple[int, float, int]]:
+def tempo_map(midi: mido.MidiFile) -> list[tuple[int, float, int]]:
     """(tick, seconds at that tick, tempo from there on), from tick 0; tempo events may sit on any
     track."""
     changes: dict[int, int] = {}
@@ -59,7 +59,7 @@ def _tempo_map(midi: mido.MidiFile) -> list[tuple[int, float, int]]:
     return segments
 
 
-def _seconds(segments: list[tuple[int, float, int]], ticks_per_beat: int, tick: int) -> float:
+def seconds_at(segments: list[tuple[int, float, int]], ticks_per_beat: int, tick: int) -> float:
     index = bisect.bisect_right([s[0] for s in segments], tick) - 1
     start, seconds, tempo = segments[index]
     return seconds + mido.tick2second(tick - start, ticks_per_beat, tempo)
@@ -92,7 +92,7 @@ def read(midi: mido.MidiFile, tracks: list[int] | None = None) -> list[Note]:
     """Every note by onset, without drums, paired per track; with `tracks`, only the notes of the
     tracks at those indexes, still timed by every track's tempo changes. That equals melody.notes
     for the single-track covers check_editable accepts; see docs/evaluation.md for the pairing."""
-    segments = _tempo_map(midi)
+    segments = tempo_map(midi)
     found: list[Note] = []
     for track in midi.tracks if tracks is None else [midi.tracks[i] for i in tracks]:
         for on_index, _, on_tick, off_tick in pairs(track):
@@ -104,8 +104,8 @@ def read(midi: mido.MidiFile, tracks: list[int] | None = None) -> list[Note]:
                     on.note,
                     on.velocity,
                     on.channel,
-                    _seconds(segments, midi.ticks_per_beat, on_tick),
-                    _seconds(segments, midi.ticks_per_beat, off_tick),
+                    seconds_at(segments, midi.ticks_per_beat, on_tick),
+                    seconds_at(segments, midi.ticks_per_beat, off_tick),
                 )
             )
     return sorted(found, key=lambda n: (n.onset, n.pitch, n.on_tick))
@@ -113,7 +113,7 @@ def read(midi: mido.MidiFile, tracks: list[int] | None = None) -> list[Note]:
 
 def tick_at(midi: mido.MidiFile, seconds: float) -> int:
     """The tick nearest a time in seconds: the inverse of the file's tempo map."""
-    segments = _tempo_map(midi)
+    segments = tempo_map(midi)
     index = max(bisect.bisect_right([s[1] for s in segments], seconds) - 1, 0)
     start, start_seconds, tempo = segments[index]
     return start + round(mido.second2tick(seconds - start_seconds, midi.ticks_per_beat, tempo))
