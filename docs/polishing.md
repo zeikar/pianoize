@@ -1,6 +1,16 @@
 # Polishing
 
-How pianoize polishes a tsumugi-piano-cover MIDI. `pianoize find-candidates` lists the candidate problems; an agent session judges them and writes a correction spec into `work/`; `pianoize apply-corrections` validates the spec and applies it to a copy of the cover. The CLI never calls an LLM. The reasons are in [docs/decisions.md](decisions.md#an-agent-writes-the-correction-spec-code-applies-it).
+How pianoize refines a song's harmony timeline and polishes a tsumugi-piano-cover MIDI against it. An agent session writes two small JSON files into `work/`, the chord edits and the correction spec; pianoize validates them and writes the refined timeline and the polished cover. The CLI never calls an LLM. The reasons are in [docs/decisions.md](decisions.md#an-agent-writes-the-correction-spec-code-applies-it).
+
+## Workflow
+
+The [`polish-cover` skill](#running-the-skill) runs the four commands in two phases. In each, a command lays out the evidence, the agent decides and writes a JSON file, and a command validates that file and writes the result.
+
+1. **The refined harmony timeline.** [`harmony-evidence`](#harmony-evidence) tabulates what chordotomy's timeline, tsumugi's transcription and the cover's notes say in each segment. The agent decides each disagreement and writes the chord edits; [`refine-timeline`](#refined-harmony-timeline) writes the refined timeline from them, and `harmony-evidence` run on it confirms the edits.
+2. **The polished cover.** [`find-candidates`](#candidates) lists the candidates against the refined timeline. The agent gives each a verdict and writes the [correction spec](#correction-spec); `find-candidates` with `--spec` [checks it](#checking-a-spec), run after run, until every candidate is judged and every fix is gone. [`apply-corrections`](#applying) writes the polished cover, and `harmony-evidence` run on it checks its notes against the refined harmony.
+3. **Listening.** The agent cannot hear the result, so the user is the last gate. Both covers are rendered with `pianoize render` ([docs/evaluation.md](evaluation.md#rendering-a-midi-file)); the user listens A/B and approves, or names places to revert. A revert drops the edits there and turns the verdicts they answered into `keep`, and the second phase runs again from the `--spec` check.
+
+Since M3 (2026-10-11) this path is kept but is no longer the main one: at its listening gate an arrangement an agent wrote from the cover and the melody sounded better than the polished cover ([decision](decisions.md#m3-an-agent-writes-the-arrangement-2026-10-11)). The refined timeline and the evidence table stay as evidence for that arrangement.
 
 ## Candidates
 
@@ -272,4 +282,4 @@ Pitch classes are spelled with sharps: B♭ reads `A#`. Of two pitch classes sou
 
 ## Running the skill
 
-The repository is a Claude Code plugin: `.claude-plugin/plugin.json` and `marketplace.json` at its root, and the `polish-cover` skill in `skills/polish-cover/`, its `SKILL.md` and the judgment it draws on in `references/`. The skill runs the four commands above in two phases, the refined harmony timeline and then the polished cover, and ends with the user listening to both covers rendered by `pianoize render` (see [docs/evaluation.md](evaluation.md)). In Claude Code, install it with `/plugin marketplace add zeikar/pianoize` and `/plugin install pianoize@pianoize`; the plugin then runs its own copy of pianoize through `uv run --project`. In a checkout, `.claude/settings.json` registers the checkout as a plugin marketplace and enables the plugin, so the skill runs from the working tree once the first session's trust prompt is accepted; `claude plugin marketplace add .` does the same by hand.
+The repository is a Claude Code plugin: `.claude-plugin/plugin.json` and `marketplace.json` at its root, and the `polish-cover` skill in `skills/polish-cover/`, its `SKILL.md` and the judgment it draws on in `references/`. The skill runs the [workflow](#workflow) above. In Claude Code, install it with `/plugin marketplace add zeikar/pianoize` and `/plugin install pianoize@pianoize`; the plugin then runs its own copy of pianoize through `uv run --project`. In a checkout, `.claude/settings.json` registers the checkout as a plugin marketplace and enables the plugin, so the skill runs from the working tree once the first session's trust prompt is accepted; `claude plugin marketplace add .` does the same by hand.

@@ -2,13 +2,14 @@
 
 Turn a song recording into a piano arrangement, rendered as falling notes.
 
-Status: M1 tooling runs: `pianoize evaluate`, `render` and `melody-clashes`. The M1 experiment scripts are in [`experiments/m1/`](experiments/m1/README.md); their outputs stay in `work/`.
+Status: M1 tooling runs: `pianoize evaluate`, `render` and `melody-clashes`. The M1 experiment scripts are in [`experiments/m1/`](experiments/m1/README.md); their outputs stay in `work/`. M2 tooling runs: `pianoize harmony-evidence`, `refine-timeline`, `find-candidates` and `apply-corrections`, driven by the [`polish-cover`](skills/polish-cover/SKILL.md) Claude Code skill. M3, an arrangement an agent writes as a score, is next.
 
 ## Direction so far
 
-- **Harmony from several imperfect sources, refined by an LLM.** A [chordotomy](https://github.com/zeikar/chordotomy) timeline gives beats, chords, bass and key; web chord charts and tsumugi's transcription give other readings. Each gets things wrong, so none is the answer key. An LLM skill weighs them against each other and against the notes, and writes one refined harmony timeline. chordotomy itself stays an analyzer.
+- **Harmony from several imperfect sources, refined by an LLM.** A [chordotomy](https://github.com/zeikar/chordotomy) timeline gives beats, chords, bass and key; tsumugi's transcription gives another reading. Web chord charts may come later as a third, pasted by the user. Each gets things wrong, so none is the answer key. An LLM skill weighs them against each other and against the notes, and writes one refined harmony timeline. chordotomy itself stays an analyzer.
 - **The arrangement starts from tsumugi-piano-cover.** M1 compared the audio-to-piano models that run on a Mac; tsumugi-piano-cover kept the most harmony and sounded best, so pianoize starts from its cover ([decision](docs/decisions.md#the-arrangement-first-the-video-last)).
-- **An LLM polishes the cover, code applies it.** The cover is kept, not regenerated. Code lists the places that may need work: chords that disagree with the refined harmony, notes that sound like slips, awkward voice leading and stumbling timing. An agent judges each one and writes a correction spec for those worth fixing. Deterministic code applies it to a copy of the cover.
+- **M2: an LLM polishes the cover, code applies it.** Code lists the places that may need work: chords that disagree with the refined harmony, notes that sound like slips, awkward voice leading and stumbling timing. An agent judges each one and writes a correction spec for those worth fixing. Deterministic code applies it to a copy of the cover ([docs/polishing.md](docs/polishing.md)). It works, but at the listening gate an arrangement an agent wrote sounded better than the polished cover, so polishing is no longer the main path.
+- **M3: an agent writes the arrangement, code renders and checks it.** An agent session following an `arrange-cover` skill reads the cover and the melody and writes a per-bar score for two hands into `work/`. pianoize turns the score into MIDI on the cover's tempo grid, every note at one velocity, and checks that it is playable and fits the harmony ([decision](docs/decisions.md#m3-an-agent-writes-the-arrangement-2026-10-11)).
 - **Falling-notes output.** A piano roll drawn over time needs no bar lines or time signature.
 
 ## Rules
@@ -24,6 +25,8 @@ Status: M1 tooling runs: `pianoize evaluate`, `render` and `melody-clashes`. The
 - `viewer/`: the falling-notes renderer, for the web (not started)
 - `experiments/`: [M1 model trial](experiments/m1/README.md) scripts; the scripts and their environments live in `work/m1/`
 - `docs/`: [design decisions](docs/decisions.md), and later the arrangement JSON schema
+- `skills/`: the Claude Code skills; [`polish-cover`](skills/polish-cover/SKILL.md) drives the M2 polishing commands
+- `.claude-plugin/`: the manifests that make the repository a Claude Code plugin and its own marketplace
 - `work/`: recordings and everything made from them, gitignored
 
 The engine and the viewer will meet at a documented arrangement JSON: notes, the hand playing each, and the chord names to overlay. The engine will export MIDI as well.
@@ -39,7 +42,7 @@ uv run pytest
 uv run ruff check . && uv run ruff format --check .
 ```
 
-Scoring and rendering need [FluidSynth](https://www.fluidsynth.org/), a piano SoundFont and [chordotomy](https://github.com/zeikar/chordotomy), installed separately. Options and environment variables are in [docs/evaluation.md](docs/evaluation.md).
+Scoring and rendering need [FluidSynth](https://www.fluidsynth.org/), a piano SoundFont and [chordotomy](https://github.com/zeikar/chordotomy), installed separately. Options and environment variables are in [docs/evaluation.md](docs/evaluation.md). The polishing commands, their file formats and the skill that runs them are in [docs/polishing.md](docs/polishing.md).
 
 ```sh
 uv run pianoize render song.mid -o song.wav

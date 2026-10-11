@@ -2,16 +2,19 @@
 
 ## The arrangement first, the video last
 
-The goal is falling-notes videos of piano arrangements for a personal, non-monetized YouTube channel. What makes one worth watching is the arrangement, so the renderer comes last and is started only once the arrangements sound right as MIDI. The work runs in four steps:
+The goal is falling-notes videos of piano arrangements for a personal, non-monetized YouTube channel. What makes one worth watching is the arrangement, so the renderer comes last and is started only once the arrangements sound right as MIDI. The work runs in five steps:
 
 1. **M0**: these rules and the package skeleton.
 2. **M1**: run the existing audio-to-piano-cover models that run on a Mac, and the melody extractors, and score them together with a human piano cover.
-3. **M2**: polishing the M1 model's arrangement: its harmony, slips, voice leading and timing.
-4. **M3**: the renderer.
+3. **M2**: polishing the M1 model's arrangement: its harmony, slips, voice leading and timing. Built ([M2 decisions](#m2-decisions-2026-10-10)), but since 2026-10-11 no longer the main path.
+4. **M3**: the arrangement, written by an agent as a two-hand score from the cover and the melody, and rendered and checked by pianoize ([M3](#m3-an-agent-writes-the-arrangement-2026-10-11)). Added 2026-10-11; until then M3 was the renderer.
+5. **M4**: the renderer.
 
 If a model in M1 keeps the harmony, pianoize wraps it. If it simplifies the harmony the way the human cover does, M2 is the reason pianoize exists. The user makes that call from the M1 table; there is no fixed threshold.
 
 **Decision (2026-10-09): pianoize wraps tsumugi-piano-cover.** It scored the most checkpoints in M1 (11 of 20), and to the user's ear its render kept the harmony. Two of its misses are the analyzer reading Cm over E♭ as E♭ major, the same misreading the synthetic check found; the rest are a few passages (the bridge, the augmented passing chords, one passing chord, parts of two choruses). So M2 polishes tsumugi's cover instead of arranging from scratch: where it departs from the original's harmony, and where a note slips, a voice jumps or the timing stumbles. Etude scored 10 of 20 but sounded less clear, and its ShareAlike weights complicate the videos; Pop2Piano has no license. The numbers are in [M1 results](#m1-results-2026-10-09).
+
+Superseded in part on 2026-10-11: tsumugi's cover is still what the arrangement starts from, but an agent now writes the arrangement from the cover and the melody instead of polishing the cover note by note ([M3](#m3-an-agent-writes-the-arrangement-2026-10-11)).
 
 ## Harmony from several sources; chordotomy stays as it is
 
@@ -45,13 +48,15 @@ A chord passes when its root, triad class and, for inverted originals, bass matc
 
 A human cover is scored the same way. That checks the scoring itself: the cover's simplifications have to come out as failures.
 
-M1 scored against chordotomy's timeline, so its numbers include the analyzer's misreadings (see [Harmony from several sources](#harmony-from-several-sources-chordotomy-stays-as-it-is)). From M2 on, results are compared with the refined harmony timeline.
+M1 scored against chordotomy's timeline, so its numbers include the analyzer's misreadings (see [Harmony from several sources](#harmony-from-several-sources-chordotomy-stays-as-it-is)). From M2 on, a result's notes are checked against the refined harmony timeline directly: `pianoize harmony-evidence` gives each segment's coverage and missing tones, with no render or chordotomy reanalysis in between ([docs/polishing.md](polishing.md#harmony-evidence)). The render-and-analyze scoring above is what M1 used, and stays in `pianoize evaluate`.
 
 The checkpoints for a particular song are made from its recording, so they stay in `work/`. The repository keeps only their format and synthetic examples.
 
 ## Playable arrangements
 
-A falling-notes video reads as a piece someone could play. So arrangements are pitched at an intermediate-to-advanced player. tsumugi's cover is one piano part with no hands assigned; from M3, pianoize splits it into hands, and a check verifies a limit on notes per hand, a hand span (about a ninth) and no crossed hands. A correction must keep that check passing.
+A falling-notes video reads as a piece someone could play. So arrangements are pitched at an intermediate-to-advanced player. tsumugi's cover is one piano part with no hands assigned. From M3 the arrangement is written for two hands by an agent ([M3](#m3-an-agent-writes-the-arrangement-2026-10-11)), rather than pianoize splitting the cover as first planned, and a check verifies a limit on notes per hand, a hand span (about a ninth) and no crossed hands. Every arrangement, and every correction, must keep that check passing.
+
+Every note of an arrangement gets the same velocity (2026-10-11). Most piano covers barely vary their dynamics, so pianoize writes none.
 
 ## An agent writes the correction spec, code applies it
 
@@ -61,7 +66,7 @@ The pianoize CLI never calls an LLM. That way there is no API key and no cost, a
 
 ## The melody comes with the cover
 
-tsumugi's cover already carries the melody, so no separate melody extractor feeds pianoize; GAME, Basic Pitch and torchcrepe were compared in M1 only for an arrangement built from scratch. tsumugi's transcription also writes a `melody` track, which can mark the cover's melody notes so a correction leaves them alone.
+tsumugi's cover already carries the melody, so no separate melody extractor feeds pianoize; GAME, Basic Pitch and torchcrepe were compared in M1 only for an arrangement built from scratch. tsumugi's transcription also writes a `melody` track, which can mark the cover's melody notes so a correction leaves them alone. Since M3 (2026-10-11) the arrangement takes its melody from that track rather than from the cover's top line, still with no separate extractor ([M3](#m3-an-agent-writes-the-arrangement-2026-10-11)).
 
 Corrections live in the spec, not in hand edits to the cover's MIDI: the cover stays untouched, and each change can be read and undone.
 
@@ -146,3 +151,53 @@ The vocals rows also need the Demucs separation (CPU, 396 s). `work/m1/results/m
 ### Listening
 
 The user listened to the renders in `work/m1/results/` on 2026-10-09. tsumugi's sounded good, its harmony included; Etude's and Pop2Piano's were less clear. The decision that followed is under [The arrangement first, the video last](#the-arrangement-first-the-video-last).
+
+## M2 decisions (2026-10-10)
+
+M2 built four commands, `harmony-evidence`, `refine-timeline`, `find-candidates` and `apply-corrections`, and the `polish-cover` Claude Code skill that runs them. [docs/polishing.md](polishing.md) documents them.
+
+- **The agent writes two small JSON files; code writes the rest.** The agent writes the chord edits (`harmony-edits.json`, chords over beat ranges) and the correction spec (a verdict per candidate, an edit per fix). Code validates both and writes the refined timeline and the polished MIDI. The agent never writes a timeline or a MIDI file itself, so what it decided stays small enough to read and edit, every change carries a reason, and the same files give the same bytes.
+- **The refined timeline is chordotomy's with edited spans.** It lives at `<stem>.refined.chords.json`, so a save in chordotomy's viewer, which writes `<stem>.edited.chords.json`, never overwrites it. It keeps chordotomy's `generator` and `candidates`, and sets `numeral`, `role`, `function` and `target` to `null` on edited segments: pianoize does not port chordotomy's harmonic analysis, and the viewer recomputes them at its first edit. An edit is a beat range, so a chord change between two beats goes to a beat.
+- **Melody protection is pitch only.** A cover note that carries the melody never changes pitch; deleting or retiming it stays allowed. A note carries the melody when it is the top of its 30 ms onset cluster and a note of tsumugi's melody track starts within 60 ms of it on the same pitch class, at or below it: the cover mostly plays the melody an octave up.
+- **`add` is allowed, and the pedal is ignored.** A missing chord tone may need a new note. The checks count a note from its note-on to its note-off, so a tone only the pedal holds counts as missing; the spec has no pedal edit.
+- **Thresholds** started at the values proposed while planning M2 and were tuned once on the test cover, where a kind giving more than about 60 candidates floods the judging. Only `off_grid_ms` changed, from 45 to 50 ms, which cut the off-grid candidates from 73 to 45. At the tuned values the finder listed 181 candidates; the count per kind is in [docs/polishing.md](polishing.md#thresholds).
+- **The harmony check reads the notes.** The render → chordotomy scoring gives way to `harmony-evidence` run on the polished cover and the refined timeline (see [Scoring whether the harmony survived](#scoring-whether-the-harmony-survived)).
+
+**The real run.** On the test song, phase 1 edited 27 of 145 segments of chordotomy's timeline. One was a passing chord over its third that chordotomy read as the major chord on that bass; the transcription's piano and strings showed the real chord. In phase 2 the agent judged the 181 candidates and one more that an edit had created: 20 fixed and 162 kept, with 26 edits (7 deletes, 18 modifies, 1 add). The `--spec` run exited 0 on its second iteration.
+
+**Listening.** The original and the polished cover were rendered for the A/B gate. Instead of approving or naming places to revert, the user compared them with arrangements built other ways, and chose another direction for M3 ([below](#m3-an-agent-writes-the-arrangement-2026-10-11)). The polished cover was never approved as the final arrangement, and nothing was reverted.
+
+**Known gaps in the `polish-cover` skill**, reported by the two agent sessions that ran it, recorded and not fixed:
+
+- The evidence table shows only the transcription's bass track; three decisions needed its other instruments, read outside the table.
+- The transcribed bass's share is measured over the bass track's own sounding time in the segment, so a bass that plays for a moment of it can still show a full share.
+- Where there is no vocal, the cover's lead line is not matched to the melody and counts as accompaniment, which skews the `velocity` medians and the coverage.
+- Nothing tells texture from error on `harmony:missing`.
+- A candidate's `context` lines carry no beat or segment marks.
+- `off_grid_ms` also sets the passing-tone, segment-bass and `bass-late` tolerances, so tuning it for `off-grid` moves those too.
+- SKILL.md's step 6 asks for coverage of at least 0.6 where a chord was fixed, and leaves unclear what applies to a coverage candidate that was kept.
+- `references/reconcile-harmony.md` says a reading already in chordotomy's `candidates` is the likeliest answer; that misled where every candidate shared a wrong root.
+
+## M3: an agent writes the arrangement (2026-10-11)
+
+At M2's listening gate the user compared renders of one excerpt, from the start of the song to the end of the first chorus:
+
+- **A**, a rule-based arrangement built from scratch (the melody, the refined chords, left-hand patterns): clearly cleaner.
+- **B**, tsumugi's cover, and **C**, the polished cover.
+- **D**, C with a clean melody layer on top: too ornate, and things don't fit, because the cover's right-hand lines were written around the cover's own melody.
+- **E**, A's right hand over the cover's left hand: better.
+- **F1** and **F2**, E with the left hand's pitches regenerated from the chords on the cover's rhythm, bar by bar or from one template per section.
+- **G**, an agent (Claude) arranging for a falling-notes video from only tsumugi's cover and tsumugi's vocal transcription. It wrote a per-bar text score, which a script turned into a two-hand MIDI on the cover's tempo grid and checked for playability. The user rated it best, and hard to improve on. A revision brought back the original's signature rhythmic hits, its stop-time and band hits, using the cover's own notes.
+
+Two rules came out of it. Every note gets one velocity, because most piano covers barely vary their dynamics (see [Playable arrangements](#playable-arrangements)). And copying the cover's notes is fine where they render a moment best, once their strays are cleaned.
+
+**Decision (2026-10-11): an agent writes the arrangement as a score; pianoize renders and checks it.** An agent session following a new `arrange-cover` skill reads the cover and the melody, and writes a per-bar score into `work/`. The score is song-specific and stays in `work/`, like a correction spec. pianoize commits only generic, tested tooling:
+
+- a documented score format;
+- a command that turns a score into a two-hand MIDI on the cover's tempo grid, with one velocity and the pedal;
+- a check of playability and harmony;
+- a per-bar dump of the cover and the melody for the agent to read.
+
+The reasons: G sounded cleaner than the polished cover, it is written for two hands and checked as playable, and it keeps the song's own feel, its rhythmic hits included. Committed tooling makes the next song reproducible, where the spike's one-off scripts were written for one song. The CLI still never calls an LLM: the agent writes the score, and code renders it deterministically.
+
+The score is the natural seed for the arrangement JSON the README plans, since it already names the hands and the chords. M2's tooling stays: the refined timeline and the evidence table remain evidence for the agent, and the polish path still runs. The arrangement still copies tsumugi-piano-cover's notes in places, so the video credit and the non-commercial terms in [What goes into a video](#what-goes-into-a-video) and [Licenses](#licenses) stay as they are. The spike's outputs are in `work/m3-spike/` and `work/m3-claude/`, not committed.
