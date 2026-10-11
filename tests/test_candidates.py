@@ -371,6 +371,17 @@ def test_cli_reports_a_bad_timeline_without_a_traceback(tmp_path, files):
     assert "Traceback" not in result.output
 
 
+def test_cli_reports_a_one_beat_timeline_without_a_traceback(tmp_path, files):
+    cover, timeline, melody = files
+    data = json.loads(timeline.read_text(encoding="utf-8"))
+    data["beats"] = data["beats"][:1]
+    timeline.write_text(json.dumps(data), encoding="utf-8")
+    result = _find_cli(cover, timeline, melody, tmp_path / "candidates.json")
+    assert result.exit_code == 1
+    assert "the timeline has 1 beats, needs two" in " ".join(result.output.split())
+    assert "Traceback" not in result.output
+
+
 def test_three_quick_strikes_never_suggest_deleting_one_note_twice(tick_midi):
     # The 5 ms middle strike is the shorter of both pairs.
     played = [(1000, 1030, 64, 80), (1040, 1045, 64, 80), (1060, 1400, 64, 80)]
@@ -500,6 +511,15 @@ def test_missing_names_the_tones_never_sounded(tick_midi, played, progression, m
     assert flagged.id == "harmony:missing:s0"
     assert flagged.measurements == {"missing": missing}
     assert of_kind(found, "coverage") == []  # the tones it plays are all chord tones
+
+
+def test_one_attack_with_a_foreign_tone_for_the_missing_one_is_flagged(tick_midi):
+    # C-Eb-G held over C major: coverage 0.667 is above the cutoff, but the Eb stands where the E
+    # should be. The same attack without the Eb only omits a tone.
+    found = chords(tick_midi, held([48, 51, 55]), [("C:maj", 4)])
+    (flagged,) = of_kind(found, "missing")
+    assert flagged.measurements == {"missing": ["E"]}
+    assert of_kind(found, "coverage") == []
 
 
 def test_a_segment_under_a_beat_is_not_missing_its_tones(tick_midi):

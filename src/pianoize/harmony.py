@@ -13,7 +13,8 @@ from .timeline import beat_position
 
 _PASSING_BEATS = 0.5  # a passing tone lasts at most this long
 _STEP = 2  # semitones: a passing tone is approached and left by a step of at most this
-# A segment struck once, or shorter than a beat, says little about what it leaves out.
+# A segment struck once, or shorter than a beat, says little about what it leaves out, unless a
+# foreign tone stands in for the missing one.
 _MISSING_ATTACKS = 2
 _MISSING_BEATS = 1
 
@@ -130,17 +131,21 @@ def find(cover: Cover, limits: Thresholds) -> Iterator[Candidate]:
         chord_tones = tones(segment)
         absent = [ROOT_NAMES[pc] for pc in missing(cover.played, start, end, segment)]
         share = coverage(accompaniment, start, end, chord_tones)
+        clashes = [
+            _clash(cover, n, chord_tones)
+            for n in accompaniment
+            if held(n, start, end) > 0
+            and n.pitch % 12 not in chord_tones
+            and not _passing(cover, limits, n, *around[n.id])
+        ]
         if share is not None and share < limits.coverage_below:
-            clashes = [
-                _clash(cover, n, chord_tones)
-                for n in accompaniment
-                if held(n, start, end) > 0
-                and n.pitch % 12 not in chord_tones
-                and not _passing(cover, limits, n, *around[n.id])
-            ]
             measured = {"coverage": round(share, 3), "missing": absent, "clashes": clashes}
             yield _on_segment(cover, "coverage", start, end, segment, measured)
         struck = sum(1 for attack in attacks if start <= attack[0].onset < end)
         beats = beat_position(cover.timeline, end) - beat_position(cover.timeline, start)
-        if absent and struck >= _MISSING_ATTACKS and beats >= _MISSING_BEATS:
+        # One attack that merely omits a tone says little, but a foreign tone sounding where a
+        # triad tone is missing is a wrong harmony however often it is struck. Below the coverage
+        # cutoff the coverage candidate already names what is missing.
+        substituted = bool(clashes) and share >= limits.coverage_below
+        if absent and (struck >= _MISSING_ATTACKS or substituted) and beats >= _MISSING_BEATS:
             yield _on_segment(cover, "missing", start, end, segment, {"missing": absent})

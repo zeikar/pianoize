@@ -1,4 +1,4 @@
-"""Writing outputs so that a failed run leaves every existing file as it was."""
+"""Writing outputs so that a failed save leaves every existing file as it was."""
 
 import tempfile
 from collections.abc import Callable
@@ -8,8 +8,12 @@ from pathlib import Path
 
 def write_all(outputs: dict[Path, Callable[[Path], None]]) -> None:
     """Save each output with its function to a scratch file beside it, then replace them in turn.
-    A save that fails leaves every output as it was. Each scratch directory sits beside its
-    destination, on the same filesystem, so each replace is atomic."""
+    A save that fails, or a destination that is a directory, leaves every output as it was. Each
+    scratch directory sits beside its destination, on the same filesystem, so each replace is
+    atomic; the replaces are atomic one by one, not together."""
+    for out in outputs:
+        if out.is_dir():
+            raise IsADirectoryError(f"{out} is a directory")
     with ExitStack() as stack:
         partials = []
         for out, save in outputs.items():

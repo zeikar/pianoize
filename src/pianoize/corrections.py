@@ -285,13 +285,35 @@ def load(path: str | Path, cover_path: str | Path, melody_path: str | Path) -> S
 
 def check_cover(midi: mido.MidiFile) -> None:
     """Raise CorrectionError unless the cover can be edited: its notes on one track and channel,
-    no two sharing an id, and every note ended by its own note-off."""
+    no two sharing an id, every note ended by its own note-off and no note-off ending nothing."""
     try:
         notes.check_editable(midi)
     except notes.NoteError as exc:
         raise CorrectionError(str(exc)) from exc
-    for track in midi.tracks:
+    for index, track in enumerate(midi.tracks):
         _note_messages(track)
+        _check_no_stray_off(track, index)
+
+
+def _check_no_stray_off(track: mido.MidiTrack, index: int) -> None:
+    """Refuse a pitched note-off with no sounding note to end: _rebuild keeps it, and a note
+    retimed or added across it would be cut short there."""
+    sounding: set[tuple[int, int]] = set()
+    now = 0
+    for message in track:
+        now += message.time
+        if message.type not in ("note_on", "note_off") or message.channel == _DRUM_CHANNEL:
+            continue
+        key = (message.channel, message.note)
+        if _is_note_on(message):
+            sounding.add(key)
+        elif key in sounding:
+            sounding.discard(key)
+        else:
+            raise CorrectionError(
+                f"track {index} has a note-off for pitch {message.note} at tick {now} that ends "
+                "no note"
+            )
 
 
 def _is_note_on(message: mido.Message) -> bool:

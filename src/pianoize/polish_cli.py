@@ -115,6 +115,7 @@ def find_candidates(
         raise _fail(f"{cover}: {exc}") from exc
     try:
         chords = timeline.load(timeline_path)
+        timeline.require_beats(chords, timeline_path)
         spec = None if spec_path is None else corrections.load(spec_path, cover, melody_path)
     except (timeline.TimelineError, corrections.CorrectionError) as exc:
         raise _fail(str(exc)) from exc

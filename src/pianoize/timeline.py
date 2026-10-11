@@ -42,6 +42,12 @@ def _version_problem(data) -> str | None:
     return None
 
 
+def require_beats(data: dict, path: str | Path) -> None:
+    """Raise TimelineError unless the timeline has the two beats beat_position needs."""
+    if len(data["beats"]) < 2:
+        raise TimelineError(f"{path}: the timeline has {len(data['beats'])} beats, needs two")
+
+
 def beat_position(timeline: dict, seconds: float) -> float:
     """Fractional beat at a time, interpolated between beats and extrapolated past either end with
     the neighbouring beat interval. The timeline needs at least two beats."""

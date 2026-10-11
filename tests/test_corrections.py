@@ -310,6 +310,17 @@ def test_a_note_without_its_own_note_off_is_refused(tmp_path, files, tick_midi, 
         corrections.load(write_spec(tmp_path, cover, melody), cover, melody)
 
 
+def test_a_note_off_that_ends_no_note_is_refused(tmp_path, files, tick_midi):
+    # Retiming the note to 150-250 would leave the stray off at 200 cutting it short.
+    cover, melody = files
+    stray = [(200, mido.Message("note_off", note=60))]
+    tick_midi([(0, 100, 60, 80)], meta=stray).save(cover)
+    with pytest.raises(
+        CorrectionError, match=r"cover\.mid: track 0 has a note-off for pitch 60 at tick 200"
+    ):
+        corrections.load(write_spec(tmp_path, cover, melody), cover, melody)
+
+
 def test_an_added_note_may_not_share_an_id(tmp_path, files, tick_midi):
     cover, melody = files
     zero_length = [
