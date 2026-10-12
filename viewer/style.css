@@ -1,0 +1,26 @@
+/* No colours or sizes here: main.js sets the background and the canvas's pixel size from
+   style.js. */
+body {
+  margin: 0;
+}
+
+/* The canvas's pixel size is 16:9, so a full width and an auto height keep that ratio. */
+canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+audio {
+  display: block;
+  width: 100%;
+}
+
+/* Capture screenshots the page at the canvas's pixel size, so it must not be scaled. */
+body.capture canvas {
+  width: auto;
+}
+
+body.capture audio {
+  display: none;
+}

@@ -5,7 +5,7 @@ import numpy as np
 import pytest
 from typer.testing import CliRunner
 
-from pianoize import serve
+from pianoize import serve, video
 from pianoize.cli import app
 
 
@@ -34,6 +34,17 @@ def test_serves_the_viewer_and_the_run_directory(server):
     assert get(server, "/")[:2] == (200, "text/html")
     assert get(server, "/main.js")[:2] == (200, "text/javascript")
     assert get(server, "/run/manifest.json")[:2] == (200, "application/json")
+
+
+def test_serves_the_real_viewer_page(tmp_path):
+    started = serve.start(video.VIEWER, tmp_path)
+    try:
+        status, kind, body = get(started, "/")
+    finally:
+        serve.stop(started)
+
+    assert (status, kind) == (200, "text/html")
+    assert body == (video.VIEWER / "index.html").read_bytes()
 
 
 @pytest.mark.parametrize("path", ["/run/../secret", "/run/%2e%2e/secret", "/../secret"])
