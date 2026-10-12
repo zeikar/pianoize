@@ -38,7 +38,7 @@ The code is published under MIT (2026-10-12), so no GPL or AGPL code goes into t
 
 ## What goes into a video
 
-A video carries only the piano pianoize renders, never the original audio or vocals separated from it. Its description credits the song, the artist and the composer, and the arrangement model, tsumugi-piano-cover (anime-song, CC BY-NC 4.0), whose license asks for attribution. Songs under a creator's fan-work guidelines follow them. For モモノネ that is hololive's music guidelines: the credit is required, no Content ID registration, no commercial or corporate use. Before uploading, check that the song is not on the guidelines' exclusion list.
+A video carries only the piano pianoize renders, never the original audio or vocals separated from it. Its description credits the song, the artist and the composer, and the arrangement model, tsumugi-piano-cover (anime-song, CC BY-NC 4.0), whose license asks for attribution. Songs under a creator's fan-work guidelines follow them. For モモノネ that is hololive's music guidelines ([hololivepro.com/terms](https://hololivepro.com/terms/), read 2026-10-13): the credit is required, and registering the video with Content ID or any other automatic identification is not allowed. Corporate use, and for-profit use beyond the sharing site's own monetization, is refused; an individual may use the site's partner program, YouTube's ad revenue included. Before uploading, check that the song is not on the guidelines' exclusion list, and its registration with JASRAC or NexTone, whose databases the guidelines point to.
 
 What the video shows on screen is in [M4](#m4-the-falling-notes-renderer-2026-10-12).
 
