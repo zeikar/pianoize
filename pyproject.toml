@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Turn a song recording into a piano arrangement, rendered as falling notes."
 readme = "README.md"
 requires-python = ">=3.12"
+license = { text = "MIT" }
 authors = [{ name = "zeikar" }]
 dependencies = [
   "mido>=1.3",

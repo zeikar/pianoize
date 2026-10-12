@@ -49,3 +49,7 @@ uv run pianoize render song.mid -o song.wav
 uv run pianoize evaluate --original original.chords.json --checkpoints checkpoints.json \
   --out-dir work/trial name=result.mid
 ```
+
+## License
+
+[MIT](LICENSE). The models pianoize runs are installed separately and keep their own terms ([docs/decisions.md](docs/decisions.md#licenses)).
