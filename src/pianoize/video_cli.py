@@ -2,13 +2,22 @@
 
 from __future__ import annotations
 
+import signal
+import tempfile
 from pathlib import Path
 from typing import Annotated
 
 import typer
 
-from . import files, roll
-from .cli import _fail, _read_midi, _refuse_input, app
+from . import files, roll, serve, video
+from .cli import _CLIPPING, _fail, _read_midi, _refuse_input, _soundfont_path, app
+from .render import RenderError
+
+
+def _stop_on_sigterm() -> None:
+    """Make a plain `kill` take the Ctrl-C path: a job started with `&` from a non-interactive
+    shell ignores SIGINT, and `uv run` forwards SIGTERM to its child."""
+    signal.signal(signal.SIGTERM, signal.default_int_handler)
 
 
 @app.command("export-arrangement")
@@ -29,3 +38,41 @@ def export_arrangement(
     hands = [n["hand"] for n in data["notes"]]
     typer.echo(f"notes: {hands.count('right')} right hand, {hands.count('left')} left hand")
     typer.echo(f"length: {roll.length(midi):.1f} s")
+
+
+@app.command("preview-video")
+def preview_video(
+    midi_path: Annotated[Path, typer.Argument(metavar="ARRANGED.mid", exists=True, dir_okay=False)],
+    cards: Annotated[
+        Path,
+        typer.Option(help="The title and credits cards, split by a '---' line.", exists=True),
+    ],
+    soundfont: Annotated[
+        Path | None,
+        typer.Option(help="The SoundFont; defaults to $PIANOIZE_SOUNDFONT."),
+    ] = None,
+    gain: Annotated[float, typer.Option(help="FluidSynth's master gain.")] = 0.5,
+) -> None:
+    """Serve the falling-notes video as a page to watch in a browser."""
+    _stop_on_sigterm()
+    soundfont = _soundfont_path(soundfont)
+    midi = _read_midi(midi_path)
+    try:
+        cards_text = cards.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        raise _fail(f"{cards}: {exc}") from exc
+    try:
+        # Beside the MIDI, as render's scratch sits beside its WAV, so the song's files stay
+        # in work/.
+        with tempfile.TemporaryDirectory(dir=midi_path.parent, prefix=".preview-") as tmp:
+            run_dir = Path(tmp)
+            _, peak = video.prepare(midi, cards_text, soundfont, run_dir, gain)
+            typer.echo(f"peak {peak:.3f}")
+            if peak >= _CLIPPING:
+                typer.echo(f"warning: peak {peak:.3f} may clip; lower --gain", err=True)
+            server = serve.start(video.VIEWER, run_dir)
+            typer.echo(f"preview: {serve.url(server)}")
+            typer.echo("press Ctrl-C to stop")
+            serve.wait(server)
+    except (roll.RollError, video.VideoError, RenderError, OSError) as exc:
+        raise _fail(str(exc)) from exc
