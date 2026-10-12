@@ -1,0 +1,11 @@
+{
+  "name": "pianoize-viewer",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test"
+  },
+  "dependencies": {
+    "playwright-core": "1.64.0"
+  }
+}

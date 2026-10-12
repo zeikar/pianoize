@@ -38,3 +38,6 @@ work/
 *.midi
 *.mp4
 *.webm
+
+# Node
+node_modules/
