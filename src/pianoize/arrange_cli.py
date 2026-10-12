@@ -1,6 +1,6 @@
-"""The arranging commands: the per-bar dump an agent arranges from, and the build and the
-playability check of the score it writes. They register on the same Typer app as the rest of
-the CLI."""
+"""The arranging commands: the regridded copy of a cover, the per-bar dump an agent arranges
+from, and the build and the playability check of the score it writes. They register on the same
+Typer app as the rest of the CLI."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from typing import Annotated
 import mido
 import typer
 
-from . import arrange, arrangement, bars, dump, evidence, files, notes, playability
+from . import arrange, arrangement, bars, dump, evidence, files, notes, playability, regrid
 from .cli import _fail, _read_midi, _refuse_input, app
 
 _RANGE = re.compile(r"(\d+)-(\d+)")
@@ -129,3 +129,35 @@ def dump_bars(
         raise _fail(f"{cover}: {exc}") from exc
     for line in found:
         typer.echo(line)
+
+
+@app.command("regrid")
+def regrid_cover(
+    cover: Annotated[Path, typer.Argument(metavar="COVER.mid", exists=True, dir_okay=False)],
+    out: Annotated[Path, typer.Option("-o", "--out", help="The regridded copy to write.")],
+) -> None:
+    """Find the cover's tempo hiccups and write a copy with the song's bars on the grid.
+
+    Only the tempo map and the ticks change; every note keeps its time in seconds.
+    """
+    _refuse_input(out, [cover], "--out")
+    midi = _read_midi(cover)
+    if midi.type == 2:
+        raise _fail(f"{cover}: a type 2 MIDI file's tracks share no timeline to regrid")
+    try:
+        meter = bars.meter(midi)
+    except bars.MeterError as exc:
+        raise _fail(f"{cover}: {exc}") from exc
+    spans = regrid.hiccups(midi, meter)
+    try:
+        files.write_all({out: regrid.repair(midi, spans).save})
+    except OSError as exc:
+        raise _fail(str(exc)) from exc
+    for span in spans:
+        old = ", ".join(f"{mido.tempo2bpm(tempo):.2f}" for tempo in span.tempos)
+        typer.echo(
+            f"bars {span.start // meter.bar_ticks + 1}-{span.end // meter.bar_ticks}: {old} BPM "
+            f"-> {span.bars} bars at {mido.tempo2bpm(span.tempo):.2f}"
+        )
+    if not spans:
+        typer.echo("no tempo hiccups")

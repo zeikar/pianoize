@@ -113,10 +113,14 @@ def read(midi: mido.MidiFile, tracks: list[int] | None = None) -> list[Note]:
 
 def tick_at(midi: mido.MidiFile, seconds: float) -> int:
     """The tick nearest a time in seconds: the inverse of the file's tempo map."""
-    segments = tempo_map(midi)
+    return tick_in(tempo_map(midi), midi.ticks_per_beat, seconds)
+
+
+def tick_in(segments: list[tuple[int, float, int]], ticks_per_beat: int, seconds: float) -> int:
+    """The tick nearest a time in seconds on a tempo map: the inverse of seconds_at."""
     index = max(bisect.bisect_right([s[1] for s in segments], seconds) - 1, 0)
     start, start_seconds, tempo = segments[index]
-    return start + round(mido.second2tick(seconds - start_seconds, midi.ticks_per_beat, tempo))
+    return start + round(mido.second2tick(seconds - start_seconds, ticks_per_beat, tempo))
 
 
 def check_editable(midi: mido.MidiFile) -> None:
