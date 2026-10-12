@@ -2,7 +2,7 @@
 
 Turn a song recording into a piano arrangement, rendered as falling notes.
 
-Status: M1 tooling runs: `pianoize evaluate`, `render` and `melody-clashes`. The M1 experiment scripts are in [`experiments/m1/`](experiments/m1/README.md); their outputs stay in `work/`. M2 tooling runs: `pianoize harmony-evidence`, `refine-timeline`, `find-candidates` and `apply-corrections`, driven by the [`polish-cover`](skills/polish-cover/SKILL.md) Claude Code skill. M3 tooling runs: `pianoize regrid`, `dump-bars`, `build-arrangement` and `check-arrangement`, driven by the [`arrange-cover`](skills/arrange-cover/SKILL.md) skill. The first full-song arrangement is approved. M4 tooling runs: `pianoize export-arrangement`, `preview-video` and `render-video` ([docs/rendering.md](docs/rendering.md)).
+Status: M1 tooling runs: `pianoize evaluate`, `render` and `melody-clashes`. The M1 experiment scripts are in [`experiments/m1/`](experiments/m1/README.md); their outputs stay in `work/`. M2 tooling runs: `pianoize harmony-evidence`, `refine-timeline`, `find-candidates` and `apply-corrections`, driven by the [`polish-cover`](skills/polish-cover/SKILL.md) Claude Code skill. M3 tooling runs: `pianoize regrid`, `dump-bars`, `build-arrangement` and `check-arrangement`, driven by the [`arrange-cover`](skills/arrange-cover/SKILL.md) skill. The first full-song arrangement is approved. M4 tooling runs: `pianoize export-arrangement`, `preview-video` and `render-video` ([docs/rendering.md](docs/rendering.md)). The first full-song video is approved.
 
 ## Direction so far
 

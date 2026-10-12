@@ -8,7 +8,7 @@ The goal is falling-notes videos of piano arrangements for a personal, non-monet
 2. **M1**: run the existing audio-to-piano-cover models that run on a Mac, and the melody extractors, and score them together with a human piano cover.
 3. **M2**: polishing the M1 model's arrangement: its harmony, slips, voice leading and timing. Built ([M2 decisions](#m2-decisions-2026-10-10)), but since 2026-10-11 no longer the main path.
 4. **M3**: the arrangement, written by an agent as a two-hand score from the cover and the melody, and built and checked by pianoize. Added 2026-10-11; until then M3 was the renderer. Built, and its first full-song arrangement approved on 2026-10-12 ([M3](#m3-an-agent-writes-the-arrangement-2026-10-11)).
-5. **M4**: the renderer. Built 2026-10-12 ([M4](#m4-the-falling-notes-renderer-2026-10-12)).
+5. **M4**: the renderer. Built 2026-10-12, and its first full-song video approved on 2026-10-13 ([M4](#m4-the-falling-notes-renderer-2026-10-12)).
 
 If a model in M1 keeps the harmony, pianoize wraps it. If it simplifies the harmony the way the human cover does, M2 is the reason pianoize exists. The user makes that call from the M1 table; there is no fixed threshold.
 
@@ -269,3 +269,7 @@ M4 built `export-arrangement`, `preview-video` and `render-video`, and the page 
 - **Sync.** The page lights a key on its note-on's frame. The Salamander C4 attack passes 0.01 about 20 ms later, so the sync test finds the key one frame before the sound's threshold, within its ±1-frame tolerance.
 - **Repeatability.** Two renders of the same inputs gave identical frames and byte-identical MP4s, on the same Chrome 154 and ffmpeg. That is all it promises: Chrome updates itself, so frames can change between Chrome versions.
 - **Licenses (checked 2026-10-12).** playwright-core 1.64.0 is Apache-2.0 and has no dependencies; it is the viewer's only one. ffmpeg's GPL build runs only as a subprocess, like FluidSynth, and Chrome is the installed browser, driven but not bundled.
+
+**The real run.** `render-video` rendered the approved M3 arrangement of the test song with the Salamander SoundFont: 15,895 frames, 264.9 s, 27.8 MB, in 8 min 42 s end to end, at a peak of 0.341. The preview was checked first at the title card, a dense passage and the credits card. The cards file was a draft written from the source file's title, singer and producer, with the credits from [What goes into a video](#what-goes-into-a-video). The run's files are in `work/m4/`, not committed.
+
+**Approval.** The user approved the video on 2026-10-13 with no changes: "ㅇㅋ 이정도면 훌륭함 승인".
