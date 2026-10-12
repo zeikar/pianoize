@@ -155,6 +155,6 @@ Two renders of the same inputs with the same Chrome and ffmpeg gave identical fr
 - **Two modes.** Without a query, the page is the preview: it draws a frame at the audio control's current time on every animation frame. With `?capture` it hides the control and draws nothing by itself; `capture.mjs` calls `window.pianoize.drawAt(t)` for frame `i` at `t = i / FPS` and screenshots it.
 - **The sync rule.** A key lights while `on <= tMusic < off`, where `tMusic` is the video's time minus `music_start`. A note's key lights on the first frame at or after its onset, so within one frame (1/60 s) of the sound's start. The sync test measured the key lighting on the onset's frame, while the Salamander piano's attack passes −40 dBFS (0.01) about 20 ms later.
 - **Tests.** `cd viewer && npm ci && npm test` runs the Node tests. They need no browser.
-- **The npm cache** is `work/npm-cache`, set in `viewer/.npmrc`, but npm resolves that relative path against its working directory, not the `.npmrc`. Run npm only with `viewer/` as the working directory, never `npm --prefix viewer`, or the cache lands outside the checkout.
+- **The npm cache** is npm's default, `~/.npm`.
 
 The Python tests are `tests/test_roll.py`, `tests/test_video.py` and `tests/test_serve.py`. `uv run --frozen pytest -m "not video"` skips the slow ones that capture in Chrome and encode. The sync test also needs `PIANOIZE_SOUNDFONT` and FluidSynth.

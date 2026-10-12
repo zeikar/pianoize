@@ -27,5 +27,5 @@ The [rules in the README](README.md#rules) apply. The reasons for those and for 
 - Tests synthesize their audio. The default suite runs no model and downloads nothing.
 - The version lives only in `pyproject.toml`; code reads it through `importlib.metadata`.
 - The arrangement JSON's schema is in docs/rendering.md; changes to it are breaking.
-- **The viewer is plain HTML, CSS and ES modules, with no bundler.** npm runs with `viewer/` as the working directory, never `npm --prefix viewer`, because its cache path (`viewer/.npmrc`, under `work/`) resolves against the working directory, and its only dependency is playwright-core.
+- **The viewer is plain HTML, CSS and ES modules, with no bundler.** Its only npm dependency is playwright-core. npm keeps its default cache (`~/.npm`).
 - **Commit to `main` and push.** Work done on a separate branch is merged into `main` and pushed once it's finished. Commit messages are conventional commits (`feat(scope): …`, `chore: …`).
