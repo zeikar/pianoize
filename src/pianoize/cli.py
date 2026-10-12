@@ -265,5 +265,5 @@ def melody_clashes(
         typer.echo(f"{_clock(clash.time)}  {melody.pitch_name(clash.pitch)}  over {clash.chord}")
 
 
-# Imported last: the module registers its commands on `app` and uses the helpers above.
-from . import polish_cli  # noqa: E402, F401
+# Imported last: each module registers its commands on `app` and uses the helpers above.
+from . import arrange_cli, polish_cli  # noqa: E402, F401

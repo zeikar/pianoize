@@ -1,7 +1,9 @@
 import mido
 import pytest
+from typer.testing import CliRunner
 
 from pianoize.bars import MeterError
+from pianoize.cli import app
 from pianoize.dump import lines
 
 # At 480 ticks a beat: 120 a sixteenth, 60 a half-sixteenth, 1920 a 4/4 bar; 120 bpm, so a bar
@@ -156,3 +158,66 @@ def test_a_change_of_meter_raises(tick_midi, silent):
     )
     with pytest.raises(MeterError, match="at tick 1920, 4/4 to 3/4"):
         lines(cover, silent)
+
+
+@pytest.fixture
+def dumped(tmp_path, tick_midi):
+    """A four-bar cover and a melody note in bar 2, on disk."""
+    cover, melody = tmp_path / "cover.mid", tmp_path / "melody.mid"
+    tick_midi([(0, 1920 * 4, 48, 60)]).save(cover)
+    tick_midi([(1920, 2160, 72, 100)]).save(melody)
+    return cover, melody
+
+
+def _dump_cli(cover, melody, *options):
+    return CliRunner().invoke(app, ["dump-bars", str(cover), "--melody", str(melody), *options])
+
+
+def test_cli_prints_the_bars(dumped):
+    cover, melody = dumped
+    result = _dump_cli(cover, melody)
+    assert result.exit_code == 0, result.output
+    found = lines(mido.MidiFile(cover), mido.MidiFile(melody))
+    assert len(found) == 12
+    assert result.stdout == "\n".join(found) + "\n"
+
+
+def test_cli_prints_only_the_bars_asked_for(dumped):
+    result = _dump_cli(*dumped, "--bars", "2-3")
+    assert result.exit_code == 0, result.output
+    assert result.stdout.splitlines() == [
+        "=== bar 2  0:02.00",
+        "C ",
+        "V 0:C5(2)",
+        "=== bar 3  0:04.00",
+        "C ",
+        "V ",
+    ]
+
+
+@pytest.mark.parametrize("value", ["x", "2", "2-", "-3", "2-3-4", "2 - 3", "0-2", "3-2"])
+def test_cli_refuses_a_range_not_written_a_dash_b_from_bar_1_up(dumped, value):
+    result = _dump_cli(*dumped, "--bars", value)
+    assert result.exit_code == 2
+    assert "--bars" in result.output
+
+
+def test_cli_refuses_a_cover_that_changes_meter(dumped, tick_midi):
+    cover, melody = dumped
+    three_four = meta("time_signature", numerator=3, denominator=4)
+    tick_midi([(0, 1920 * 2, 48, 60)], meta=[(1920, three_four)]).save(cover)
+    result = _dump_cli(cover, melody)
+    assert result.exit_code == 1
+    assert f"error: {cover}: the cover changes meter at tick 1920, 4/4 to 3/4" in result.output
+    assert "Traceback" not in result.output
+
+
+def test_cli_refuses_a_type_2_cover(dumped, tick_midi):
+    cover, melody = dumped
+    midi = tick_midi([(0, 1920, 48, 60)])
+    midi.type = 2
+    midi.save(cover)
+    result = _dump_cli(cover, melody)
+    assert result.exit_code == 1
+    assert f"error: {cover}: a type 2 MIDI file's tracks share no timeline" in result.output
+    assert "Traceback" not in result.output

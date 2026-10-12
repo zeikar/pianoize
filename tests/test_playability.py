@@ -1,7 +1,10 @@
+import mido
 import pytest
+from typer.testing import CliRunner
 
-from pianoize.arrangement import parse
+from pianoize.arrangement import ArrangementError, parse
 from pianoize.bars import Meter, meter
+from pianoize.cli import app
 from pianoize.notes import tempo_map
 from pianoize.playability import check, report
 
@@ -209,3 +212,79 @@ def test_a_passing_score_reports_clean(checked):
     findings = checked("bar 1 | C", "  M 0:E5:4 4:G5:4", "  R 0:G4+C5:8", "  L 0:C3:8 8:G2:8")
     assert findings == []
     assert report(findings, METER) == "clean"
+
+
+def test_a_score_without_notes_raises(checked):
+    with pytest.raises(ArrangementError, match="the score has no notes"):
+        checked("bar 1 | C")
+
+
+def _cover_file(tmp_path, tick_midi, meta=None, ticks_per_beat=480):
+    path = tmp_path / "cover.mid"
+    notes = [(0, ticks_per_beat * 32, 60, 80)]  # eight 4/4 bars
+    tick_midi(notes, meta=meta, ticks_per_beat=ticks_per_beat).save(path)
+    return path
+
+
+def _check_cli(score, cover):
+    return CliRunner().invoke(app, ["check-arrangement", str(score), "--cover", str(cover)])
+
+
+@pytest.mark.parametrize(
+    ("lines", "code", "printed"),
+    [
+        (
+            ("bar 1 | 0:C 8:F", "  L 0:F3:8 8:E3:8"),
+            1,
+            "harmony: 2 (2 flagged)\n"
+            "  bar 1 pos 0  LH  harmony  L F3 over C\n"
+            "  bar 1 pos 8  LH  harmony  L E3 over F\n"
+            "problems: 2\n",
+        ),
+        (
+            ("bar 1 | N.C.", "  L 0:C3+D#4:4"),
+            0,
+            "span: 1 (0 flagged)\n"
+            "  bar 1 pos 0  LH  span  15 semitones, C3 to D#4 (listed, not flagged)\n"
+            "clean\n",
+        ),
+        (("bar 1 | C", "  M 0:E5:4 4:G5:4", "  R 0:G4+C5:8", "  L 0:C3:8 8:G2:8"), 0, "clean\n"),
+    ],
+)
+def test_cli_prints_the_report_and_exits_1_on_a_flagged_finding(
+    tmp_path, tick_midi, write_score, lines, code, printed
+):
+    result = _check_cli(write_score(*lines), _cover_file(tmp_path, tick_midi))
+    assert result.exit_code == code, result.output
+    assert result.stdout == printed
+
+
+@pytest.mark.parametrize(
+    ("lines", "ticks_per_beat", "message"),
+    [
+        (("bar 1 | C",), 480, "the score has no notes"),
+        # A sixteenth is one tick at 4 ticks a beat: a quarter of one rounds to none.
+        (
+            ("bar 1 | C", "  L 0:C3:0.25"),
+            4,
+            "bar 1: token '0:C3:0.25': the duration is under a tick",
+        ),
+    ],
+)
+def test_cli_reports_a_score_the_check_cannot_read(
+    tmp_path, tick_midi, write_score, lines, ticks_per_beat, message
+):
+    score = write_score(*lines)
+    result = _check_cli(score, _cover_file(tmp_path, tick_midi, ticks_per_beat=ticks_per_beat))
+    assert result.exit_code == 1
+    assert f"error: {score}: {message}" in result.output
+    assert "Traceback" not in result.output
+
+
+def test_cli_refuses_a_cover_that_changes_meter(tmp_path, tick_midi, write_score):
+    three_four = mido.MetaMessage("time_signature", numerator=3, denominator=4)
+    cover = _cover_file(tmp_path, tick_midi, meta=[(1920, three_four)])
+    result = _check_cli(write_score("bar 1 | C", "  L 0:C3:4"), cover)
+    assert result.exit_code == 1
+    assert f"error: {cover}: the cover changes meter at tick 1920, 4/4 to 3/4" in result.output
+    assert "Traceback" not in result.output

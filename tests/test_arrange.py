@@ -1,9 +1,11 @@
 import mido
 import pytest
+from typer.testing import CliRunner
 
 from pianoize.arrange import VELOCITY, build
 from pianoize.arrangement import ArrangementError, parse
 from pianoize.bars import meter
+from pianoize.cli import app
 
 # At 480 ticks a beat: 120 a sixteenth, 1920 a 4/4 bar, a restrike gap of 15 ticks, a restrike
 # minimum and a pedal gap of 30, a tail of 480 whose notes are released 60 before its end.
@@ -258,3 +260,107 @@ def test_the_same_inputs_give_the_same_bytes(built, tmp_path):
     built(*lines).save(first)
     built(*lines).save(second)
     assert first.read_bytes() == second.read_bytes()
+
+
+SCORE = ("bar 1 | C", "  M 0:E5:4 4:G5:4", "  R 0:G4+C5:8", "  L 0:C3:8 8:G2:8")
+
+
+@pytest.fixture
+def cover_file(tmp_path, cover):
+    path = tmp_path / "cover.mid"
+    cover().save(path)
+    return path
+
+
+def _build_cli(score, cover, out):
+    return CliRunner().invoke(
+        app, ["build-arrangement", str(score), "--cover", str(cover), "-o", str(out)]
+    )
+
+
+def test_cli_writes_the_build_and_prints_its_counts(tmp_path, write_score, cover_file, built):
+    out, expected = tmp_path / "out.mid", tmp_path / "expected.mid"
+    result = _build_cli(write_score(*SCORE), cover_file, out)
+    assert result.exit_code == 0, result.output
+    # The pedal goes down once, after bar 1's chord; the tail ends a beat past bar 1, at 120 bpm.
+    assert result.stdout == "notes: 4 right hand, 2 left hand\npedal presses: 1\nlength: 2.5 s\n"
+    built(*SCORE).save(expected)
+    assert out.read_bytes() == expected.read_bytes()
+
+
+def test_cli_reads_a_score_with_a_byte_order_mark(tmp_path, write_score, cover_file):
+    score = write_score(*SCORE)
+    score.write_text(score.read_text(encoding="utf-8"), encoding="utf-8-sig")
+    result = _build_cli(score, cover_file, tmp_path / "out.mid")
+    assert result.exit_code == 0, result.output
+
+
+@pytest.mark.parametrize("target", ["score", "cover", "score respelled"])
+def test_cli_refuses_to_overwrite_an_input(tmp_path, write_score, cover_file, target):
+    inputs = {"score": write_score(*SCORE), "cover": cover_file}
+    (tmp_path / "sub").mkdir()
+    targets = {**inputs, "score respelled": tmp_path / "sub" / ".." / "score.txt"}
+    before = {name: path.read_bytes() for name, path in inputs.items()}
+    result = _build_cli(inputs["score"], cover_file, targets[target])
+    assert result.exit_code == 2
+    assert "would overwrite an input" in " ".join(result.output.split())
+    assert {name: path.read_bytes() for name, path in inputs.items()} == before
+
+
+@pytest.mark.parametrize(
+    ("lines", "message"),
+    [
+        (("bar 1 | C", "  L 0:C3:4", "bar 2 | G", "  L 0:H3:4"), "bar 2: token '0:H3:4': bad note"),
+        (("bar 1 | C",), "the score has no notes"),
+    ],
+)
+def test_cli_reports_a_bad_score_without_a_traceback(
+    tmp_path, write_score, cover_file, lines, message
+):
+    score, out = write_score(*lines), tmp_path / "out.mid"
+    result = _build_cli(score, cover_file, out)
+    assert result.exit_code == 1
+    assert f"error: {score}: {message}" in result.output
+    assert "Traceback" not in result.output
+    assert not out.exists()
+
+
+def test_cli_refuses_a_cover_that_changes_meter(tmp_path, write_score, cover):
+    path, out = tmp_path / "cover.mid", tmp_path / "out.mid"
+    three_four = mido.MetaMessage("time_signature", numerator=3, denominator=4)
+    cover(meta=[(1920, three_four)]).save(path)
+    result = _build_cli(write_score(*SCORE), path, out)
+    assert result.exit_code == 1
+    assert f"error: {path}: the cover changes meter at tick 1920, 4/4 to 3/4" in result.output
+    assert "Traceback" not in result.output
+    assert not out.exists()
+
+
+def test_cli_reports_a_score_not_in_utf_8(tmp_path, write_score, cover_file):
+    score, out = write_score(*SCORE), tmp_path / "out.mid"
+    score.write_bytes(score.read_bytes() + b"# \xff\n")
+    result = _build_cli(score, cover_file, out)
+    assert result.exit_code == 1
+    assert f"error: {score}: " in result.output
+    assert "can't decode byte 0xff" in result.output
+    assert "Traceback" not in result.output
+    assert not out.exists()
+
+
+def test_cli_refuses_a_type_2_cover(tmp_path, write_score, cover):
+    path, out = tmp_path / "cover.mid", tmp_path / "out.mid"
+    midi = cover()
+    midi.type = 2
+    midi.save(path)
+    result = _build_cli(write_score(*SCORE), path, out)
+    assert result.exit_code == 1
+    assert f"error: {path}: a type 2 MIDI file's tracks share no timeline" in result.output
+    assert "Traceback" not in result.output
+    assert not out.exists()
+
+
+def test_help_lists_the_arranging_commands():
+    result = CliRunner().invoke(app, ["--help"])
+    assert result.exit_code == 0
+    for name in ("build-arrangement", "check-arrangement", "dump-bars"):
+        assert name in result.output

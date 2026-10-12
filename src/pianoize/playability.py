@@ -6,7 +6,14 @@ from dataclasses import dataclass
 from itertools import groupby
 
 from .arrange import separate_restrikes
-from .arrangement import Score, ScoreNote, chord_at, chord_pitch_classes, notes_of
+from .arrangement import (
+    ArrangementError,
+    Score,
+    ScoreNote,
+    chord_at,
+    chord_pitch_classes,
+    notes_of,
+)
 from .bars import Meter, where
 from .melody import pitch_name
 from .notes import seconds_at
@@ -73,8 +80,11 @@ def _hand(
 def check(score: Score, meter: Meter, tempo_map: list[tuple[int, float, int]]) -> list[Finding]:
     """The findings on the notes the build plays, timed by the cover's tempo map
     (notes.tempo_map). A pitch struck twice in one hand at one tick is flagged: the build would
-    cut the first strike to a sliver whose note-off releases the key."""
+    cut the first strike to a sliver whose note-off releases the key. A score without notes
+    raises ArrangementError, as the build does, rather than reading clean."""
     built = separate_restrikes(notes_of(score, meter), meter)
+    if not built:
+        raise ArrangementError("the score has no notes")
     findings = []
     for hand in ("RH", "LH"):
         played = [note for note in built if note.hand == hand]
