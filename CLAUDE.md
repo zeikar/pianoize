@@ -9,6 +9,7 @@ Project-specific instructions for pianoize. The global ~/.claude/CLAUDE.md still
 - [docs/evaluation.md](docs/evaluation.md): the evaluation tooling and the checkpoint file format
 - [docs/polishing.md](docs/polishing.md): the polishing commands, the candidate and correction-spec formats, the refined-timeline rules
 - [docs/arranging.md](docs/arranging.md): the score format, the arranging commands and the check's limits
+- [docs/rendering.md](docs/rendering.md): the arrangement JSON, the viewer and the video commands
 - chordotomy's [timeline-json.md](https://github.com/zeikar/chordotomy/blob/main/docs/timeline-json.md): the chord timeline pianoize reads (schema 11)
 - CLAUDE.md (this file): rules to follow while working
 
@@ -25,5 +26,6 @@ The [rules in the README](README.md#rules) apply. The reasons for those and for 
 - **Models with conflicting dependencies run in their own environments**, not in the core package.
 - Tests synthesize their audio. The default suite runs no model and downloads nothing.
 - The version lives only in `pyproject.toml`; code reads it through `importlib.metadata`.
-- Once the arrangement JSON has a schema, document it in docs/ and treat changes to it as breaking.
+- The arrangement JSON's schema is in docs/rendering.md; changes to it are breaking.
+- **The viewer is plain HTML, CSS and ES modules, with no bundler.** npm runs from `viewer/` with its cache under `work/` (`viewer/.npmrc`), and its only dependency is playwright-core.
 - **Commit to `main` and push.** Work done on a separate branch is merged into `main` and pushed once it's finished. Commit messages are conventional commits (`feat(scope): …`, `chore: …`).

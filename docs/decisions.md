@@ -8,7 +8,7 @@ The goal is falling-notes videos of piano arrangements for a personal, non-monet
 2. **M1**: run the existing audio-to-piano-cover models that run on a Mac, and the melody extractors, and score them together with a human piano cover.
 3. **M2**: polishing the M1 model's arrangement: its harmony, slips, voice leading and timing. Built ([M2 decisions](#m2-decisions-2026-10-10)), but since 2026-10-11 no longer the main path.
 4. **M3**: the arrangement, written by an agent as a two-hand score from the cover and the melody, and built and checked by pianoize. Added 2026-10-11; until then M3 was the renderer. Built, and its first full-song arrangement approved on 2026-10-12 ([M3](#m3-an-agent-writes-the-arrangement-2026-10-11)).
-5. **M4**: the renderer.
+5. **M4**: the renderer. Built 2026-10-12 ([M4](#m4-the-falling-notes-renderer-2026-10-12)).
 
 If a model in M1 keeps the harmony, pianoize wraps it. If it simplifies the harmony the way the human cover does, M2 is the reason pianoize exists. The user makes that call from the M1 table; there is no fixed threshold.
 
@@ -34,11 +34,13 @@ Nothing is monetized, so weights with non-commercial terms are usable. They are 
 
 A weight license binds the use of the model, and the repository holds none of its code or weights, so the repository's own license is unaffected. Whether a model's output counts as material adapted from its weights is unsettled, so output of a non-commercial model is treated as non-commercial too: the video stays non-monetized and credits the model. That is why tsumugi-piano-cover (CC BY-NC 4.0), whose cover is the arrangement's base, is credited, while tsumugi's transcriber (MIT code and weights), used as evidence for the harmony and, since M3, for instrument lines the arrangement takes up, carries no such terms.
 
-The code license is undecided and the repository is private. It may later be published under MIT, so no GPL or AGPL code goes into the repository or its dependencies, Python or npm, vendored, imported or bundled. Neothesia and YourMT3+ are out for this reason. LGPL is allowed, as in chordotomy. A tool the user installs separately and pianoize runs as a subprocess, such as a MIDI synthesizer, is not part of what is published, so its license doesn't matter.
+The code is published under MIT (2026-10-12), so no GPL or AGPL code goes into the repository or its dependencies, Python or npm, vendored, imported or bundled. Neothesia and YourMT3+ are out for this reason. LGPL is allowed, as in chordotomy. A tool the user installs separately and pianoize runs as a subprocess, such as a MIDI synthesizer, is not part of what is published, so its license doesn't matter.
 
 ## What goes into a video
 
 A video carries only the piano pianoize renders, never the original audio or vocals separated from it. Its description credits the song, the artist and the composer, and the arrangement model, tsumugi-piano-cover (anime-song, CC BY-NC 4.0), whose license asks for attribution. Songs under a creator's fan-work guidelines follow them. For モモノネ that is hololive's music guidelines: the credit is required, no Content ID registration, no commercial or corporate use. Before uploading, check that the song is not on the guidelines' exclusion list.
+
+On screen (2026-10-12): the keyboard, the falling notes, a title card and a credits card, with the cards' text from a file in `work/`. No chord names.
 
 ## Scoring whether the harmony survived
 
@@ -252,3 +254,18 @@ M3 built four commands, `regrid`, `dump-bars`, `build-arrangement` and `check-ar
 - The dump runs past the song's last bar while the cover's last chord rings, so where the score ends is a judgment call.
 - Drums never appear in the dump.
 - A figure played slightly early prints its first note at the end of the previous bar.
+
+## M4: the falling-notes renderer (2026-10-12)
+
+M4 built `export-arrangement`, `preview-video` and `render-video`, and the page in `viewer/` they share. [docs/rendering.md](rendering.md) documents them. These were decided in the M4 interview on 2026-10-12.
+
+**Decision (2026-10-12): one web page draws every frame; it is previewed in a browser and captured for the MP4.** The user wanted a web viewer to preview and an MP4 to upload. The alternatives were Python drawing the MP4 beside a separate web preview, which is two drawing codes to keep the same, and a web viewer screen-recorded by hand, whose sync and quality drift. One page drawn at a time `t` has one drawing code, and the preview and the video can't disagree.
+
+- **Capture.** The user asked whether the Playwright plugin and the installed Chrome could be used. The capture uses playwright-core with `channel: "chrome"`, so no browser is downloaded. The Playwright MCP plugin is an agent tool for checking the page while developing; the CLI can't call it. The PNG frames are piped into ffmpeg. pianoize serves the page on 127.0.0.1 because Chrome refuses ES modules from `file://`. The speed was about 47 to 50 frames/s on the roll and about 33 on text cards; a 20 s synthetic render took about 31 s.
+- **The look.** Clean and flat, in the Synthesia style: a dark plain background, flat rounded notes, no glow or particles. Green is the right hand and blue the left, Synthesia's convention. Effects can come later, which is why every colour and size is in `viewer/style.js`. Velocity is not exported, since every note has one ([Playable arrangements](#playable-arrangements)).
+- **On screen.** The 88 keys, the notes falling coloured by hand, pressed keys lit, and the two cards. The user did not choose chord names, melody highlighting or a pedal display, so they are out. The README's planned "chord names to overlay" is dropped, and the JSON carries the notes and their hands only.
+- **The timeline.** 1920×1080 at 60 fps, H.264 with AAC in MP4, and a fixed fall time of 3 s, all accepted with the spec. The music starts at 6 s, after the title card and an empty keyboard, so the first notes have a full fall time to arrive; the credits card follows for 6 s. The audio is padded in Python so that the WAV's clock is the video's clock: the preview plays it through the native `<audio>` element, and ffmpeg muxes it with no offset. ffmpeg converts RGB to YUV with the BT.709 matrix and tags the video BT.709; without that it would use BT.601 untagged, and players would shift the colours.
+- **Scratch files.** The preview's and the render's scratch directories sit beside the MIDI and the output, so the song's JSON and audio never leave `work/`. The npm cache is `work/npm-cache`, through `viewer/.npmrc`.
+- **Sync.** The page lights a key on its note-on's frame. The Salamander C4 attack passes 0.01 about 20 ms later, so the sync test finds the key one frame before the sound's threshold, within its ±1-frame tolerance.
+- **Repeatability.** Two renders of the same inputs gave identical frames and byte-identical MP4s, on the same Chrome 154 and ffmpeg. That is all it promises: Chrome updates itself, so frames can change between Chrome versions.
+- **Licenses (checked 2026-10-12).** playwright-core 1.64.0 is Apache-2.0 and has no dependencies; it is the viewer's only one. ffmpeg's GPL build runs only as a subprocess, like FluidSynth, and Chrome is the installed browser, driven but not bundled.
