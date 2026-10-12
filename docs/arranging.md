@@ -108,7 +108,7 @@ A line is its role and its tokens, separated by spaces: `M 0:E5:4 4:D5~:2 6.5:C5
 
 A position or a duration is digits with an optional decimal point, which a digit must follow: `4`, `6.5` and `.5` are read, while `5.`, a sign and an exponent are refused. A sixteenth is a quarter of the cover's ticks per beat, and each position and duration lands on the nearest tick; a duration that rounds to no tick is refused.
 
-`M` plays one note at a time. The check flags an `M` note below any right-hand note sounding at its onset, a second `M` note included, so an octave doubling of the melody goes under it on `R`. `R` striking the melody's own pitch at the melody's tick strikes one key twice, which the check flags too. `~` matters only on `R` and `L`: the melody is never checked against the chord.
+`M` plays one note at a time. The check flags an `M` note below any right-hand note sounding while it is held, at its onset or at a later attack, a second `M` note included, so an octave doubling of the melody goes under it on `R`. `R` striking the melody's own pitch at the melody's tick strikes one key twice, which the check flags too. `~` matters only on `R` and `L`: the melody is never checked against the chord.
 
 ### Copies and overrides
 
@@ -186,7 +186,7 @@ A hand's attack is a tick where it strikes a note. A note is held at an attack w
 | `span` | at an attack of one hand, its held keys spanning more than 16 semitones, a major tenth. 15 or 16, wider than a major ninth, is listed, not flagged | `17 semitones, C3 to F4` |
 | `jump` | the centre of a hand's attack, halfway between its lowest and highest struck notes, moving from the hand's previous attack by 15 semitones or more in under 0.2 s, by 22 or more in under 0.36 s, or by more than 26 at any speed | `15 semitones in 100 ms` |
 | `crossing` | at any attack, the left hand's highest held note at or above the right hand's lowest | `top C4 at or above RH bottom C4` |
-| `melody` | an `M` note below the highest right-hand note held at its onset, another `M` note included | `E4 under G4` |
+| `melody` | an `M` note below the highest right-hand note held at any attack while it sounds, another `M` note included | `E4 under G4` |
 | `harmony` | an `R` or `L` note not marked `~` whose pitch class is not among its [chord](#chords)'s tones at its onset. `M` notes are never checked, and nothing under `N.C.` | `L F3 over C` |
 
 The report groups the findings by rule, in the table's order, each group headed `rule: N (K flagged)` and its findings by time, then hand:

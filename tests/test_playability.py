@@ -150,6 +150,23 @@ def test_the_melody_is_the_top_right_hand_note(checked, right, found):
         assert findings[0].detail == "E4 under G4"
 
 
+def test_a_right_hand_note_struck_above_a_held_melody_note_is_flagged(checked):
+    findings = checked("bar 1 | C", "  M 0:C5:16", "  R 4:G5:4")
+    assert summary(findings) == [("melody", 480, "RH", True)]
+    assert findings[0].detail == "C5 under G5"
+
+
+@pytest.mark.parametrize(
+    ("melody", "found"),
+    [
+        ("M 0:C5:16 4:E5:8", [("melody", 480, "RH", True)]),  # overlap
+        ("M 0:C5:4 4:E5:8", []),  # released where the next begins
+    ],
+)
+def test_melody_notes_do_not_overlap(checked, melody, found):
+    assert summary(checked("bar 1 | C", f"  {melody}")) == found
+
+
 def test_an_accompaniment_note_outside_the_chord_is_flagged(checked):
     # The melody's F5 is free to leave the chord.
     findings = checked("bar 1 | C", "  M 0:F5:4", "  R 0:F4:4", "  L 0:F3:4")

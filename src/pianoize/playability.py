@@ -96,18 +96,21 @@ def check(score: Score, meter: Meter, tempo_map: list[tuple[int, float, int]]) -
     for hand in ("RH", "LH"):
         played = [note for note in built if note.hand == hand]
         findings += _hand(played, hand, tempo_map, meter.ticks_per_beat)
+    reported = set()  # a held melody note under the same top note is reported once
     for tick, struck, held in _attacks(built):
         right = [note.pitch for note in held if note.hand == "RH"]
         left = [note.pitch for note in held if note.hand == "LH"]
         if right and left and max(left) >= min(right):
             detail = f"top {pitch_name(max(left))} at or above RH bottom {pitch_name(min(right))}"
             findings.append(Finding("crossing", tick, "LH", detail, True))
+        for note in held:
+            key = note.on_tick, note.pitch, max(right) if right else 0
+            if note.role == "M" and note.pitch < key[2] and key not in reported:
+                reported.add(key)
+                detail = f"{pitch_name(note.pitch)} under {pitch_name(key[2])}"
+                findings.append(Finding("melody", tick, note.hand, detail, True))
         for note in struck:
-            if note.role == "M":
-                if note.pitch < max(right):
-                    detail = f"{pitch_name(note.pitch)} under {pitch_name(max(right))}"
-                    findings.append(Finding("melody", tick, note.hand, detail, True))
-            elif not note.passing:
+            if note.role != "M" and not note.passing:
                 symbol = chord_at(score, meter, tick)
                 classes = chord_pitch_classes(symbol)
                 if classes is not None and note.pitch % 12 not in classes:
