@@ -1,10 +1,15 @@
 """Whether a score is playable by an intermediate-to-advanced pianist, hand by hand, and whether
-its accompaniment fits the score's own chords. It checks the notes the build plays."""
+its accompaniment fits the score's own chords. It checks the notes the build plays, and lists the
+vocal notes the top of its right hand leaves out."""
 
+from bisect import bisect_left, bisect_right
 from collections.abc import Iterator
 from dataclasses import dataclass
 from itertools import groupby
 
+import mido
+
+from . import melody
 from .arrange import separate_restrikes
 from .arrangement import (
     ArrangementError,
@@ -14,15 +19,17 @@ from .arrangement import (
     chord_pitch_classes,
     notes_of,
 )
-from .bars import Meter, where
+from .bars import Meter, halves, nearest, where
 from .melody import pitch_name
-from .notes import seconds_at
+from .notes import seconds_at, tick_in
 
 NOTES_PER_HAND = 5
 SPAN_MAX = 16  # semitones, a tenth: a wider span is flagged
 SPAN_WIDE = 14  # a ninth: a wider span is listed, not flagged
 JUMPS = ((15, 0.2), (22, 0.36))  # (semitones, seconds): a shift this wide in less time is flagged
 JUMP_MAX = 26  # a wider shift is flagged at any speed
+SUNG_MIN = 0.080  # seconds: a shorter vocal note is a sliver of the transcription, never listed
+SUNG_NEAR = 0.070  # seconds: a top right-hand note of its pitch class starting this near plays it
 
 RULES = ("notes", "span", "jump", "crossing", "melody", "harmony")
 
@@ -124,4 +131,47 @@ def report(findings: list[Finding], meter: Meter) -> str:
             lines.append(f"  {place}  {finding.hand}  {rule}  {finding.detail}{listed}")
     problems = sum(finding.flagged for finding in findings)
     lines.append(f"problems: {problems}" if problems else "clean")
+    return "\n".join(lines)
+
+
+def missing(
+    score: Score, meter: Meter, tempo_map: list[tuple[int, float, int]], sung: mido.MidiFile
+) -> list[melody.Note]:
+    """The vocal notes of SUNG_MIN or more, the melody kept to one voice by melody.monophonic,
+    that no top right-hand note of their pitch class in any octave starts within SUNG_NEAR of. A
+    top note is the highest the right hand holds at one of its attacks, struck there, `M` or `R`:
+    the melody is carried on top, so an inner voice plays none. The notes are the build's, timed
+    by the cover's tempo map (notes.tempo_map)."""
+    built = separate_restrikes(notes_of(score, meter), meter)
+    right = []  # (seconds, pitch class) of each top note, by onset
+    for tick, _, held in _attacks([note for note in built if note.hand == "RH"]):
+        top = max(held, key=lambda note: note.pitch)
+        if top.on_tick == tick:  # else a note struck earlier sounds on top of the attack
+            right.append((seconds_at(tempo_map, meter.ticks_per_beat, tick), top.pitch % 12))
+    onsets = [seconds for seconds, _ in right]
+    found = []
+    for note in melody.monophonic(melody.notes(sung)):
+        if note.offset - note.onset < SUNG_MIN:
+            continue
+        start = bisect_left(onsets, note.onset - SUNG_NEAR)
+        end = bisect_right(onsets, note.onset + SUNG_NEAR)
+        if all(pitch_class != note.pitch % 12 for _, pitch_class in right[start:end]):
+            found.append(note)
+    return found
+
+
+def missing_report(
+    found: list[melody.Note], meter: Meter, tempo_map: list[tuple[int, float, int]]
+) -> str:
+    """A line per vocal note left out, `bar N pos P  melody missing  E5 (D)`, placed as the dump
+    places the melody: by its seconds on the cover's tempo map, each end rounded to the nearest
+    half-sixteenth, the duration in sixteenths. Then `melody missing: K`."""
+    lines = []
+    for note in found:
+        on, off = (tick_in(tempo_map, meter.ticks_per_beat, s) for s in (note.onset, note.offset))
+        bar, sixteenths = nearest(meter, on)
+        duration = (halves(meter, off) - halves(meter, on)) / 2
+        name = pitch_name(note.pitch)
+        lines.append(f"bar {bar} pos {sixteenths:g}  melody missing  {name} ({duration:g})")
+    lines.append(f"melody missing: {len(found)}")
     return "\n".join(lines)

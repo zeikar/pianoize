@@ -1,18 +1,19 @@
 # Arranging
 
-How pianoize turns an arrangement an agent writes into a two-hand MIDI. An agent session reads a tsumugi-piano-cover MIDI and tsumugi's melody, and writes a per-bar score for two hands into `work/`. pianoize builds the score into MIDI on the cover's tempo grid, every note at one velocity, and checks that it is playable and fits its own chords. The CLI never calls an LLM: the same score and cover give byte-identical MIDI. The reasons are in [docs/decisions.md](decisions.md#m3-an-agent-writes-the-arrangement-2026-10-11).
+How pianoize turns an arrangement an agent writes into a two-hand MIDI. An agent session reads a tsumugi-piano-cover MIDI and tsumugi's melody, with tsumugi's transcription of the whole band where it has one, and writes a per-bar score for two hands into `work/`. pianoize builds the score into MIDI on the cover's tempo grid, every note at one velocity, and checks that it is playable and fits its own chords. The CLI never calls an LLM: the same score and cover give byte-identical MIDI. The reasons are in [docs/decisions.md](decisions.md#m3-an-agent-writes-the-arrangement-2026-10-11).
 
 ## Workflow
 
 The [`arrange-cover` skill](#running-the-skill) runs it in these steps. The commands lay out the song and check the score; the agent decides every note.
 
-1. **Dump.** [`dump-bars`](#dumping) prints the cover's attacks and tsumugi's melody bar by bar, on the cover's sixteenth grid.
-2. **Read.** The agent reads the dump whole and writes its notes: the sections and their bars, which sections repeat which, a chord per bar, the melody's entries, and the hits and stop-times. The cover's notes and markers are evidence, not truth.
-3. **Write, section by section.** The agent writes the [score](#the-score-format) one section at a time, reusing a repeated section with a [copy](#copies-and-overrides).
-4. **Build.** [`build-arrangement`](#building) turns the score into a two-hand MIDI on the cover's tempo map.
-5. **Check and fix.** [`check-arrangement`](#checking) checks that each hand can play the score and that the accompaniment fits the score's own chords. The agent fixes every flagged finding, after each section and at the end, until the check prints `clean`.
-6. **Render.** `pianoize render` ([docs/evaluation.md](evaluation.md#rendering-a-midi-file)) turns the MIDI into a WAV.
-7. **Listen.** The agent cannot hear the result, so the user is the last gate. They approve it, or name places; the agent revises those bars, overriding a copied bar where the copy is the cause, and builds, checks and renders again.
+1. **Regrid.** [`regrid`](#regridding) writes a copy of the cover with its tempo hiccups regridded; every later command takes the copy as the cover. The spans it reports are named to the user at the listening, to be checked by ear.
+2. **Dump.** [`dump-bars`](#dumping) prints the cover's attacks and tsumugi's melody bar by bar, on the cover's sixteenth grid, and where no one sings, the top line of each instrument of tsumugi's transcription.
+3. **Read.** The agent reads the dump whole and writes its notes: the sections and their bars, which sections repeat which, a chord per bar, the melody's entries, and the hits and stop-times. The cover's notes and markers are evidence, not truth.
+4. **Write, section by section.** The agent writes the [score](#the-score-format) one section at a time, reusing a repeated section with a [copy](#copies-and-overrides).
+5. **Build.** [`build-arrangement`](#building) turns the score into a two-hand MIDI on the cover's tempo map.
+6. **Check and fix.** [`check-arrangement`](#checking) checks that each hand can play the score and that the accompaniment fits the score's own chords. The agent fixes every flagged finding, after each section and at the end, until the check prints `clean`. Given tsumugi's melody, the check also lists the vocal notes the top of the right hand leaves out; the agent adds each one or records why it stays out.
+7. **Render.** `pianoize render` ([docs/evaluation.md](evaluation.md#rendering-a-midi-file)) turns the MIDI into a WAV.
+8. **Listen.** The agent cannot hear the result, so the user is the last gate. They approve it, or name places; the agent revises those bars, overriding a copied bar where the copy is the cause, and builds, checks and renders again.
 
 ## Regridding
 
@@ -175,7 +176,7 @@ length: 8.5 s
 
 ## Checking
 
-`pianoize check-arrangement SCORE.txt --cover COVER.mid` checks the notes the build plays: the score read on the cover's meter, with restrikes cut as the build cuts them. It writes no file. The pedal and the tail are left out, so a note lasts from its onset to its end as written. Jumps are timed in seconds on the cover's tempo map. The limits are for an intermediate-to-advanced player ([decision](decisions.md#playable-arrangements)).
+`pianoize check-arrangement SCORE.txt --cover COVER.mid [--melody MELODY.mid]` checks the notes the build plays: the score read on the cover's meter, with restrikes cut as the build cuts them. It writes no file. The pedal and the tail are left out, so a note lasts from its onset to its end as written. Jumps are timed in seconds on the cover's tempo map. The limits are for an intermediate-to-advanced player ([decision](decisions.md#playable-arrangements)).
 
 A hand's attack is a tick where it strikes a note. A note is held at an attack when it was struck at or before it and is not yet released; a note released at that tick is not held. A key is a pitch, however many notes sound on it.
 
@@ -200,13 +201,29 @@ harmony: 1 (1 flagged)
 problems: 2
 ```
 
-A finding's line gives the bar and position of its attack, the hand (`RH` or `LH`), the rule and the detail, two spaces apart. A span listed but not flagged ends `(listed, not flagged)`. Pitches are spelled with sharps. The last line is `problems: K`, counting the flagged findings, or `clean` when none is flagged, so listed spans can still print above `clean`.
+A finding's line gives the bar and position of its attack, the hand (`RH` or `LH`), the rule and the detail, two spaces apart. A span listed but not flagged ends `(listed, not flagged)`. Pitches are spelled with sharps. The report's last line is `problems: K`, counting the flagged findings, or `clean` when none is flagged, so listed spans can still print above `clean`. With `--melody`, the list below follows it.
 
-The command exits 1 while any finding is flagged, and 0 otherwise. A score or cover it can't read prints `error: …` and exits 1, as `build-arrangement` does; a missing file or a bad option exits 2.
+The command exits 1 while any finding is flagged, and 0 otherwise. A score or cover it can't read prints `error: …` and exits 1, as `build-arrangement` does, and so does a type 2 melody; a missing file or a bad option exits 2.
+
+### The melody the right hand leaves out
+
+With `--melody`, tsumugi's melody, a list follows the report: each vocal note the top of the right hand doesn't play.
+
+- **The vocal notes** are the melody's, kept to one voice as `melody-clashes --mono` keeps them: of notes starting within 30 ms of each other the highest stays, and each ends at the next one's onset. A note shorter than 80 ms after that is a sliver of the transcription and is never listed.
+- **A vocal note is played** when a top right-hand note of its pitch class in any octave starts within 70 ms of it, either side, timed in seconds on the cover's tempo map. A top note is the highest note the right hand holds at one of its attacks, struck at that attack, `M` or `R`. The melody is carried on top, so an inner voice under it plays no vocal note, nor does a top note struck earlier and still held; the left hand never does. An octave up counts, as the cover often plays the melody there.
+- **Each line** is `bar N pos P  melody missing  E5 (D)`. The note is placed as the dump places the melody, by its seconds on the cover's tempo map with each end rounded to the nearest half-sixteenth, so it reads at the bar and position of its `V` entry, and `D` is its duration in sixteenths after the voice is kept to one. A last line counts them, `melody missing: K`, `melody missing: 0` when the right hand plays them all:
+
+  ```
+  clean
+  bar 12 pos 4.5  melody missing  E5 (2)
+  melody missing: 1
+  ```
+
+- **The list is never flagged**: it leaves the exit code and the `problems: K` or `clean` line as they were. Each listed note is added to the right hand, or its omission is a choice to record: a stray of the transcription, a run too fast to read as it falls.
 
 ## Dumping
 
-`pianoize dump-bars COVER.mid --melody MELODY.mid [--bars A-B]` prints the cover and the melody bar by bar, three lines a bar, for the agent to arrange from. Two bars of a made-up cover:
+`pianoize dump-bars COVER.mid --melody MELODY.mid [--source SOURCE.mid] [--bars A-B]` prints the cover and the melody bar by bar, three lines a bar, for the agent to arrange from, and with `--source`, the instruments of tsumugi's transcription in the bars without vocal. Three bars of a made-up cover, dumped with a source:
 
 ```
 === bar 1  0:00.00  0:F
@@ -215,17 +232,23 @@ V 0:A4(4)  4:C5(4)  8:A4(3.5)  12:G4(3.5)
 === bar 2  0:02.00  0:F
 C 0:D2(8,72),A3(6,66),C4(6,68),F4(6,64),F5(6,94)  7:A#1(1,110),A#2(1,108),D4(1,112),F4(1,110),A#4(1,114),D5(1,112)
 V 0:F4(6)  12:D4(2)  14:F4(2)
+=== bar 3  0:04.00  0:Bb
+C 0:A#1(6,72),D4(2,64),D5(2,90)  2:F5(2,86)  4:A#5(2,84)  6:A#1(2,70),A5(2,82)  8:F2(8,70),C4(8,60),C6(8,88)
+V
+I brass  0:D5(2)  2:F5(2)  4:A#5(2)  6:A5(2)  8:C6(8)
+I electric_bass  0:A#1(6)  6:A#1(2)  8:F2(8)
 ```
 
-- **The header** is `=== bar N`, the bar's start as `m:ss.ss` on the cover's tempo map, and each marker starting in the bar as `pos:text`, two spaces apart. Markers are the cover's `marker` messages, tsumugi's chord guesses, with each run of spaces and line breaks read as one space. `text` and `lyrics` messages, which can carry the song's words, are never read, in either file.
+- **The header** is `=== bar N`, the bar's start as `m:ss.ss` on the cover's tempo map, and each marker starting in the bar as `pos:text`, two spaces apart. Markers are the cover's `marker` messages, tsumugi's chord guesses, with each run of spaces and line breaks read as one space. `text` and `lyrics` messages, which can carry the song's words, are never read, in any file.
 - **`C`** lists the cover's attacks, two spaces apart: the notes whose onsets round to one position, by pitch, each as `name(duration,velocity)`. Notes come from every track, drums left out.
 - **`V`** lists the notes of `--melody`, tsumugi's melody, by onset, each as `pos:name(duration)`. They are placed by their seconds on the cover's tempo map, so a melody at another resolution lands on the cover's bars.
+- **`I`**, with `--source SOURCE.mid`, tsumugi's transcription of the whole band with a track per instrument, follows the `V` line of a bar where that line is empty: one line per track that strikes a note in the bar, in the file's track order. Each is `I`, the track's name, then its top line, two spaces apart: the highest of the notes whose onsets round to one position, each as `pos:name(duration)`. A note held into the bar prints only in the bar it was struck in. Tracks without a name and drums, on channel 10, are left out, and a run of spaces or a line break in a name reads as one space. The notes are placed by their seconds on the cover's tempo map, as the melody's are. A bar with a `V` note has no `I` line: there the melody leads.
 - **Positions and durations** are in sixteenths. Every tick, onsets and ends alike, is rounded to the nearest half-sixteenth, a tie going later, before its bar and position are taken. So an onset up to a quarter of a sixteenth before a bar line prints at `0:` of the bar it anticipates, and a duration is the distance between its rounded ends: `(0)` is a sliver whose start and end round to the same half-sixteenth, less than half a sixteenth long.
 - **Pitches** are spelled with sharps: B♭ reads `A#`. `C4` is middle C.
-- **The bars** run from 1 to the cover's last, a partial last bar counted whole, or past it to the last bar a cover note, a melody note or a marker rounds into. A bar with nothing in it still prints, with empty `C` and `V` lines.
+- **The bars** run from 1 to the cover's last, a partial last bar counted whole, or past it to the last bar a cover note, a melody note, a source note or a marker rounds into. A bar with nothing in it still prints, with empty `C` and `V` lines.
 - **`--bars A-B`** prints bars A to B, both included. A range not written `A-B`, starting below 1 or running backwards exits 2; one past the last bar prints what exists of it, which can be nothing.
 
-A cover whose [meter](#meter) changes, or a type 2 cover, prints `error: …` and exits 1.
+A cover whose [meter](#meter) changes, or a type 2 cover, melody or source, prints `error: …` and exits 1.
 
 ## Running the skill
 

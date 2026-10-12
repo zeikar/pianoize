@@ -2,11 +2,11 @@
 
 How to read `<out>/bars.txt`, the dump `pianoize dump-bars` writes, and turn it into `notes.md`: the sections, a chord per bar, the melody, the hits and the stops. SKILL.md gives the commands and the files; this file gives the reading. The dump's format is in pianoize's `docs/arranging.md`, under "Dumping".
 
-The dump is your only view of the song. It is two models' transcriptions, the cover and the melody, and both are wrong in places. Read what the notes agree on, and check every guess against the song's repeats.
+The dump is your only view of the song. It is models' transcriptions, the cover, the melody and, with a source, the band's instruments, and each is wrong in places. Read what the notes agree on, and check every guess against the song's repeats.
 
 ## The lines
 
-Three made-up bars:
+Four made-up bars, dumped with a source:
 
 ```
 === bar 1  0:00.00  0:F
@@ -18,11 +18,18 @@ V 0:F4(6)  12:D4(2)  14:F4(2)
 === bar 3  0:04.00  0:Bb
 C 0:A#1(15.5,70),F3(3.5,60),A#3(3.5,60),D4(3.5,60),D6(8,92)  4:F3(3.5,60),A#3(3.5,60),D4(3.5,60)  8:F3(3.5,60),A#3(3.5,60),D4(3.5,60),C6(7.5,90)  12:F3(3.5,60),A#3(3.5,60),D4(3.5,60)
 V 0:D5(8)  8:C5(0)  8:C5(7)
+=== bar 4  0:06.00  0:Bb
+C 0:A#1(6,72),F3(2,64),A#3(2,64),D4(2,64),D5(2,90)  2:F5(2,86)  4:A#5(2,84)  6:A#1(2,70),A5(2,82)  8:F2(8,70),A3(8,60),C4(8,60),F4(8,60),C6(8,88)
+V
+I brass  0:D5(2)  2:F5(2)  4:A#5(2)  6:A5(2)  8:C6(8)
+I strings  0:D4(8)  8:C4(8)
+I electric_bass  0:A#1(6)  6:A#1(2)  8:F2(8)
 ```
 
 - **The header:** the bar's number, the time it starts (`m:ss.ss`, which the user can find in the song) and the cover's chord markers, each at its position (`0:F`).
 - **`C`:** the cover's attacks. Each is a position, then the notes struck there, lowest first, each as `name(duration,velocity)`.
 - **`V`:** the melody, one note at a time, each as `position:name(duration)`.
+- **`I`:** only with a source, and only in a bar whose `V` line is empty: one line per instrument of tsumugi's transcription that strikes a note in the bar, named as tsumugi names its tracks (`brass`, `flute_pipe`, `distorted_guitar`, `electric_bass`), then its top line, the highest note of each attack, as `position:name(duration)`. A note held into the bar from the one before prints only in the bar it was struck in.
 
 Pitches are spelled with sharps: `A#1` is the B♭ you write `Bb1` in the score. `C4` is middle C.
 
@@ -60,14 +67,24 @@ Velocity only helps you find these moments. The arrangement has a single velocit
 
 - **Skip the strays.** A `(0)` sliver, like bar 3's `8:C5(0)` before `8:C5(7)`, a quick re-strike of the pitch just sung, and a blip far from the line around it are transcription noise.
 - **Note the octave.** Compare `V` with the cover's top notes at the same positions. The cover often plays the melody an octave up, as in bars 1 to 3 (`V 0:A4(4)` against `A5(4,90)` in `C`). Write it where the cover plays it, which keeps the right hand above the accompaniment.
-- **Where `V` is silent** but the cover's top line still carries a tune, an instrumental hook, take the hook from the cover. Where both are silent and the song surely isn't, record the gap in `notes.md`.
+- **Where `V` is silent**, an instrument usually carries the tune: find it in the `I` lines ("The instrument lines" below), or, without a source, in the cover's top line. Where all of them are silent and the song surely isn't, record the gap in `notes.md`.
 - **Where `V` and the cover disagree on a pitch,** prefer the one that fits the chord and the phrase's repeats, and record the choice.
+
+## The instrument lines
+
+Where no one sings, in an intro, an interlude, a bridge or an ending, the tune moves to an instrument. The cover mashes the whole band into one piano part, so its top note there is often an accompaniment voice or two lines blended; the `I` lines keep each instrument apart.
+
+- **Find the line that carries the tune**: a riff or a lead with a shape of its own, in a register above the chords, that comes back when the section repeats. In bar 4, `brass` climbs `D5 F5 A#5`, falls to `A5` and lands on `C6`, and the cover's top line follows it: that is the hook. Note which instrument carries each section in `notes.md`.
+- **Chords and the bass:** `strings`, `piano` and a strummed guitar mostly play chords, so their top line is the top of a voicing, not a tune. `electric_bass` is the bass line: check your chord's root against it.
+- **A backing vocal**, `vocal_harmony`, can sound where the lead is silent; take it as a tune only where it is one.
+- **They are transcriptions too.** A line can drop notes, split a held note, add a stray or jump an octave. Read it against the section's repeats and the cover, as you read `V`.
+- **Where the singing starts or stops inside a bar,** that bar has a `V` note and so no `I` lines: take the instrument's notes there from the bars around it and the cover.
 
 ## Reading a long dump
 
-A full song is 150 to 200 bars, three lines each. Read it in passes:
+A full song is 150 to 200 bars, three lines each, and more where instruments print. Read it in passes:
 
 1. **The headers.** Skim the bar times and the markers for the section boundaries: where a chord pattern starts again, where the texture changes, where the melody enters after a gap.
 2. **The sections.** Most sections span 4, 8 or 16 bars. Name each with its bars in `notes.md`, and mark which later ones repeat which: the same markers, the same bass, the same melody.
-3. **One section at a time.** Read each closely, as `pianoize dump-bars '<cover>' --melody '<melody>' --bars 21-36` prints it, and write its chords, hits, stops and melody entries into `notes.md` before scoring it.
+3. **One section at a time.** Read each closely, as `pianoize dump-bars '<cover>' --melody '<melody>' --source '<source>' --bars 21-36` prints it (leaving out `--source '<source>'` without a source), and write its chords, hits, stops and melody entries into `notes.md` before scoring it.
 4. **The repeats.** Compare each repeat with its first appearance bar by bar. A changed melody line, an added hit, a different last bar or a dropped bar is an override, or a sign the repeat is not one.

@@ -79,3 +79,16 @@ def position(meter: Meter, tick: int) -> tuple[int, float]:
 def where(meter: Meter, tick: int) -> str:
     bar, sixteenths = position(meter, tick)
     return f"bar {bar} pos {sixteenths:g}"
+
+
+def halves(meter: Meter, tick: int) -> int:
+    """Half-sixteenths from tick 0 to the nearest, a tie going later. In integers, since a
+    half-sixteenth can be a fraction of a tick, and round() sends ties to the even one."""
+    return (4 * tick + meter.sixteenth_ticks) // (2 * meter.sixteenth_ticks)
+
+
+def nearest(meter: Meter, tick: int) -> tuple[int, float]:
+    """As position, for a tick rounded to the nearest half-sixteenth first, as the dump places a
+    note: an onset just ahead of a bar line reads on the downbeat it anticipates."""
+    bar, half = divmod(halves(meter, tick), 2 * meter.sixteenths_per_bar)
+    return bar + 1, half / 2

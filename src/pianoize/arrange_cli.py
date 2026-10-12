@@ -17,6 +17,14 @@ from .cli import _fail, _read_midi, _refuse_input, app
 _RANGE = re.compile(r"(\d+)-(\d+)")
 
 
+def _read_timed(path: Path) -> mido.MidiFile:
+    """A melody or a source, whose notes are placed by their seconds on the cover's bars."""
+    midi = _read_midi(path)
+    if midi.type == 2:
+        raise _fail(f"{path}: a type 2 MIDI file's tracks share no timeline to place notes on")
+    return midi
+
+
 def _load(
     score_path: Path, cover_path: Path
 ) -> tuple[mido.MidiFile, bars.Meter, arrangement.Score]:
@@ -76,19 +84,35 @@ def build_arrangement(
 def check_arrangement(
     score_path: Annotated[Path, _SCORE],
     cover: Annotated[Path, _COVER],
+    melody_path: Annotated[
+        Path | None,
+        typer.Option(
+            "--melody",
+            metavar="MELODY.mid",
+            help="tsumugi's melody: after the report, list each vocal note the top of the right "
+            "hand leaves out.",
+            exists=True,
+            dir_okay=False,
+        ),
+    ] = None,
 ) -> None:
     """Check a score is playable and fits its own chords.
 
     The notes are checked as the build plays them: hand by hand for playability, and the
     accompaniment against the score's chords. Exit 1 while any finding is flagged; a finding
-    listed, not flagged, leaves it clean.
+    listed, not flagged, leaves it clean, as do the vocal notes --melody lists.
     """
     midi, meter, score = _load(score_path, cover)
+    sung = None if melody_path is None else _read_timed(melody_path)
+    tempo_map = notes.tempo_map(midi)
     try:
-        findings = playability.check(score, meter, notes.tempo_map(midi))
+        findings = playability.check(score, meter, tempo_map)
     except arrangement.ArrangementError as exc:
         raise _fail(f"{score_path}: {exc}") from exc
     typer.echo(playability.report(findings, meter))
+    if sung is not None:
+        missing = playability.missing(score, meter, tempo_map, sung)
+        typer.echo(playability.missing_report(missing, meter, tempo_map))
     if any(finding.flagged for finding in findings):
         raise typer.Exit(1)
 
@@ -106,6 +130,17 @@ def dump_bars(
             dir_okay=False,
         ),
     ],
+    source_path: Annotated[
+        Path | None,
+        typer.Option(
+            "--source",
+            metavar="SOURCE.mid",
+            help="tsumugi's transcription, a track per instrument: in a bar without vocal, each "
+            "track's top line, placed by its seconds.",
+            exists=True,
+            dir_okay=False,
+        ),
+    ] = None,
     bar_range: Annotated[
         str | None, typer.Option("--bars", metavar="A-B", help="Print only bars A to B.")
     ] = None,
@@ -122,9 +157,10 @@ def dump_bars(
                 f"{bar_range!r}: bars count from 1 and A is at most B", param_hint="--bars"
             )
     midi = _read_midi(cover)
-    melody = _read_midi(melody_path)
+    melody = _read_timed(melody_path)
+    source = None if source_path is None else _read_timed(source_path)
     try:
-        found = dump.lines(midi, melody, selected)
+        found = dump.lines(midi, melody, selected, source)
     except (bars.MeterError, evidence.EvidenceError) as exc:
         raise _fail(f"{cover}: {exc}") from exc
     for line in found:

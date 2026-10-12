@@ -2,7 +2,7 @@
 
 How to write the score: what to keep of the song, what to copy from the cover, how to voice the hands, and how to answer each finding of `pianoize check-arrangement`. SKILL.md gives the commands and the files; this file gives the judgment. The score format and the check's limits are in pianoize's `docs/arranging.md`, under "The score format" and "Checking".
 
-The goal is a piano arrangement for a falling-notes video, written for two hands at an intermediate-to-advanced level from the cover and the melody alone. A listener should know the song at once and feel its groove, and a viewer should be able to read every note as it falls.
+The goal is a piano arrangement for a falling-notes video, written for two hands at an intermediate-to-advanced level from the cover, the melody and, where there is one, the band's transcription. A listener should know the song at once and feel its groove, and a viewer should be able to read every note as it falls.
 
 ## Keep the feel
 
@@ -30,7 +30,7 @@ bar 2 | 0:Dm7 7:Bb | pedal=0,7,x8
 
 ## Copy the cover where it renders a moment best
 
-The cover's own notes are often the best rendering of a hit, a fill, a riff or an intro figure. Copy them there, position by position, then clean the strays:
+The cover's own notes are often the best rendering of a hit, a fill or an accompaniment figure. Copy them there, position by position, then clean the strays:
 
 - **slivers**, `(0)` and other very short quiet notes beside a real one;
 - **doubled strikes**, one pitch struck twice in one attack (`G5(0,38),G5(4,86)`): keep one;
@@ -38,6 +38,14 @@ The cover's own notes are often the best rendering of a hit, a fill, a riff or a
 - **too many notes for a hand**, more than five or wider than a ninth: thin the inner voices.
 
 Then split the copied notes between the hands: the low notes to `L`, the rest to `R`, and the tune on top to `M`. Record each copied place in `notes.md`.
+
+## Where no one sings
+
+In a section without vocal, an intro, an interlude, a bridge or an ending, an instrument carries the tune. The cover blends the band into one piano part there, so its top note is often an accompaniment voice, and such a section sounds weaker than the sung ones.
+
+- **The right hand takes the instrument line that carries the tune**, from its `I` line ("The instrument lines" in `reading-the-dump.md`): a brass or synth riff, a guitar or flute lead. Keep its rhythm and its notes, and write it as `M`, in the octave where it sits above the accompaniment, rather than the cover's top note.
+- **The left hand still comes from the cover:** its groove and the chords, as in the sung sections.
+- **Without a source**, or where no instrument line carries a tune, take the hook from the cover's top line.
 
 ## Infer and fill
 

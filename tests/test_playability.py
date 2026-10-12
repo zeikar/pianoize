@@ -6,7 +6,7 @@ from pianoize.arrangement import ArrangementError, parse
 from pianoize.bars import Meter, meter
 from pianoize.cli import app
 from pianoize.notes import tempo_map
-from pianoize.playability import check, report
+from pianoize.playability import check, missing, missing_report, report
 
 # At 480 ticks a beat: 120 a sixteenth, 1920 a 4/4 bar, 120 bpm unless a test sets the tempos.
 METER = Meter(480, 4, 4)
@@ -219,6 +219,97 @@ def test_a_score_without_notes_raises(checked):
         checked("bar 1 | C")
 
 
+@pytest.fixture
+def missed(tick_midi, write_score):
+    """The report of the vocal notes, (on_tick, off_tick, pitch) at 480 ticks a beat and 120 bpm,
+    that a score of `format 1` and the lines given leaves out, on an eight-bar 4/4 cover with the
+    tempos given."""
+
+    def run(sung, *lines, tempos=None):
+        cover = tick_midi([(0, 1920 * 8, 60, 80)], tempos=tempos)
+        score = parse(write_score(*lines).read_text(encoding="utf-8"), METER.sixteenths_per_bar)
+        melody = tick_midi([(on, off, pitch, 100) for on, off, pitch in sung])
+        segments = tempo_map(cover)
+        return missing_report(missing(score, METER, segments, melody), METER, segments)
+
+    return run
+
+
+def test_a_score_playing_every_vocal_note_lists_none(missed):
+    sung = [(0, 480, 76), (480, 960, 79), (960, 1440, 72)]
+    # An R note on top of the right hand plays a vocal note as well as an M note does.
+    report = missed(sung, "bar 1 | C", "  M 0:E5:4 4:G5:4", "  R 8:C5:4")
+    assert report == "melody missing: 0"
+
+
+def test_a_vocal_note_left_out_is_listed_with_its_bar_and_position(missed):
+    # The left hand's E3 at the vocal note's onset doesn't play it: only the right hand does.
+    lines = ("bar 1 | C", "  M 0:E5:4", "  L 0:C3:16", "bar 2 | C", "  L 4.5:E3:2")
+    assert missed([(0, 480, 76), (2460, 2700, 76)], *lines) == (
+        "bar 2 pos 4.5  melody missing  E5 (2)\nmelody missing: 1"
+    )
+
+
+def test_vocal_notes_under_80_ms_are_not_listed(missed):
+    sung = [
+        (0, 72, 76),  # 75 ms
+        (480, 600, 79),  # 125 ms
+        (960, 1440, 72),  # cut to 50 ms by the next onset, as melody.monophonic cuts it
+        (1008, 1440, 74),
+        (1440, 1522, 77),  # 85 ms
+    ]
+    assert missed(sung, "bar 1 | C", "  L 0:C3:16") == (
+        "bar 1 pos 4  melody missing  G5 (1)\n"
+        "bar 1 pos 8.5  melody missing  D5 (3.5)\n"
+        "bar 1 pos 12  melody missing  F5 (0.5)\n"
+        "melody missing: 3"
+    )
+
+
+@pytest.mark.parametrize(
+    ("right", "count"),
+    [
+        ("4:E5:2", 0),  # an octave up, as the cover plays the melody
+        ("4:E6:2", 0),
+        ("4.5:E5:2", 0),  # 62.5 ms late
+        ("3.5:E5:2", 0),  # 62.5 ms early
+        ("4.6:E5:2", 1),  # 75 ms late
+        ("3.4:E5:2", 1),  # 75 ms early
+        ("4:F5:2", 1),
+    ],
+)
+def test_a_right_hand_note_of_its_pitch_class_within_70_ms_plays_a_vocal_note(missed, right, count):
+    report = missed([(480, 720, 64)], "bar 1 | C", f"  M {right}")
+    assert report.splitlines()[-1] == f"melody missing: {count}"
+
+
+@pytest.mark.parametrize(
+    "right",
+    [
+        ("  M 4:G5:2", "  R 4:E5:2"),  # an inner voice, struck under the top
+        ("  M 0:G5:8", "  R 4:E5:2"),  # an inner voice, under a top held from an earlier attack
+        ("  M 0:E5:8", "  R 4:C5:2"),  # a top of its pitch class, struck 500 ms before it
+    ],
+)
+def test_only_a_top_right_hand_note_struck_near_a_vocal_note_plays_it(missed, right):
+    assert missed([(480, 720, 64)], "bar 1 | C", *right) == (
+        "bar 1 pos 4  melody missing  E4 (2)\nmelody missing: 1"
+    )
+
+
+def test_the_vocal_lands_by_seconds_on_the_covers_tempo_map(missed):
+    # The cover takes 2 s for bar 1 at 120 bpm, then 4 s a bar at 60 bpm. The vocal note sounds
+    # from 3 s to 3.5 s: bar 2 pos 4, two of the cover's sixteenths, where its own ticks would
+    # say bar 2 pos 8.
+    sung = [(2880, 3360, 76)]
+    tempos = [(1920, 60)]
+    assert missed(sung, "bar 1 | C", "  L 0:C3:16", tempos=tempos) == (
+        "bar 2 pos 4  melody missing  E5 (2)\nmelody missing: 1"
+    )
+    played = ("bar 1 | C", "  L 0:C3:16", "bar 2 | C", "  M 4:E5:4")
+    assert missed(sung, *played, tempos=tempos) == "melody missing: 0"
+
+
 def _cover_file(tmp_path, tick_midi, meta=None, ticks_per_beat=480):
     path = tmp_path / "cover.mid"
     notes = [(0, ticks_per_beat * 32, 60, 80)]  # eight 4/4 bars
@@ -226,8 +317,9 @@ def _cover_file(tmp_path, tick_midi, meta=None, ticks_per_beat=480):
     return path
 
 
-def _check_cli(score, cover):
-    return CliRunner().invoke(app, ["check-arrangement", str(score), "--cover", str(cover)])
+def _check_cli(score, cover, *options):
+    arguments = ["check-arrangement", str(score), "--cover", str(cover), *options]
+    return CliRunner().invoke(app, arguments)
 
 
 @pytest.mark.parametrize(
@@ -287,4 +379,47 @@ def test_cli_refuses_a_cover_that_changes_meter(tmp_path, tick_midi, write_score
     result = _check_cli(write_score("bar 1 | C", "  L 0:C3:4"), cover)
     assert result.exit_code == 1
     assert f"error: {cover}: the cover changes meter at tick 1920, 4/4 to 3/4" in result.output
+    assert "Traceback" not in result.output
+
+
+@pytest.mark.parametrize(
+    ("lines", "code", "printed"),
+    [
+        (
+            ("bar 1 | C", "  M 0:E5:4", "bar 2 | C", "  L 0:C3:16"),
+            0,
+            "clean\nbar 2 pos 4.5  melody missing  E5 (2)\nmelody missing: 1\n",
+        ),
+        (
+            ("bar 1 | C", "  M 0:E5:4", "  L 0:F3:4"),
+            1,
+            "harmony: 1 (1 flagged)\n"
+            "  bar 1 pos 0  LH  harmony  L F3 over C\n"
+            "problems: 1\n"
+            "bar 2 pos 4.5  melody missing  E5 (2)\n"
+            "melody missing: 1\n",
+        ),
+        (("bar 1 | C", "  M 0:E5:4", "bar 2 | C", "  M 4.5:E5:2"), 0, "clean\nmelody missing: 0\n"),
+    ],
+)
+def test_cli_lists_the_vocal_notes_left_out_after_the_report_and_keeps_its_exit_code(
+    tmp_path, tick_midi, write_score, lines, code, printed
+):
+    melody = tmp_path / "melody.mid"
+    tick_midi([(0, 480, 76, 100), (2460, 2700, 76, 100)]).save(melody)
+    cover = _cover_file(tmp_path, tick_midi)
+    result = _check_cli(write_score(*lines), cover, "--melody", str(melody))
+    assert result.exit_code == code, result.output
+    assert result.stdout == printed
+
+
+def test_cli_refuses_a_type_2_melody(tmp_path, tick_midi, write_score):
+    melody = tmp_path / "melody.mid"
+    midi = tick_midi([(0, 480, 76, 100)])
+    midi.type = 2
+    midi.save(melody)
+    cover = _cover_file(tmp_path, tick_midi)
+    result = _check_cli(write_score("bar 1 | C", "  M 0:E5:4"), cover, "--melody", str(melody))
+    assert result.exit_code == 1
+    assert f"error: {melody}: a type 2 MIDI file's tracks share no timeline" in result.output
     assert "Traceback" not in result.output

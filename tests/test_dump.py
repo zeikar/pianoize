@@ -128,6 +128,98 @@ def test_text_and_lyrics_never_print(tick_midi, tempo_track):
         assert text not in dumped
 
 
+def named(tick_midi, name, played, channel=0, extra=()):
+    """A track named `name` of (on_tick, off_tick, pitch, velocity) notes on `channel`, with the
+    extra (tick, message) pairs given."""
+    track = tick_midi(played, meta=[(0, meta("track_name", name=name)), *extra]).tracks[0]
+    return mido.MidiTrack(m if m.is_meta else m.copy(channel=channel) for m in track)
+
+
+def source_midi(tick_midi, *tracks, tempos=None, ticks_per_beat=480):
+    """A transcription as tsumugi writes it: the tempo on a track of its own, then `tracks`."""
+    source = tick_midi([], tempos=tempos, ticks_per_beat=ticks_per_beat)
+    source.tracks += tracks
+    return source
+
+
+def test_a_bar_with_vocal_has_no_instrument_lines(tick_midi):
+    cover = tick_midi([(0, 1920, 48, 60)])
+    melody = tick_midi([(0, 480, 72, 100)])
+    source = source_midi(tick_midi, named(tick_midi, "brass", [(0, 480, 76, 90)]))
+    assert lines(cover, melody, source=source) == [
+        "=== bar 1  0:00.00",
+        "C 0:C3(16,60)",
+        "V 0:C5(4)",
+    ]
+
+
+def test_a_bar_without_vocal_has_each_sounding_tracks_top_line(tick_midi):
+    cover = tick_midi([(0, 1920 * 2, 48, 60)])
+    melody = tick_midi([(0, 480, 72, 100)])
+    strings = [
+        (0, 3840, 64, 80),  # struck in bar 1 and held through bar 2: no attack there
+        (1920, 2880, 60, 80),
+        (1920, 2880, 67, 80),  # G4 over C4: the top
+        (2880, 3840, 65, 80),
+        (2870, 3840, 69, 80),  # A4, 10 ticks early, rounds into F4's attack and is the top
+    ]
+    source = source_midi(
+        tick_midi,
+        named(tick_midi, "strings", strings),
+        # The line break and the run of spaces read as one space, as in a marker.
+        named(tick_midi, "lead\n  guitar", [(2400, 2640, 72, 90)]),
+        named(tick_midi, "flute", [(0, 1920, 84, 70)]),  # silent in bar 2
+    )
+    assert lines(cover, melody, source=source) == [
+        "=== bar 1  0:00.00",
+        "C 0:C3(32,60)",
+        "V 0:C5(4)",
+        "=== bar 2  0:02.00",
+        "C ",
+        "V ",
+        "I strings  0:G4(8)  8:A4(8)",
+        "I lead guitar  4:C5(2)",
+    ]
+
+
+def test_drums_and_unnamed_tracks_never_print(tick_midi, silent):
+    cover = tick_midi([(0, 1920, 48, 60)])
+    source = source_midi(
+        tick_midi,
+        # tsumugi writes its drums on channel 10, as General MIDI does: the channel leaves them
+        # out, whatever the track is named.
+        named(tick_midi, "kit", [(0, 120, 36, 100), (960, 1080, 38, 100)], channel=9),
+        named(tick_midi, "", [(0, 480, 72, 90)]),
+    )
+    assert lines(cover, silent, source=source) == ["=== bar 1  0:00.00", "C 0:C3(16,60)", "V "]
+
+
+def test_a_source_at_another_resolution_lands_by_seconds(tick_midi, silent):
+    # At 60 bpm and 240 ticks a beat, the source's tick 240 sounds at 1 s, the cover's bar 1
+    # pos 8, and lasts 0.5 s, four of the cover's sixteenths; its ticks would say pos 2 and 1.
+    cover = tick_midi([(0, 1920, 48, 60)])
+    brass = named(tick_midi, "brass", [(240, 360, 72, 90)])
+    source = source_midi(tick_midi, brass, tempos=[(0, 60)], ticks_per_beat=240)
+    assert lines(cover, silent, source=source)[3] == "I brass  8:C5(4)"
+
+
+def test_a_source_note_past_the_last_bar_adds_its_bar(tick_midi, silent):
+    cover = tick_midi([(0, 1920, 48, 60)])
+    source = source_midi(tick_midi, named(tick_midi, "brass", [(1920, 2160, 72, 90)]))
+    assert bar(lines(cover, silent, source=source), 2) == ["=== bar 2  0:02.00", "C ", "V "]
+    assert lines(cover, silent, source=source)[-1] == "I brass  0:C5(2)"
+
+
+def test_text_and_lyrics_in_the_source_never_print(tick_midi, silent):
+    cover = tick_midi([(0, 1920, 48, 60)])
+    words = [(0, meta("text", text="secret words")), (0, meta("lyrics", text="la la"))]
+    source = source_midi(tick_midi, named(tick_midi, "melody", [(0, 480, 72, 90)], extra=words))
+    dumped = "\n".join(lines(cover, silent, source=source))
+    assert "I melody  0:C5(4)" in dumped
+    for text in ("secret", "la la"):
+        assert text not in dumped
+
+
 def test_an_empty_cover_prints_silent_bars(tick_midi, silent):
     cover = tick_midi([], meta=[(3840, meta("end_of_track"))])
     assert lines(cover, silent) == [
@@ -193,6 +285,44 @@ def test_cli_prints_only_the_bars_asked_for(dumped):
         "C ",
         "V ",
     ]
+
+
+def test_cli_prints_the_sources_instrument_lines(dumped, tick_midi, tmp_path):
+    source = tmp_path / "source.mid"
+    source_midi(tick_midi, named(tick_midi, "brass", [(3840, 4080, 76, 90)])).save(source)
+    result = _dump_cli(*dumped, "--source", str(source), "--bars", "2-3")
+    assert result.exit_code == 0, result.output
+    assert result.stdout.splitlines() == [
+        "=== bar 2  0:02.00",
+        "C ",
+        "V 0:C5(2)",
+        "=== bar 3  0:04.00",
+        "C ",
+        "V ",
+        "I brass  0:E5(2)",
+    ]
+
+
+def test_cli_refuses_a_type_2_source(dumped, tick_midi, tmp_path):
+    source = tmp_path / "source.mid"
+    midi = source_midi(tick_midi, named(tick_midi, "brass", [(0, 240, 76, 90)]))
+    midi.type = 2
+    midi.save(source)
+    result = _dump_cli(*dumped, "--source", str(source))
+    assert result.exit_code == 1
+    assert f"error: {source}: a type 2 MIDI file's tracks share no timeline" in result.output
+    assert "Traceback" not in result.output
+
+
+def test_cli_refuses_a_type_2_melody(dumped, tick_midi):
+    cover, melody = dumped
+    midi = tick_midi([(0, 240, 72, 100)])
+    midi.type = 2
+    midi.save(melody)
+    result = _dump_cli(cover, melody)
+    assert result.exit_code == 1
+    assert f"error: {melody}: a type 2 MIDI file's tracks share no timeline" in result.output
+    assert "Traceback" not in result.output
 
 
 @pytest.mark.parametrize("value", ["x", "2", "2-", "-3", "2-3-4", "2 - 3", "0-2", "3-2"])
