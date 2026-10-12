@@ -1,4 +1,6 @@
 import json
+import re
+from pathlib import Path
 
 import mido
 import pytest
@@ -147,3 +149,21 @@ def test_two_runs_give_identical_bytes(hands_midi, tmp_path):
     assert _run(path, "-o", tmp_path / "b.json").exit_code == 0
 
     assert (tmp_path / "a.json").read_bytes() == (tmp_path / "b.json").read_bytes()
+
+
+ROOT = Path(__file__).resolve().parent.parent
+
+
+def test_the_docs_example_and_the_viewer_match_the_format(hands_midi):
+    doc = (ROOT / "docs" / "rendering.md").read_text(encoding="utf-8")
+    example = json.loads(re.search(r"^```json\n(.*?)^```", doc, re.S | re.M).group(1))
+    exported = roll.export(hands_midi([(0, 480, 72, 80)], [(0, 960, 48, 80)]))
+
+    assert example["format_version"] == roll.FORMAT_VERSION
+    assert example.keys() == exported.keys()
+    assert example["notes"]
+    for note in example["notes"]:
+        assert note.keys() == exported["notes"][0].keys()
+    script = (ROOT / "viewer" / "roll.js").read_text(encoding="utf-8")
+    declared = re.search(r"^export const FORMAT_VERSION = (\d+);", script, re.M)
+    assert int(declared.group(1)) == roll.FORMAT_VERSION
