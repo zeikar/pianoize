@@ -204,6 +204,12 @@ def evaluate(
 _CLIPPING = 0.99
 
 
+def _report_peak(peak: float) -> None:
+    typer.echo(f"peak {peak:.3f}")
+    if peak >= _CLIPPING:
+        typer.echo(f"warning: peak {peak:.3f} may clip; lower --gain", err=True)
+
+
 @app.command()
 def render(
     midi: Annotated[Path, typer.Argument(help="The MIDI file.", exists=True, dir_okay=False)],
@@ -222,9 +228,7 @@ def render(
         peak = render_module.render(source, out, soundfont, gain=gain)
     except (render_module.RenderError, OSError) as exc:
         raise _fail(str(exc)) from exc
-    typer.echo(f"peak {peak:.3f}")
-    if peak >= _CLIPPING:
-        typer.echo(f"warning: peak {peak:.3f} may clip; lower --gain", err=True)
+    _report_peak(peak)
 
 
 def _percent(ratio: float | None) -> str:
