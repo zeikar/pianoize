@@ -29,7 +29,7 @@ I electric_bass  0:A#1(6)  6:A#1(2)  8:F2(8)
 - **The header:** the bar's number, the time it starts (`m:ss.ss`, which the user can find in the song) and the cover's chord markers, each at its position (`0:F`).
 - **`C`:** the cover's attacks. Each is a position, then the notes struck there, lowest first, each as `name(duration,velocity)`.
 - **`V`:** the melody, one note at a time, each as `position:name(duration)`.
-- **`I`:** only with a source, and only in a bar whose `V` line is empty: one line per instrument of tsumugi's transcription that strikes a note in the bar, named as tsumugi names its tracks (`brass`, `flute_pipe`, `distorted_guitar`, `electric_bass`), then its top line, the highest note of each attack, as `position:name(duration)`. A note held into the bar from the one before prints only in the bar it was struck in.
+- **`I`:** only with a source, and only in a bar whose `V` line is empty, unless dumped with `--every-bar`: one line per instrument of tsumugi's transcription that strikes a note in the bar, named as tsumugi names its tracks (`brass`, `flute_pipe`, `distorted_guitar`, `electric_bass`), then its top line, the highest note of each attack, as `position:name(duration)`. A note held into the bar from the one before prints only in the bar it was struck in.
 
 Pitches are spelled with sharps: `A#1` is the B♭ you write `Bb1` in the score. `C4` is middle C.
 
@@ -78,7 +78,8 @@ Where no one sings, in an intro, an interlude, a bridge or an ending, the tune m
 - **Chords and the bass:** `strings`, `piano` and a strummed guitar mostly play chords, so their top line is the top of a voicing, not a tune. `electric_bass` is the bass line: check your chord's root against it.
 - **A backing vocal**, `vocal_harmony`, can sound where the lead is silent; take it as a tune only where it is one.
 - **They are transcriptions too.** A line can drop notes, split a held note, add a stray or jump an octave. Read it against the section's repeats and the cover, as you read `V`.
-- **Where the singing starts or stops inside a bar,** that bar has a `V` note and so no `I` lines: take the instrument's notes there from the bars around it and the cover.
+- **Under the voice.** A sung bar hides its `I` lines, yet the band often plays something there worth keeping: a fill between two vocal phrases, a riff under the singing, a countermelody. To find them, dump a sung section again with the lines in every bar, one section at a time to keep it short: `pianoize dump-bars '<cover>' --melody '<melody>' --source '<source>' --every-bar --bars 21-36`. A fill where `V` rests can go on top of the right hand; under a sung note, the melody stays on top.
+- **Where the singing starts or stops inside a bar,** that bar has a `V` note and so no `I` lines in the plain dump: read its instruments with `--every-bar`, as above.
 
 ## Reading a long dump
 

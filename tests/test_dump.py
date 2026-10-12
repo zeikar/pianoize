@@ -153,6 +153,30 @@ def test_a_bar_with_vocal_has_no_instrument_lines(tick_midi):
     ]
 
 
+@pytest.fixture
+def sung_then_not(tick_midi):
+    """A two-bar cover, a vocal note in bar 1 and a source whose brass plays in both bars."""
+    cover = tick_midi([(0, 1920 * 2, 48, 60)])
+    melody = tick_midi([(0, 480, 72, 100)])
+    brass = named(tick_midi, "brass", [(240, 480, 76, 90), (1920, 2400, 79, 90)])
+    return cover, melody, source_midi(tick_midi, brass)
+
+
+def test_every_bar_prints_the_instrument_lines_in_a_sung_bar(sung_then_not):
+    cover, melody, source = sung_then_not
+    head = ["=== bar 1  0:00.00", "C 0:C3(32,60)", "V 0:C5(4)"]
+    assert lines(cover, melody, source=source)[:4] == [*head, "=== bar 2  0:02.00"]
+    every = lines(cover, melody, source=source, every_bar=True)
+    assert every[:4] == [*head, "I brass  2:E5(2)"]
+
+
+def test_every_bar_leaves_a_bar_without_vocal_as_it_was(sung_then_not):
+    cover, melody, source = sung_then_not
+    without = lines(cover, melody, source=source)
+    every = lines(cover, melody, source=source, every_bar=True)
+    assert without[3:] == every[4:] == ["=== bar 2  0:02.00", "C ", "V ", "I brass  0:G5(4)"]
+
+
 def test_a_bar_without_vocal_has_each_sounding_tracks_top_line(tick_midi):
     cover = tick_midi([(0, 1920 * 2, 48, 60)])
     melody = tick_midi([(0, 480, 72, 100)])
@@ -301,6 +325,26 @@ def test_cli_prints_the_sources_instrument_lines(dumped, tick_midi, tmp_path):
         "V ",
         "I brass  0:E5(2)",
     ]
+
+
+def test_cli_prints_the_instrument_lines_in_every_bar_on_request(dumped, tick_midi, tmp_path):
+    source = tmp_path / "source.mid"
+    source_midi(tick_midi, named(tick_midi, "brass", [(2160, 2400, 76, 90)])).save(source)
+    result = _dump_cli(*dumped, "--source", str(source), "--every-bar", "--bars", "2-2")
+    assert result.exit_code == 0, result.output
+    assert result.stdout.splitlines() == [
+        "=== bar 2  0:02.00",
+        "C ",
+        "V 0:C5(2)",
+        "I brass  2:E5(2)",
+    ]
+
+
+def test_cli_refuses_every_bar_without_a_source(dumped):
+    result = _dump_cli(*dumped, "--every-bar")
+    assert result.exit_code == 2
+    assert "--every-bar" in result.output
+    assert "--source" in result.output
 
 
 def test_cli_refuses_a_type_2_source(dumped, tick_midi, tmp_path):

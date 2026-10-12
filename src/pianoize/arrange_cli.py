@@ -141,11 +141,22 @@ def dump_bars(
             dir_okay=False,
         ),
     ] = None,
+    every_bar: Annotated[
+        bool,
+        typer.Option(
+            "--every-bar",
+            help="With --source, print the instrument lines in every bar, sung bars included.",
+        ),
+    ] = False,
     bar_range: Annotated[
         str | None, typer.Option("--bars", metavar="A-B", help="Print only bars A to B.")
     ] = None,
 ) -> None:
     """Print the cover's attacks and the melody bar by bar, for an agent to arrange from."""
+    if every_bar and source_path is None:
+        raise typer.BadParameter(
+            "needs --source, whose instrument lines it prints", param_hint="--every-bar"
+        )
     selected = None
     if bar_range is not None:
         match = _RANGE.fullmatch(bar_range)
@@ -160,7 +171,7 @@ def dump_bars(
     melody = _read_timed(melody_path)
     source = None if source_path is None else _read_timed(source_path)
     try:
-        found = dump.lines(midi, melody, selected, source)
+        found = dump.lines(midi, melody, selected, source, every_bar)
     except (bars.MeterError, evidence.EvidenceError) as exc:
         raise _fail(f"{cover}: {exc}") from exc
     for line in found:

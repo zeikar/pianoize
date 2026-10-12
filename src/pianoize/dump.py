@@ -18,15 +18,16 @@ def lines(
     melody: mido.MidiFile,
     bar_range: tuple[int, int] | None = None,
     source: mido.MidiFile | None = None,
+    every_bar: bool = False,
 ) -> list[str]:
     """Per bar, `=== bar N  m:ss.ss` and the markers starting in it, a `C` line of the cover's
     attacks and a `V` line of the melody, positions and durations in sixteenths. With `source`,
-    tsumugi's transcription, a bar whose `V` line is empty gets an `I` line per named track of
-    the source that strikes a note in it, drums left out, in the source's order: the track's name
-    and its top line, the highest note of each attack. The melody, the markers and the source are
-    placed by their seconds on the cover's tempo map. Bars run from 1 to the cover's last, or past
-    it to the last any note or marker rounds into; `bar_range`, first and last inclusive, keeps
-    the bars of it that exist."""
+    tsumugi's transcription, a bar whose `V` line is empty, or with `every_bar` any bar, gets an
+    `I` line per named track of the source that strikes a note in it, drums left out, in the
+    source's order: the track's name and its top line, the highest note of each attack. The
+    melody, the markers and the source are placed by their seconds on the cover's tempo map. Bars
+    run from 1 to the cover's last, or past it to the last any note or marker rounds into;
+    `bar_range`, first and last inclusive, keeps the bars of it that exist."""
     meter = bars.meter(cover)
     per_bar = 2 * meter.sixteenths_per_bar
 
@@ -86,6 +87,6 @@ def lines(
         ]
         found.append("C " + "  ".join(played))
         found.append("V " + "  ".join(sung[bar]))
-        if not sung[bar]:
+        if every_bar or not sung[bar]:
             found += ["I " + line for line in instruments[bar]]
     return found
