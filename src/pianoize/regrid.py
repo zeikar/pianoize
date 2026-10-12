@@ -15,7 +15,7 @@ from .bars import Meter
 _MAX_BARS = 4
 # How far the run's tempo as a whole, its grid bars over its seconds, sits from each neighbour.
 # Not each segment's: the tracker can split a hiccup into tempos one of which lands near the
-# song's (tsumugi's 160.63 against 175, 8%). Holding a different number of the song's bars, at
+# song's (one within 10% of it, say). Holding a different number of the song's bars, at
 # most 4 grid bars, puts the run at least 20% off (5 in 4); the same number keeps it within 1%.
 _OFF = 0.15
 # The neighbours agree, so the song's tempo resumes after the run: no lasting tempo change.

@@ -19,18 +19,18 @@ The [`arrange-cover` skill](#running-the-skill) runs it in these steps. The comm
 
 `pianoize regrid COVER.mid -o OUT.mid` writes a copy of the cover with its tempo hiccups regridded. Use the copy as `COVER.mid` for every command: `dump-bars`, `build-arrangement` and `check-arrangement`.
 
-- **Why.** Every command counts bars from the cover's tempo map, which tsumugi takes from a beat tracker. Where the tracker squeezes a few of the song's bars into fewer grid bars, or stretches them over more, the grid's bar lines fall off the song's downbeats inside the run, so the dump prints the song's downbeats mid-bar there and a score can't place those bars. After the run they fall on downbeats again, but every bar is numbered off by the bars the run lost or gained. On the test song the tracker wrote grid bars 92 to 95 at about 125, 161 and 123 bpm against 175 around them; their 6.86 s are five bars at 175.
+- **Why.** Every command counts bars from the cover's tempo map, which tsumugi takes from a beat tracker. Where the tracker squeezes a few of the song's bars into fewer grid bars, or stretches them over more, the grid's bar lines fall off the song's downbeats inside the run, so the dump prints the song's downbeats mid-bar there and a score can't place those bars. After the run they fall on downbeats again, but every bar is numbered off by the bars the run lost or gained. For example, a tracker may write four grid bars at about 125, 159 and 125 bpm against 175 around them, whose seconds are five bars at 175.
 - **A hiccup** is a run of the tempo map's segments that starts and ends on bar lines of the cover's grid and is at most 4 bars long; segments shorter than a bar may sit inside it. And:
   - its tempo as a whole, its grid bars over its seconds, is more than 15% off the tempo just before the run and the one just after it. Not each segment's: on the test song 161 is 8% off 175, and the run as a whole 20%;
   - those two tempos agree within 5%, so the song's tempo resumes after the run: a lasting change of tempo is no hiccup;
   - its seconds come within 10 ms of a whole number of bars at their mean tempo. On the test song they come within about 1 ms.
 
   Runs are tried from the left, the shortest first, and the tempo just after a hiccup is never part of the next one.
-- **What changes** is the tempo map and the ticks, never a note's time. Each hiccup's tempo changes become one, at its start: the tempo that fits that whole number of bars into its seconds, rounded to whole microseconds a beat, which moves its end by far less than a tick. Every event of every track then moves to the tick nearest the time it had. So the events inside a hiccup land on its new bars, and every event after it moves by the bars it gained or lost: on the test song, one bar later. The type, the resolution, the track order and every other message stay as they were.
+- **What changes** is the tempo map and the ticks, never a note's time. Each hiccup's tempo changes become one, at its start: the tempo that fits that whole number of bars into its seconds, rounded to whole microseconds a beat, which moves its end by far less than a tick. Every event of every track then moves to the tick nearest the time it had. So the events inside a hiccup land on its new bars, and every event after it moves by the bars it gained or lost: one bar later, for five bars found in four. The type, the resolution, the track order and every other message stay as they were.
 - **Output.** It prints a line per hiccup, its grid bars and old tempos, then the bars it holds at the new tempo, or `no tempo hiccups`:
 
   ```
-  bars 92-95: 124.81, 160.63, 123.39 BPM -> 5 bars at 175.02
+  bars 3-6: 125.00, 159.09, 125.00 BPM -> 5 bars at 175.00
   ```
 
   It writes the copy either way, atomically, as `build-arrangement` does.

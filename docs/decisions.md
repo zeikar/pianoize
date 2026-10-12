@@ -7,7 +7,7 @@ The goal is falling-notes videos of piano arrangements for a personal, non-monet
 1. **M0**: these rules and the package skeleton.
 2. **M1**: run the existing audio-to-piano-cover models that run on a Mac, and the melody extractors, and score them together with a human piano cover.
 3. **M2**: polishing the M1 model's arrangement: its harmony, slips, voice leading and timing. Built ([M2 decisions](#m2-decisions-2026-10-10)), but since 2026-10-11 no longer the main path.
-4. **M3**: the arrangement, written by an agent as a two-hand score from the cover and the melody, and rendered and checked by pianoize ([M3](#m3-an-agent-writes-the-arrangement-2026-10-11)). Added 2026-10-11; until then M3 was the renderer.
+4. **M3**: the arrangement, written by an agent as a two-hand score from the cover and the melody, and built and checked by pianoize. Added 2026-10-11; until then M3 was the renderer. Built, and its first full-song arrangement approved on 2026-10-12 ([M3](#m3-an-agent-writes-the-arrangement-2026-10-11)).
 5. **M4**: the renderer.
 
 If a model in M1 keeps the harmony, pianoize wraps it. If it simplifies the harmony the way the human cover does, M2 is the reason pianoize exists. The user makes that call from the M1 table; there is no fixed threshold.
@@ -32,7 +32,7 @@ The timeline has beats but no downbeats. Beat This! (MIT) predicts both, so pian
 
 Nothing is monetized, so weights with non-commercial terms are usable. They are never committed. They are downloaded into `work/` on first use, with their terms shown. Each model's code and weight licenses are checked again before it is used, because these change. The date and the source are recorded here.
 
-A weight license binds the use of the model, and the repository holds none of its code or weights, so the repository's own license is unaffected. Whether a model's output counts as material adapted from its weights is unsettled, so output of a non-commercial model is treated as non-commercial too: the video stays non-monetized and credits the model. That is why tsumugi-piano-cover (CC BY-NC 4.0), whose cover is the arrangement's base, is credited, while tsumugi's transcriber (MIT code and weights), used only as evidence for the harmony, carries no such terms.
+A weight license binds the use of the model, and the repository holds none of its code or weights, so the repository's own license is unaffected. Whether a model's output counts as material adapted from its weights is unsettled, so output of a non-commercial model is treated as non-commercial too: the video stays non-monetized and credits the model. That is why tsumugi-piano-cover (CC BY-NC 4.0), whose cover is the arrangement's base, is credited, while tsumugi's transcriber (MIT code and weights), used as evidence for the harmony and, since M3, for instrument lines the arrangement takes up, carries no such terms.
 
 The code license is undecided and the repository is private. It may later be published under MIT, so no GPL or AGPL code goes into the repository or its dependencies, Python or npm, vendored, imported or bundled. Neothesia and YourMT3+ are out for this reason. LGPL is allowed, as in chordotomy. A tool the user installs separately and pianoize runs as a subprocess, such as a MIDI synthesizer, is not part of what is published, so its license doesn't matter.
 
@@ -54,7 +54,18 @@ The checkpoints for a particular song are made from its recording, so they stay 
 
 ## Playable arrangements
 
-A falling-notes video reads as a piece someone could play. So arrangements are pitched at an intermediate-to-advanced player. tsumugi's cover is one piano part with no hands assigned. From M3 the arrangement is written for two hands by an agent ([M3](#m3-an-agent-writes-the-arrangement-2026-10-11)), rather than pianoize splitting the cover as first planned, and a check verifies a limit on notes per hand, a hand span (about a ninth) and no crossed hands. Every arrangement, and every correction, must keep that check passing.
+A falling-notes video reads as a piece someone could play. So arrangements are pitched at an intermediate-to-advanced player. tsumugi's cover is one piano part with no hands assigned. From M3 the arrangement is written for two hands by an agent ([M3](#m3-an-agent-writes-the-arrangement-2026-10-11)), rather than pianoize splitting the cover as first planned, and `pianoize check-arrangement` verifies that each hand can play it. Every arrangement, and every correction, must keep that check passing.
+
+The limits as built (2026-10-12) are the ones the M3 spike's check used:
+
+- at most 5 keys held in one hand at its attack;
+- a hand's held keys spanning at most 16 semitones, a major tenth. A span of 15 or 16, wider than a ninth, is listed but not flagged, so it can stay where the music needs it;
+- no jump of a hand's centre by 15 semitones or more in under 0.2 s, by 22 or more in under 0.36 s, or by more than 26 at any speed;
+- no crossed hands: the left hand's top below the right hand's bottom;
+- the melody on top of the right hand;
+- no pitch struck twice in one hand at one tick: one key can't be struck twice at once.
+
+The same command checks the harmony too: an accompaniment note outside the score's chord at its onset is flagged unless marked as a passing tone. The rules and the report are in [docs/arranging.md](arranging.md#checking).
 
 Every note of an arrangement gets the same velocity (2026-10-11). Most piano covers barely vary their dynamics, so pianoize writes none.
 
@@ -201,3 +212,43 @@ Two rules came out of it. Every note gets one velocity, because most piano cover
 The reasons: G sounded cleaner than the polished cover, it is written for two hands and checked as playable, and it keeps the song's own feel, its rhythmic hits included. Committed tooling makes the next song reproducible, where the spike's one-off scripts were written for one song. The CLI still never calls an LLM: the agent writes the score, and code renders it deterministically.
 
 The score is the natural seed for the arrangement JSON the README plans, since it already names the hands and the chords. M2's tooling stays: the refined timeline and the evidence table remain evidence for the agent, and the polish path still runs. The arrangement still copies tsumugi-piano-cover's notes in places, so the video credit and the non-commercial terms in [What goes into a video](#what-goes-into-a-video) and [Licenses](#licenses) stay as they are. The spike's outputs are in `work/m3-spike/` and `work/m3-claude/`, not committed.
+
+### Built (2026-10-12)
+
+M3 built four commands, `regrid`, `dump-bars`, `build-arrangement` and `check-arrangement`, and the `arrange-cover` skill that runs them, in the same Claude Code plugin as `polish-cover`. [docs/arranging.md](arranging.md) documents them. The spike's scripts were rewritten as tested package code, with nothing song-specific carried over.
+
+- **A text score, a bar at a time, on the sixteenth grid.** The agent writes each bar's chords, its pedal and up to three hand lines: the melody and the rest of the right hand, and the left hand. Positions and durations count sixteenths on the cover's meter and tempo map, so bar N of the score sounds where bar N of the cover does. The grammar is the one the spike wrote G in.
+- **Pop chord symbols with their own table, not Harte labels.** The agent writes the symbols by hand, as a chord chart spells them: flats, tensions in parentheses, slash basses, `N.C.`. `chords.py`'s Harte labels have no flats and no tensions. A quality the table lacks is written as the nearest one and recorded as a gap; the table can gain it.
+- **The version is a header line**, `format 1`, the score's first line that isn't blank or a comment. `tests/test_skills.py` ties it to `arrangement.FORMAT_VERSION` in the skill and the docs, as it ties the spec version to `corrections.SPEC_VERSION`.
+- **Repeats are copies with whole-bar overrides.** `bars A-B = C-D` takes its source as it stands at the copy line, so a later change to a source bar never reaches a copy already taken. A `bar N` block for a copied bar replaces it whole, and keeps its section and pedal unless it sets its own. One rule, and a bar can be changed without touching the rest. Overrides per hand line were the alternative; the run showed their cost (gaps below).
+- **One velocity, 88**, the spike's loudness-matched value. Loudness is `render --gain`'s.
+- **The pedal comes from the score**: per chord by default, a list of positions or none per bar. The build lifts and presses again where an attack would ring a semitone or a minor ninth against a note the pedal holds. A pitch struck again in one hand cuts its earlier note short, so a falling-notes view draws two notes, and the last notes ring a beat past the last note-off.
+- **The check builds in memory.** It takes the score and the cover, not a MIDI, so it checks exactly what the build plays. Its limits are under [Playable arrangements](#playable-arrangements).
+
+**The real run.** A fresh agent session, not the one that wrote the format and the skill, followed the skill on the test song, so that the gaps it met were real ones. It ported the 68 bars of the spike the user had approved; the build and the check accepted them unchanged. Then it arranged the rest of the song: 178 bars, 8 bar-range copies covering 83 of them, and 27 of those overridden. On the way the check flagged one jump and listed one span, both fixed, and then printed `clean`. The run's files are in `work/m3/`, not committed.
+
+**The first listening.** The user found the accompaniment better than expected, and the parts without vocals weaker than the sung ones. They asked whether the right hand could carry all of the melody, and whether the tempo hiccup was worth fixing. The tempo hiccup was the cover's: its beat tracking squeezed some of the song's bars into fewer grid bars, and the run had worked around it inside the format with decimal positions a scratch script computed, which no copy could reach. Three additions were proposed, and the user approved them, adding tsumugi's transcription as an input: "tsumugi 채보 파일도 넣자. 진행해줘" (2026-10-12).
+
+- **`regrid`, because the bars must fall on the grid.** Every command counts bars from the cover's tempo map. Where the beat tracker miscounts a few bars, the song's downbeats fall mid-bar there and every later bar is numbered off. `pianoize regrid` writes a copy of the cover in which each hiccup's tempo changes become one, and every event moves to the tick its time lands on: the tempo map and the ticks change, never a note's time. A hiccup is a run of at most 4 bars on bar lines, whose tempo as a whole is more than 15% off the tempos either side of it, which agree within 5%, and whose seconds fit a whole number of bars within 10 ms. The rule can't tell a hiccup from a tempo change that returns to tempo, so each span is checked by ear. On the test cover it found one span, five bars of the song in four grid bars.
+- **The transcription, because the cover blends the band.** Where no one sings, the cover mixes the band into one piano part, and its top note is often an accompaniment voice. tsumugi's transcription keeps a track per instrument. `dump-bars --source` prints each instrument's top line, an `I` line, in the bars without vocal, and the skill has the right hand take the line that carries the tune. `--every-bar`, added later at the user's request, prints them in every bar, for fills and riffs under the voice that the plain dump hides; before it, the agent had read the transcription with a scratch script. The transcription is optional: without it, the sections without vocal are written from the cover.
+- **`check-arrangement --melody`, listed, never flagged.** It lists the vocal notes of 80 ms or more that no top right-hand note of their pitch class starts within 70 ms of. A note may stay out on purpose, a stray of the transcription or a run too fast to read as it falls, so the agent adds each one or records why it stays out, and the exit code is unchanged.
+
+**The second pass.** The score was renumbered onto the regridded cover, so the song now has 179 bars, and the hiccup's bars became a copy. The intro, the interlude, the instrumental and the ending were rewritten from the instrument lines. The vocal notes the right hand left out went from 9 to 4, and the 4 left are recorded with their reasons.
+
+**The second listening.** The user: "엄청 나아졌음" (much better). They named two places. One was a short descending figure the arrangement missed: the transcription's strings and brass carried it, the cover only in part. The other was an awkward drop from the end of the first chorus into the interlude. Both were fixed, and the same figure was then added where it first occurs, at the user's request. The score now holds 9 bar-range copies covering 88 bars, 28 of those overridden; the check prints `clean`, with the 4 vocal notes listed.
+
+**Approval.** The user approved the arrangement on 2026-10-12: "ㅇㅋ 이정도로 하자 ㅋㅋ 엄청 좋아졌음. 승인."
+
+**Known gaps in the `arrange-cover` skill, the format and the commands**, reported by the sessions that arranged the song, recorded and not fixed:
+
+- An override replaces a whole bar; there is no override per hand line. So an override that changes only the accompaniment restates the melody, as more than half of the run's overrides do, and a later change to the source bar no longer reaches it.
+- `regrid` reports its spans in the cover's old numbering, and nothing helps carry a score written before the regrid onto the new numbering. The agent renumbered with a scratch script.
+- `--melody` keeps the higher of two vocal notes sung together, so where the lead is the lower of a harmony pair, the higher note is listed as missing.
+- A note sung in only one statement of a repeat can't be added to the source bar without reaching every copy of it; it needs an override.
+- Reading the `I` lines needs judgment the skill doesn't fully give: no single instrument carries a whole instrumental, transcribed lines jump octaves inside a phrase, and nothing says when to take a sustained line or the stabs above it.
+- Whole runs of onsets at the half-sixteenth rounding tie, notes played a little early, read loosely; `reading-the-dump.md` covers a lone `.5`, not bars of them.
+- Nothing tells the band changing between repeats apart from the cover model varying its own.
+- There is no guidance for two vocal notes at one onset.
+- The dump runs past the song's last bar while the cover's last chord rings, so where the score ends is a judgment call.
+- Drums never appear in the dump.
+- A figure played slightly early prints its first note at the end of the previous bar.
