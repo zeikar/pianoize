@@ -1,6 +1,10 @@
+import json
+import math
+import os
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 
@@ -12,6 +16,22 @@ from typer.testing import CliRunner
 
 from pianoize import serve, video
 from pianoize.cli import app
+
+# Looked up at import, before fake_fluidsynth makes shutil.which answer every name.
+NODE = shutil.which("node")
+FFMPEG = shutil.which("ffmpeg")
+FFPROBE = shutil.which("ffprobe")
+
+needs_video_tools = pytest.mark.skipif(
+    None in (NODE, FFMPEG, FFPROBE)
+    or not Path("/Applications/Google Chrome.app").is_dir()
+    or not (video.VIEWER / "node_modules" / "playwright-core").is_dir(),
+    reason="needs node, ffmpeg and ffprobe on PATH, Google Chrome and the viewer's playwright-core",
+)
+real_fluidsynth = pytest.mark.skipif(
+    shutil.which("fluidsynth") is None or not os.environ.get("PIANOIZE_SOUNDFONT"),
+    reason="needs fluidsynth on PATH and PIANOIZE_SOUNDFONT",
+)
 
 
 def test_cards_split_at_the_dashes_and_trim_blank_lines():
@@ -317,3 +337,111 @@ def test_encode_stops_node_when_ffmpeg_cannot_start(tmp_path, monkeypatch):
 
     [node] = started  # ffmpeg never started
     assert node.poll() is not None
+
+
+@pytest.fixture
+def short_cards(monkeypatch) -> None:
+    """Half-second title and credits, so a real render takes seconds."""
+    monkeypatch.setattr(video, "INTRO_SECONDS", 0.5)
+    monkeypatch.setattr(video, "CREDITS_SECONDS", 0.5)
+
+
+@pytest.fixture
+def real_tools(monkeypatch) -> None:
+    """The real node and ffmpeg, which video.tools cannot find once fake_fluidsynth makes
+    shutil.which answer /fake/bin/<name> for every name."""
+    monkeypatch.setattr(video, "tools", lambda: video.Tools(NODE, FFMPEG))
+
+
+def _probe(mp4: Path) -> dict:
+    argv = [FFPROBE, "-v", "error", "-show_streams", "-show_format", "-of", "json", str(mp4)]
+    return json.loads(subprocess.run(argv, check=True, capture_output=True).stdout)
+
+
+def _decode(mp4: Path, *args: str) -> bytes:
+    """What ffmpeg writes to stdout when it decodes `mp4` with these output options."""
+    argv = [FFMPEG, "-loglevel", "error", "-i", str(mp4), *args, "-"]
+    return subprocess.run(argv, check=True, capture_output=True).stdout
+
+
+def _framemd5(mp4: Path) -> list[str]:
+    """A line per decoded video frame, with its timestamps and the MD5 of its pixels."""
+    lines = _decode(mp4, "-map", "0:v", "-f", "framemd5").decode().splitlines()
+    return [line for line in lines if not line.startswith("#")]
+
+
+def _audio(mp4: Path) -> np.ndarray:
+    raw = _decode(mp4, "-map", "0:a", "-ac", "1", "-ar", str(SAMPLE_RATE), "-f", "f32le")
+    return np.frombuffer(raw, dtype="<f4")
+
+
+def _bottoms(mp4: Path, first: int, last: int, rows: int) -> np.ndarray:
+    """The bottom `rows` rows of frames `first` to `last`, both included, as RGB in an
+    (n, rows, 1920, 3) array."""
+    raw = _decode(
+        mp4, "-map", "0:v", "-vf", f"select='between(n,{first},{last})',crop=iw:{rows}:0:ih-{rows}",
+        # Each selected frame once, rather than resampled to a constant rate.
+        "-fps_mode", "passthrough",
+        "-f", "rawvideo", "-pix_fmt", "rgb24",
+    )  # fmt: skip
+    return np.frombuffer(raw, dtype=np.uint8).reshape(-1, rows, 1920, 3)
+
+
+def _profiles() -> set[Path]:
+    """Chrome profiles Playwright has left in the temp directory, which is node's os.tmpdir()."""
+    return set(Path(tempfile.gettempdir()).glob("playwright_chromiumdev_profile-*"))
+
+
+@pytest.mark.video
+@needs_video_tools
+def test_render_video_is_repeatable_and_in_format(
+    tmp_path, hands_midi, fake_fluidsynth, real_tools, short_cards
+):
+    midi = hands_midi([(0, 480, 72, 80)], [(0, 480, 48, 80)])
+    profiles = _profiles()
+
+    for name in ("a.mp4", "b.mp4"):
+        moments, _ = video.render_video(
+            midi, "Title\n---\nCredits\n", tmp_path / "font.sf2", tmp_path / name, 0.5
+        )
+
+    # If these ever differ, run once with ffmpeg's -threads 1 to tell the capture from the
+    # encoder before changing anything.
+    assert _framemd5(tmp_path / "a.mp4") == _framemd5(tmp_path / "b.mp4")
+    probe = _probe(tmp_path / "a.mp4")
+    [picture] = [s for s in probe["streams"] if s["codec_type"] == "video"]
+    [sound] = [s for s in probe["streams"] if s["codec_type"] == "audio"]
+    assert (picture["width"], picture["height"], picture["r_frame_rate"]) == (1920, 1080, "60/1")
+    assert (picture["codec_name"], picture["pix_fmt"]) == ("h264", "yuv420p")
+    assert sound["codec_name"] == "aac"
+    assert int(picture["nb_frames"]) == moments.frames
+    assert float(probe["format"]["duration"]) == pytest.approx(moments.end, abs=1 / video.FPS)
+    assert not list(tmp_path.glob(".video-*"))
+    assert not _profiles() - profiles
+
+
+@pytest.mark.video
+@pytest.mark.fluidsynth
+@needs_video_tools
+@real_fluidsynth
+def test_a_key_lights_on_the_frame_its_sound_starts(tmp_path, hands_midi, short_cards):
+    # A right-hand C4 at 1.0 s of music, 1.5 s of video after the short intro: about frame 90,
+    # so the window below starts well after frame 0.
+    midi = hands_midi([(960, 1440, 60, 80)], [])
+    mp4 = tmp_path / "sync.mp4"
+    soundfont = Path(os.environ["PIANOIZE_SOUNDFONT"])
+
+    video.render_video(midi, "Title\n---\nCredits\n", soundfont, mp4, 0.5)
+
+    # Salamander's C4 passes 0.01 about 20 ms after its note-on (1.520 s, frame 91), while
+    # the page lights the key from the note-on's own frame (90).
+    onset = np.argmax(np.abs(_audio(mp4)) > 0.01) / SAMPLE_RATE
+    f_audio = math.floor(onset * video.FPS)
+    first = f_audio - 10
+    # The bottom 40 rows hold only white keys and the gaps between them, all grey until a key
+    # lights in its hand's colour.
+    bottom = _bottoms(mp4, first, f_audio + 10, 40)
+    lit = (np.ptp(bottom, axis=-1) > 60).any(axis=(1, 2))
+    assert lit.any() and not lit[0], lit
+    f_video = first + int(np.argmax(lit))
+    assert abs(f_video - f_audio) <= 1, (onset, f_audio, f_video)

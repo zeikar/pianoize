@@ -39,4 +39,7 @@ select = ["E", "F", "I", "B", "UP", "SIM"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
-markers = ["fluidsynth: renders with the real FluidSynth; needs it on PATH and PIANOIZE_SOUNDFONT"]
+markers = [
+  "fluidsynth: renders with the real FluidSynth; needs it on PATH and PIANOIZE_SOUNDFONT",
+  "video: captures with the installed Chrome, node and ffmpeg; slow",
+]
