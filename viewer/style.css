@@ -2,13 +2,19 @@
    style.js. */
 body {
   margin: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
 }
 
-/* The canvas's pixel size is 16:9, so a full width and an auto height keep that ratio. */
+/* The canvas's pixel size is 16:9. It takes the height the audio control leaves and scales
+   down to fit it, so the whole picture and the control are in view. */
 canvas {
   display: block;
   width: 100%;
-  height: auto;
+  flex: 1 1 0;
+  min-height: 0;
+  object-fit: contain;
 }
 
 audio {
@@ -17,6 +23,11 @@ audio {
 }
 
 /* Capture screenshots the page at the canvas's pixel size, so it must not be scaled. */
+body.capture {
+  display: block;
+  height: auto;
+}
+
 body.capture canvas {
   width: auto;
 }

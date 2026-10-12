@@ -14,10 +14,12 @@ from .cli import _fail, _read_midi, _refuse_input, _report_peak, _soundfont_path
 from .render import RenderError
 
 
-def _stop_on_sigterm() -> None:
-    """Make a plain `kill` take the Ctrl-C path: a job started with `&` from a non-interactive
-    shell ignores SIGINT, and `uv run` forwards SIGTERM to its child."""
+def _stop_on_signals() -> None:
+    """Make a plain `kill` and a closed terminal take the Ctrl-C path: a job started with `&`
+    from a non-interactive shell ignores SIGINT, `uv run` forwards SIGTERM to its child, and
+    SIGHUP would otherwise kill the process without running the cleanup."""
     signal.signal(signal.SIGTERM, signal.default_int_handler)
+    signal.signal(signal.SIGHUP, signal.default_int_handler)
 
 
 def _read_cards(path: Path) -> str:
@@ -61,7 +63,7 @@ def preview_video(
     gain: Annotated[float, typer.Option(help="FluidSynth's master gain.")] = 0.5,
 ) -> None:
     """Serve the falling-notes video as a page to watch in a browser."""
-    _stop_on_sigterm()
+    _stop_on_signals()
     soundfont = _soundfont_path(soundfont)
     midi = _read_midi(midi_path)
     cards_text = _read_cards(cards)
@@ -95,7 +97,7 @@ def render_video(
     gain: Annotated[float, typer.Option(help="FluidSynth's master gain.")] = 0.5,
 ) -> None:
     """Render the falling-notes video to an MP4, captured in Chrome and encoded with ffmpeg."""
-    _stop_on_sigterm()
+    _stop_on_signals()
     soundfont = _soundfont_path(soundfont)
     _refuse_input(out, [midi_path, cards, soundfont], "--out")
     midi = _read_midi(midi_path)

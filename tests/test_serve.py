@@ -36,6 +36,30 @@ def test_serves_the_viewer_and_the_run_directory(server):
     assert get(server, "/run/manifest.json")[:2] == (200, "application/json")
 
 
+def test_sends_no_store(server):
+    with urllib.request.urlopen(serve.url(server) + "run/manifest.json") as response:
+        assert response.headers["Cache-Control"] == "no-store"
+
+
+def _get_with_host(server, host):
+    request = urllib.request.Request(
+        serve.url(server) + "run/manifest.json", headers={"Host": host}
+    )
+    return urllib.request.urlopen(request)
+
+
+def test_refuses_a_foreign_host(server):
+    with pytest.raises(urllib.error.HTTPError) as caught:
+        _get_with_host(server, f"evil.example:{server.server_address[1]}")
+
+    assert caught.value.code == 403
+
+
+@pytest.mark.parametrize("name", ["127.0.0.1", "localhost"])
+def test_accepts_the_loopback_host(server, name):
+    assert _get_with_host(server, f"{name}:{server.server_address[1]}").status == 200
+
+
 def test_serves_the_real_viewer_page(tmp_path):
     started = serve.start(video.VIEWER, tmp_path)
     try:

@@ -181,7 +181,7 @@ def encode(tools: Tools, url: str, moments: Timeline, audio: Path, out: Path) ->
     except BaseException:
         # Stops whatever still runs; a process already waited on ignores both calls. node gets
         # SIGTERM, not SIGKILL, and first: Playwright's handler closes Chrome and deletes its
-        # profile, whose cache holds the song's JSON.
+        # profile.
         node.terminate()
         node.wait()
         if ffmpeg is not None:

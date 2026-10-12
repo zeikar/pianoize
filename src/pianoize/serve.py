@@ -35,6 +35,19 @@ class _Handler(SimpleHTTPRequestHandler):
             return str(root / ".not-found")  # a path that is not there, so the handler says 404
         return str(target)
 
+    def end_headers(self) -> None:
+        # The song's notes and audio must not be left in a browser's disk cache.
+        self.send_header("Cache-Control", "no-store")
+        super().end_headers()
+
+    def send_head(self):
+        # A page on another origin can reach 127.0.0.1 by DNS rebinding; its Host is not ours.
+        port = self.server.server_address[1]
+        if self.headers.get("Host") not in (f"127.0.0.1:{port}", f"localhost:{port}"):
+            self.send_error(403)
+            return None
+        return super().send_head()
+
     def log_message(self, format: str, *args) -> None:
         pass
 
