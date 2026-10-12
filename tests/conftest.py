@@ -11,6 +11,7 @@ import pytest
 import soundfile
 
 from pianoize import synthetic
+from pianoize.arrange import TRACKS
 from pianoize.synthetic import Progression
 
 SAMPLE_RATE = 44100
@@ -51,6 +52,34 @@ def tick_midi() -> Callable[..., mido.MidiFile]:
             now = tick
         midi = mido.MidiFile(ticks_per_beat=ticks_per_beat)
         midi.tracks.append(track)
+        return midi
+
+    return build
+
+
+@pytest.fixture
+def hands_midi(tick_midi) -> Callable[..., mido.MidiFile]:
+    """A type 1 MIDI as build-arrangement writes it: a Right Hand track on channel 0 with the
+    tempos, then a Left Hand track on channel 1, each from (on_tick, off_tick, pitch, velocity)
+    tuples."""
+
+    def build(
+        right: list[tuple[int, int, int, int]],
+        left: list[tuple[int, int, int, int]],
+        tempos: list[tuple[int, float]] | None = None,
+        ticks_per_beat: int = 480,
+    ) -> mido.MidiFile:
+        def named(hand: str) -> mido.MetaMessage:
+            return mido.MetaMessage("track_name", name=TRACKS[hand][0])
+
+        first = tick_midi(right, tempos, [(0, named("RH"))], ticks_per_beat).tracks[0]
+        second = tick_midi(left, None, [(0, named("LH"))], ticks_per_beat).tracks[0]
+        midi = mido.MidiFile(type=1, ticks_per_beat=ticks_per_beat)
+        midi.tracks.append(first)
+        # tick_midi writes channel 0 only.
+        midi.tracks.append(
+            mido.MidiTrack(m if m.is_meta else m.copy(channel=TRACKS["LH"][1]) for m in second)
+        )
         return midi
 
     return build
