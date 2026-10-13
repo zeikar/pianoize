@@ -15,6 +15,7 @@ SKILLS = {
     "polish-cover": ROOT / "docs" / "polishing.md",
     "arrange-cover": ROOT / "docs" / "arranging.md",
     "arrange-transcription": ROOT / "docs" / "arranging.md",
+    "prepare-song": ROOT / "docs" / "preparing.md",
 }
 POLISHING = SKILLS["polish-cover"]
 ARRANGING = SKILLS["arrange-cover"]
@@ -171,6 +172,12 @@ def test_the_transcription_skill_builds_the_grid_and_dumps_the_drums():
     lines = list(_command_lines(_text(ROOT / "skills" / "arrange-transcription" / "SKILL.md")))
     assert "build-grid" in {name for name, _ in lines}
     assert any(name == "dump-bars" and "--drums" in flags for name, flags in lines)
+
+
+def test_the_prepare_skill_sets_up_and_prepares_into_a_directory():
+    lines = list(_command_lines(_text(ROOT / "skills" / "prepare-song" / "SKILL.md")))
+    assert "setup" in {name for name, _ in lines}
+    assert any(name == "prepare" and "-o" in flags for name, flags in lines)
 
 
 @pytest.mark.parametrize("skill", SKILLS)
