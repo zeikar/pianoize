@@ -35,13 +35,13 @@ Pop2Piano is reference only. It runs from `work/m1/pop2piano/run.sh`, which is n
 
 ## Where things land
 
-Everything is under `work/m1/`, which is gitignored:
+During M1 everything was under `work/m1/`, which is gitignored:
 
 `input`, `stems`, `melody`, `covers`, `results`, `models`, `upstream` (cloned programs), `envs` (one virtual environment per program), `cache` (uv, pip, Hugging Face, torch and temp files), `soundfonts`.
 
-`env.sh` moves `XDG_CACHE_HOME` into `work/m1/cache`. chordotomy's Beat This! weights stay in the real cache (`~/.cache/chordotomy`), so a script that runs chordotomy prefixes the call with `XDG_CACHE_HOME="$CHORDOTOMY_XDG_CACHE_HOME"`. The Homebrew install is the one thing outside `work/m1`. `11_leak_check.sh` checks the rest.
+`env.sh` moves `XDG_CACHE_HOME` into `work/m1/cache`. chordotomy's Beat This! weights stay in the real cache (`~/.cache/chordotomy`), so a script that runs chordotomy prefixes the call with `XDG_CACHE_HOME="$CHORDOTOMY_XDG_CACHE_HOME"`. Then, the Homebrew install was the one thing outside `work/m1`, and `11_leak_check.sh` checked the rest.
 
-The tsumugi clones, environments, weights and stem-splitter cache moved to the pianoize home on 2026-10-13 ([docs/preparing.md](../../docs/preparing.md)), so `rm -rf work/m1` no longer removes them.
+Since 2026-10-13 the tsumugi install lives outside `work/m1` ([docs/preparing.md](../../docs/preparing.md)): the two clones, their environments, tsumugi's checkpoints and the stem splitter's weights in the pianoize home (`~/.cache/pianoize`), and tsumugi-piano-cover's weights in the Hugging Face cache (`~/.cache/huggingface/hub`). `rm -rf work/m1` no longer removes them, and `08_tsumugi.sh` would install them again under `work/m1` if run.
 
 ## Rules the scripts follow
 
