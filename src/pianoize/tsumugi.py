@@ -1,6 +1,11 @@
-"""Where the tsumugi tools live, which versions pianoize pins, and what is missing."""
+"""Where the tsumugi tools live, which versions pianoize pins, what is missing, and the setup
+that installs them."""
 
 import os
+import shlex
+import shutil
+import subprocess
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -31,6 +36,19 @@ License: CC BY-NC 4.0 (https://creativecommons.org/licenses/by-nc/4.0/)
 Stated in: https://huggingface.co/{WEIGHTS_REPO} (model card) and https://github.com/anime-song/tsumugi-piano-cover#license
 Terms: attribution, non-commercial use only.
 Code: MIT, https://github.com/anime-song/tsumugi-piano-cover"""
+
+# Run by the generator env's interpreter rather than its `hf` script: pianoize runs nothing from
+# the envs but their interpreters, and this API predates the script's rename.
+SNAPSHOT_CODE = """import sys
+from huggingface_hub import snapshot_download
+print(snapshot_download(sys.argv[1], revision=sys.argv[2], cache_dir=sys.argv[3]))"""
+
+_INSTALL_HINTS = {
+    "git": "install the system's git",
+    "uv": "install it from https://docs.astral.sh/uv/",
+}
+
+Echo = Callable[[str], None]
 
 
 class TsumugiError(Exception):
@@ -127,3 +145,98 @@ class Install:
         if not all((self.weights / f).is_file() for f in WEIGHTS_FILES):
             out.append(f"the tsumugi-piano-cover weights ({self.weights})")
         return out
+
+
+def _tool(name: str) -> str:
+    found = shutil.which(name)
+    if found is None:
+        raise TsumugiError(f"{name} not found on PATH; {_INSTALL_HINTS[name]}")
+    return found
+
+
+def _call(argv: list[str], cwd: Path | None = None) -> str:
+    """Run a command and return its stdout. Its stderr goes straight to the terminal, so uv's
+    and huggingface_hub's progress shows during the minutes a first install takes."""
+    # Dropped from every call because only uv reads it: `uv run pianoize` sets it to pianoize's
+    # own venv, and uv's project commands such as `uv sync` warn that it doesn't match.
+    env = {key: value for key, value in os.environ.items() if key != "VIRTUAL_ENV"}
+    try:
+        done = subprocess.run(argv, cwd=cwd, env=env, check=True, stdout=subprocess.PIPE, text=True)
+    except subprocess.CalledProcessError as exc:
+        raise TsumugiError(
+            f"{shlex.join(argv[:2])} failed with exit code {exc.returncode}; see the output above"
+        ) from exc
+    except OSError as exc:
+        raise TsumugiError(f"cannot run {shlex.join(argv[:2])}: {exc}") from exc
+    return done.stdout
+
+
+def _clone(git: str, url: str, commit: str, directory: Path, marker: Path, echo: Echo) -> None:
+    found = marker.read_text().strip() if marker.is_file() else ""
+    if found == commit and directory.is_dir():
+        echo(f"{directory.name}: already at {commit[:7]}")
+        return
+    if directory.exists():
+        raise TsumugiError(
+            f"{directory} is at commit {found or 'unknown'}, not the pinned {commit}; "
+            "remove it and run setup again"
+        )
+    # Cloned aside and renamed once checked out, so an interrupted clone never passes for one.
+    part = directory.with_name(directory.name + ".part")
+    if part.exists():
+        shutil.rmtree(part)
+    echo(f"cloning {url} at {commit[:7]} into {directory}")
+    _call([git, "clone", "--quiet", url, str(part)])
+    _call([git, "checkout", "--quiet", "--detach", commit], cwd=part)
+    # The marker first: a clone counts only once its directory is there too, so a setup stopped
+    # before the rename clones again rather than finding a directory of unknown commit.
+    marker.write_text(commit + "\n")
+    part.rename(directory)
+
+
+def _envs(uv: str, install: Install, echo: Echo) -> None:
+    # The sync and the install run every time: on an installed env they finish in under a
+    # second without network, and they finish an env an earlier setup left half done.
+    commands = [([uv, "sync", "--locked", "--extra", "stem"], install.tsumugi_dir)]
+    # The others run in the home rather than the user's directory, whose pyproject.toml or
+    # uv.toml uv would read.
+    if not install.cover_python.exists():
+        # --allow-existing repairs a venv whose python link dangles instead of refusing it.
+        venv = str(install.cover_python.parents[1])
+        commands.append(([uv, "venv", "--allow-existing", "--python", "3.12", venv], install.home))
+    python = str(install.cover_python)
+    commands.append(([uv, "pip", "install", "--python", python, *GENERATOR_PACKAGES], install.home))
+    for argv, cwd in commands:
+        echo(f"{shlex.join(argv)} (in {cwd})")
+        _call(argv, cwd)
+
+
+def _weights(install: Install, echo: Echo) -> None:
+    def absent() -> list[Path]:
+        return [install.weights / f for f in WEIGHTS_FILES if not (install.weights / f).is_file()]
+
+    if not absent():
+        echo(f"weights: present at {install.weights}")
+        return
+    echo(TERMS)
+    echo(f"downloading {WEIGHTS_REPO} revision {WEIGHTS_REVISION} into {hub_cache()}")
+    # cache_dir puts the snapshot where `absent` looks, whatever HF variables are set.
+    code = [SNAPSHOT_CODE, WEIGHTS_REPO, WEIGHTS_REVISION, str(hub_cache())]
+    echo(_call([str(install.cover_python), "-I", "-c", *code]).rstrip("\n"))
+    missing = absent()
+    if missing:
+        raise TsumugiError(f"the download left out {', '.join(map(str, missing))}")
+
+
+def setup(install: Install, echo: Echo) -> None:
+    """Clone tsumugi and tsumugi-piano-cover at their pins, build their envs and download the
+    weights; what is already in place is kept."""
+    echo(f"pianoize home: {install.home}")
+    # Both up front, so a machine without one fails before any clone.
+    git, uv = _tool("git"), _tool("uv")
+    install.home.mkdir(parents=True, exist_ok=True)
+    install.stem_cache.mkdir(parents=True, exist_ok=True)
+    _clone(git, TSUMUGI_URL, TSUMUGI_COMMIT, install.tsumugi_dir, install.tsumugi_commit, echo)
+    _clone(git, COVER_URL, COVER_COMMIT, install.cover_dir, install.cover_commit, echo)
+    _envs(uv, install, echo)
+    _weights(install, echo)

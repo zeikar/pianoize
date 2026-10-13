@@ -1,4 +1,5 @@
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -10,7 +11,7 @@ import numpy as np
 import pytest
 import soundfile
 
-from pianoize import synthetic
+from pianoize import synthetic, tsumugi
 from pianoize.arrange import TRACKS
 from pianoize.synthetic import Progression
 
@@ -190,3 +191,119 @@ shutil.copy({str(fixture)!r}, argv[3])
     )
     script.chmod(0o755)
     return FakeChordotomy(script, calls)
+
+
+# The fake programs' shared start: append the call to the log, as a JSON line, so calls from
+# every fake stay in one order.
+_LOG_CALL = """import json, os, shutil, sys
+from pathlib import Path
+with open({log!r}, "a") as f:
+    f.write(json.dumps({{"argv": sys.argv, "cwd": os.getcwd()}}) + "\\n")
+args = sys.argv[1:]
+"""
+
+
+class FakePython:
+    def __init__(self, path: Path, log: Path) -> None:
+        self.path = path
+        self.log = log
+
+    def records(self) -> list[dict]:
+        """Every fake program's calls in order, each its raw argv and its cwd."""
+        if not self.log.exists():
+            return []
+        return [json.loads(line) for line in self.log.read_text().splitlines()]
+
+    def calls(self) -> list[list[str]]:
+        """Every fake program's argv in order, the program named by its file name."""
+        return [[Path(r["argv"][0]).name, *r["argv"][1:]] for r in self.records()]
+
+
+@pytest.fixture
+def fake_python(tmp_path, monkeypatch) -> FakePython:
+    """An interpreter script that logs its calls. As `-c CODE REPO REVISION CACHE` it stands in
+    for setup's snapshot download: it writes the weights files into CACHE's snapshot of REPO at
+    REVISION, leaving out $FAKE_PYTHON_LEAVE_OUT, and prints the snapshot. HF_HUB_CACHE is set to
+    tmp_path/hub."""
+    monkeypatch.setenv("HF_HUB_CACHE", str(tmp_path / "hub"))
+    log = tmp_path / "calls.jsonl"
+    script = tmp_path / "fake-python"
+    script.write_text(
+        f"#!{sys.executable}\n"
+        + _LOG_CALL.format(log=str(log))
+        + f"""
+rest = args[args.index("-c") + 2:] if "-c" in args else []
+if len(rest) == 3:
+    repo, revision, cache = rest
+    snapshot = Path(cache) / ("models--" + repo.replace("/", "--")) / "snapshots" / revision
+    for name in {tsumugi.WEIGHTS_FILES!r}:
+        if name != os.environ.get("FAKE_PYTHON_LEAVE_OUT"):
+            (snapshot / name).parent.mkdir(parents=True, exist_ok=True)
+            (snapshot / name).write_text("weights")
+    print(snapshot)
+else:
+    sys.exit(f"fake python: unexpected arguments {{args}}")
+""",
+        encoding="utf-8",
+    )
+    script.chmod(0o755)
+    return FakePython(script, log)
+
+
+class FakeInstallers(FakePython):
+    def __init__(self, python: FakePython, home: Path) -> None:
+        super().__init__(python.path, python.log)
+        self.home = home
+
+
+@pytest.fixture
+def fake_installers(tmp_path, monkeypatch, fake_python) -> FakeInstallers:
+    """`git` and `uv` scripts first on PATH that log their calls with the fake interpreter's,
+    PIANOIZE_HOME set to tmp_path/home and the test run from tmp_path. `git clone URL DIR` makes
+    DIR, with the cover worker when URL is the cover's, then fails if $FAKE_GIT_CLONE_FAILS is
+    set; `git checkout` only logs. `uv sync` and `uv venv DIR` put the fake interpreter where the
+    env's python goes; `uv pip install` only logs."""
+    # A fake handed the wrong cwd then writes into tmp_path, never into the repo's .venv.
+    monkeypatch.chdir(tmp_path)
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir(exist_ok=True)
+    log_call = _LOG_CALL.format(log=str(fake_python.log))
+    git = f"""
+if args[0] == "clone":
+    url, directory = args[-2:]
+    Path(directory).mkdir()
+    if url == {tsumugi.COVER_URL!r}:
+        worker = Path(directory) / "cover_studio" / "tsumugi_worker.py"
+        worker.parent.mkdir()
+        worker.write_text("")
+    if os.environ.get("FAKE_GIT_CLONE_FAILS"):
+        sys.exit("fatal: fake git: clone failed")
+elif args[0] != "checkout":
+    sys.exit(f"fake git: unexpected arguments {{args}}")
+"""
+    uv = f"""
+# Real uv's project commands, such as `uv sync`, warn about a VIRTUAL_ENV that is not the
+# project's env; setup drops it, and this checks it does.
+if "VIRTUAL_ENV" in os.environ:
+    sys.exit("fake uv: VIRTUAL_ENV is set")
+if args[0] == "sync":
+    python = Path.cwd() / ".venv" / "bin" / "python"
+elif args[0] == "venv":
+    python = Path(args[-1]) / "bin" / "python"
+elif args[:2] == ["pip", "install"]:
+    python = None
+else:
+    sys.exit(f"fake uv: unexpected arguments {{args}}")
+if python is not None:
+    python.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy({str(fake_python.path)!r}, python)
+"""
+    for name, body in (("git", git), ("uv", uv)):
+        script = bin_dir / name
+        script.write_text(f"#!{sys.executable}\n" + log_call + body, encoding="utf-8")
+        script.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{bin_dir}{os.pathsep}{os.environ['PATH']}")
+    monkeypatch.setenv("PIANOIZE_HOME", str(tmp_path / "home"))
+    # As `uv run pianoize` leaves it: pianoize's own venv.
+    monkeypatch.setenv("VIRTUAL_ENV", str(tmp_path / "pianoize-venv"))
+    return FakeInstallers(fake_python, tmp_path / "home")

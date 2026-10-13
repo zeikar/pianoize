@@ -270,4 +270,4 @@ def melody_clashes(
 
 
 # Imported last: each module registers its commands on `app` and uses the helpers above.
-from . import arrange_cli, polish_cli, video_cli  # noqa: E402, F401
+from . import arrange_cli, polish_cli, prepare_cli, video_cli  # noqa: E402, F401
