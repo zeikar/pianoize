@@ -316,6 +316,8 @@ def transcribe(install: Install, wav: Path, out: Path, log: Path) -> None:
         # strips.
         env.setdefault("DYLD_FALLBACK_LIBRARY_PATH", "/opt/homebrew/lib")
     _run("tsumugi", "transcribe", argv, log, install.tsumugi_dir, env)
+    if not out.is_file():
+        raise TsumugiError(f"tsumugi transcribe wrote no {out}; log: {log}")
 
 
 def generate(install: Install, source: Path, out_dir: Path, log: Path) -> Path:

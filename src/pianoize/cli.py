@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import signal
 from enum import StrEnum
 from pathlib import Path
 from typing import Annotated
@@ -47,6 +48,14 @@ _ROW_SUFFIXES = (_CHORDS_SUFFIX, ".mid", ".wav")
 def _fail(message: str) -> typer.Exit:
     typer.echo(f"error: {message}", err=True)
     return typer.Exit(1)
+
+
+def _stop_on_signals() -> None:
+    """Make a plain `kill` and a closed terminal take the Ctrl-C path: a job started with `&`
+    from a non-interactive shell ignores SIGINT, `uv run` forwards SIGTERM to its child, and
+    SIGHUP would otherwise kill the process without running the cleanup."""
+    signal.signal(signal.SIGTERM, signal.default_int_handler)
+    signal.signal(signal.SIGHUP, signal.default_int_handler)
 
 
 def _parse_rows(values: list[str]) -> list[tuple[str, Path]]:

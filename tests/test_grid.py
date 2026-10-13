@@ -122,6 +122,20 @@ def test_the_copied_tracks_keep_their_messages_but_the_conductor_ones():
         assert final_tick(copy) == final_tick(original)
 
 
+def test_a_conductor_without_markers_leaves_them_on_the_copied_track():
+    source = source_midi()
+    # The bass with its marker, renamed.
+    melody = mido.MidiTrack(
+        m.copy(name="melody") if m.type == "track_name" else m for m in source.tracks[4]
+    )
+    source.tracks.append(melody)
+    built = grid.build(source, ["melody"], conductor=("set_tempo", "time_signature"))
+    conductor, copied = built.tracks
+    assert {m.type for m in conductor} == {"set_tempo", "time_signature", "end_of_track"}
+    assert final_tick(conductor) == 3 * BAR
+    assert list(copied) == list(melody)
+
+
 def test_a_note_only_the_end_of_track_closes_keeps_its_length():
     source = source_midi()
     built = grid.build(source, list(grid.DEFAULT_TRACKS))

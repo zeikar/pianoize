@@ -2,7 +2,6 @@ import os
 import re
 import shutil
 import signal
-import subprocess
 import sys
 from pathlib import Path
 
@@ -228,7 +227,7 @@ def test_transcribe_writes_the_midi_and_logs_without_streamed_lines(fake_install
     tsumugi.transcribe(install, wav, out, log)
 
     assert [t.name for t in mido.MidiFile(out).tracks] == [
-        "Predicted Tempo Map", "Predicted Chords", "piano", "melody", "drums",
+        "Predicted Tempo Map", "Predicted Chords", "", "piano", "melody", "drums",
     ]  # fmt: skip
     lines = log.read_text(encoding="utf-8").splitlines()
     assert "Loading AMT model on cpu" in lines
@@ -291,6 +290,16 @@ def test_a_failing_worker_names_its_error_and_its_log(fake_install, tmp_path):
     assert not out.exists()
 
 
+def test_transcribe_names_the_midi_it_did_not_write(fake_install, tmp_path):
+    fake_install.log.with_name("no-output").touch()
+    out, log = tmp_path / "source.mid", tmp_path / "t.log"
+
+    with pytest.raises(tsumugi.TsumugiError) as info:
+        tsumugi.transcribe(fake_install.install, _wav(tmp_path), out, log)
+
+    assert str(info.value) == f"tsumugi transcribe wrote no {out}; log: {log}"
+
+
 @pytest.mark.parametrize(
     ("output", "reason"),
     [
@@ -351,34 +360,15 @@ def test_generate_names_an_interpreter_it_cannot_run(fake_install, tmp_path):
         )
 
 
-def test_an_interrupted_transcribe_stops_the_worker(fake_install, monkeypatch, tmp_path):
+def test_an_interrupted_transcribe_stops_the_worker(
+    fake_install, interrupt_after_started, tmp_path
+):
     fake_install.log.with_name("hang").touch()
-    real_popen = subprocess.Popen
-    started = []
-
-    def popen(*args, **kwargs):
-        proc = real_popen(*args, **kwargs)
-        pipe = proc.stdout
-
-        # The interrupt lands where a Ctrl-C does, in the copy loop with the worker running,
-        # and no timing is assumed.
-        def lines():
-            with pipe:
-                for line in pipe:
-                    yield line
-                    if line == "started\n":
-                        raise KeyboardInterrupt
-
-        proc.stdout = lines()
-        started.append(proc)
-        return proc
-
-    monkeypatch.setattr(subprocess, "Popen", popen)
     log = tmp_path / "t.log"
 
     with pytest.raises(KeyboardInterrupt):
         tsumugi.transcribe(fake_install.install, _wav(tmp_path), tmp_path / "source.mid", log)
 
-    [proc] = started
+    [proc] = interrupt_after_started
     assert proc.returncode == -signal.SIGTERM
     assert log.read_text(encoding="utf-8").splitlines() == ["started"]

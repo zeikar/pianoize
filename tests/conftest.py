@@ -230,9 +230,11 @@ def fake_python(tmp_path, monkeypatch) -> FakePython:
 
     Given the cover worker, it prints a "Loading" line and two `@@` lines and writes a MIDI
     shaped like tsumugi's transcription to --out; with a file `fail` beside the calls log it
-    prints "RuntimeError: boom" and exits 1 instead, and with a file `hang` there it first prints
-    "started" and sleeps 10 s. As `-m piano_cover.generate` it checks the checkpoint holds the
-    cover model and writes a one-track cover to OUT_DIR/SOURCE_STEM_ch0_0.mid."""
+    prints "RuntimeError: boom" and exits 1 instead, with a file `hang` there it first prints
+    "started" and sleeps 10 s, with a file `no-output` there it exits 0 without writing it, and
+    with a file `no-melody` there it leaves out the melody track.
+    As `-m piano_cover.generate` it checks the checkpoint holds the cover model and writes a
+    one-track cover to OUT_DIR/SOURCE_STEM_ch0_0.mid."""
     monkeypatch.setenv("HF_HUB_CACHE", str(tmp_path / "hub"))
     log = tmp_path / "calls.jsonl"
     script = tmp_path / "fake-python"
@@ -281,6 +283,8 @@ elif any(Path(arg).name == "tsumugi_worker.py" for arg in args):
     if (here / "fail").exists():
         print("RuntimeError: boom")
         sys.exit(1)
+    if (here / "no-output").exists():
+        sys.exit(0)
     midi = mido.MidiFile(type=1)
     midi.tracks += [
         track(
@@ -289,10 +293,13 @@ elif any(Path(arg).name == "tsumugi_worker.py" for arg in args):
             mido.MetaMessage("time_signature"),
         ),
         track("Predicted Chords", mido.MetaMessage("marker", text="C")),
+        mido.MidiTrack(),
         track("piano", *notes(0, 60)),
         track("melody", *notes(1, 72)),
         track("drums", *notes(9, 36)),
     ]
+    if (here / "no-melody").exists():
+        midi.tracks = [t for t in midi.tracks if t.name != "melody"]
     midi.save(option("--out"))
 elif args[:2] == ["-m", "piano_cover.generate"]:
     assert (Path(option("--checkpoint")) / "piano_cover" / "model.safetensors").exists(), args
@@ -309,6 +316,33 @@ else:
     )
     script.chmod(0o755)
     return FakePython(script, log)
+
+
+@pytest.fixture
+def interrupt_after_started(monkeypatch) -> list[subprocess.Popen]:
+    """Wraps subprocess.Popen so that reading a child's stdout raises KeyboardInterrupt right
+    after its "started" line: the interrupt lands where a Ctrl-C does, in the copy loop with the
+    child running, and no timing is assumed. Returns the processes started, in order."""
+    real_popen = subprocess.Popen
+    started = []
+
+    def popen(*args, **kwargs):
+        proc = real_popen(*args, **kwargs)
+        pipe = proc.stdout
+
+        def lines():
+            with pipe:
+                for line in pipe:
+                    yield line
+                    if line == "started\n":
+                        raise KeyboardInterrupt
+
+        proc.stdout = lines()
+        started.append(proc)
+        return proc
+
+    monkeypatch.setattr(subprocess, "Popen", popen)
+    return started
 
 
 class FakeInstallers(FakePython):

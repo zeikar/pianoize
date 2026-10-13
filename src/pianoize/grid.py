@@ -35,11 +35,14 @@ def _retimed(events: list[tuple[int, mido.Message | mido.MetaMessage]], end: int
     return track
 
 
-def build(source: mido.MidiFile, names: list[str]) -> mido.MidiFile:
-    """A type 1 file of a conductor track with every tempo, time signature and marker of `source`,
-    then each track of `source` named in `names`, in the source's order, without those messages.
-    Each track ends where its source track did: a note only the track's end closes keeps its
-    length, and the grid is as long as the transcription."""
+def build(
+    source: mido.MidiFile, names: list[str], *, conductor: tuple[str, ...] = CONDUCTOR
+) -> mido.MidiFile:
+    """A type 1 file of a conductor track with every message of `source` whose type is in
+    `conductor`, by default every tempo, time signature and marker, then each track of `source`
+    named in `names`, in the source's order, without those messages. Each track ends where its
+    source track did: a note only the track's end closes keeps its length, and the grid is as
+    long as the transcription."""
     if source.type == 2:
         raise GridError("a type 2 MIDI file's tracks share no timeline to build a grid on")
     if not any(m.type == "set_tempo" for track in source.tracks for m in track):
@@ -54,7 +57,7 @@ def build(source: mido.MidiFile, names: list[str]) -> mido.MidiFile:
             ((tick, index, k), message)
             for index, track in enumerate(source.tracks)
             for k, (tick, message) in enumerate(_ticks(track))
-            if message.type in CONDUCTOR
+            if message.type in conductor
         ),
         key=lambda event: event[0],
     )
@@ -70,7 +73,7 @@ def build(source: mido.MidiFile, names: list[str]) -> mido.MidiFile:
             kept = [
                 (tick, message)
                 for tick, message in _ticks(track)
-                if message.type not in CONDUCTOR and message.type != "end_of_track"
+                if message.type not in conductor and message.type != "end_of_track"
             ]
             grid.tracks.append(_retimed(kept, _final_tick(track)))
     return grid

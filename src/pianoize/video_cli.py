@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import signal
 import tempfile
 from pathlib import Path
 from typing import Annotated
@@ -10,16 +9,16 @@ from typing import Annotated
 import typer
 
 from . import files, roll, serve, video
-from .cli import _fail, _read_midi, _refuse_input, _report_peak, _soundfont_path, app
+from .cli import (
+    _fail,
+    _read_midi,
+    _refuse_input,
+    _report_peak,
+    _soundfont_path,
+    _stop_on_signals,
+    app,
+)
 from .render import RenderError
-
-
-def _stop_on_signals() -> None:
-    """Make a plain `kill` and a closed terminal take the Ctrl-C path: a job started with `&`
-    from a non-interactive shell ignores SIGINT, `uv run` forwards SIGTERM to its child, and
-    SIGHUP would otherwise kill the process without running the cleanup."""
-    signal.signal(signal.SIGTERM, signal.default_int_handler)
-    signal.signal(signal.SIGHUP, signal.default_int_handler)
 
 
 def _read_cards(path: Path) -> str:
