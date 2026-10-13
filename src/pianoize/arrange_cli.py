@@ -148,6 +148,14 @@ def dump_bars(
             help="With --source, print the instrument lines in every bar, sung bars included.",
         ),
     ] = False,
+    drums: Annotated[
+        bool,
+        typer.Option(
+            "--drums",
+            help="With --source, print the drums' hits per bar: kick, snare, hihat, cymbal and "
+            "other, in sixteenths",
+        ),
+    ] = False,
     bar_range: Annotated[
         str | None, typer.Option("--bars", metavar="A-B", help="Print only bars A to B.")
     ] = None,
@@ -157,6 +165,8 @@ def dump_bars(
         raise typer.BadParameter(
             "needs --source, whose instrument lines it prints", param_hint="--every-bar"
         )
+    if drums and source_path is None:
+        raise typer.BadParameter("needs --source, whose drums it prints", param_hint="--drums")
     selected = None
     if bar_range is not None:
         match = _RANGE.fullmatch(bar_range)
@@ -171,7 +181,7 @@ def dump_bars(
     melody = _read_timed(melody_path)
     source = None if source_path is None else _read_timed(source_path)
     try:
-        found = dump.lines(midi, melody, selected, source, every_bar)
+        found = dump.lines(midi, melody, selected, source, every_bar, drums)
     except (bars.MeterError, evidence.EvidenceError) as exc:
         raise _fail(f"{cover}: {exc}") from exc
     for line in found:

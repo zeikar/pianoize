@@ -244,6 +244,81 @@ def test_text_and_lyrics_in_the_source_never_print(tick_midi, silent):
         assert text not in dumped
 
 
+def kit(tick_midi, hits, name="kit"):
+    """A channel-10 track of (tick, key) strikes."""
+    return named(tick_midi, name, [(tick, tick + 60, key, 100) for tick, key in hits], channel=9)
+
+
+def test_the_drum_groups_print_on_the_covers_grid(tick_midi, silent):
+    cover = tick_midi([(0, 1920, 48, 60)])
+    hits = [(0, 36), (720, 36), (480, 38), (1440, 38), (0, 49), (1680, 45)]
+    hits += [(tick, 42) for tick in range(0, 1920, 240)]
+    source = source_midi(tick_midi, kit(tick_midi, hits))
+    assert lines(cover, silent, source=source, drums=True)[3] == (
+        "D kick 0 6  snare 4 12  hihat 0 2 4 6 8 10 12 14  cymbal 0  other 14"
+    )
+
+
+def test_a_bar_without_drum_hits_prints_an_empty_d_line(tick_midi, silent):
+    cover = tick_midi([(0, 1920 * 2, 48, 60)])
+    # 10 ticks before the bar line, so only the rounding to the half-sixteenth puts it in bar 2.
+    source = source_midi(tick_midi, kit(tick_midi, [(1910, 36)]))
+    found = lines(cover, silent, source=source, drums=True)
+    assert found[3] == "D "
+    assert found[7] == "D kick 0"
+
+
+def test_the_d_line_sits_between_the_v_and_i_lines(tick_midi, silent):
+    cover = tick_midi([(0, 1920, 48, 60)])
+    source = source_midi(
+        tick_midi, named(tick_midi, "brass", [(0, 240, 76, 90)]), kit(tick_midi, [(0, 36)])
+    )
+    assert lines(cover, silent, source=source, drums=True) == [
+        "=== bar 1  0:00.00",
+        "C 0:C3(16,60)",
+        "V ",
+        "D kick 0",
+        "I brass  0:E5(2)",
+    ]
+
+
+def test_drums_are_read_by_channel_not_by_name(tick_midi, silent):
+    cover = tick_midi([(0, 1920, 48, 60)])
+    source = source_midi(
+        tick_midi,
+        kit(tick_midi, [(0, 38)], name="percussion"),
+        named(tick_midi, "kit", [(0, 120, 36, 100)]),  # key 36, but on channel 0
+    )
+    assert lines(cover, silent, source=source, drums=True)[3] == "D snare 0"
+
+
+def test_drums_land_by_seconds_at_another_resolution(tick_midi, silent):
+    # At 60 bpm and 240 ticks a beat, tick 240 sounds at 1 s: the cover's bar 1 pos 8.
+    cover = tick_midi([(0, 1920, 48, 60)])
+    source = source_midi(
+        tick_midi, kit(tick_midi, [(240, 36)]), tempos=[(0, 60)], ticks_per_beat=240
+    )
+    assert lines(cover, silent, source=source, drums=True)[3] == "D kick 8"
+
+
+def test_a_drum_hit_past_the_last_bar_adds_its_bar(tick_midi, silent):
+    cover = tick_midi([(0, 1920, 48, 60)])
+    # 10 ticks before the bar line, so only the rounding to the half-sixteenth puts it in bar 2.
+    source = source_midi(tick_midi, kit(tick_midi, [(1910, 36)]))
+    assert lines(cover, silent, source=source, drums=True)[-2:] == ["V ", "D kick 0"]
+
+
+def test_without_drums_the_dump_is_the_same_less_the_d_lines(sung_then_not):
+    cover, melody, source = sung_then_not
+    source.tracks.append(kit_track := mido.MidiTrack())
+    kit_track.append(mido.Message("note_on", channel=9, note=36, velocity=100, time=0))
+    with_drums = lines(cover, melody, source=source, drums=True)
+    assert any(line.startswith("D ") for line in with_drums)
+    assert lines(cover, melody, source=source) == [
+        line for line in with_drums if not line.startswith("D ")
+    ]
+
+
 def test_an_empty_cover_prints_silent_bars(tick_midi, silent):
     cover = tick_midi([], meta=[(3840, meta("end_of_track"))])
     assert lines(cover, silent) == [
@@ -344,6 +419,26 @@ def test_cli_refuses_every_bar_without_a_source(dumped):
     result = _dump_cli(*dumped, "--every-bar")
     assert result.exit_code == 2
     assert "--every-bar" in result.output
+    assert "--source" in result.output
+
+
+def test_cli_prints_the_drum_lines_on_request(dumped, tick_midi, tmp_path):
+    source = tmp_path / "source.mid"
+    source_midi(tick_midi, kit(tick_midi, [(1920, 36)])).save(source)
+    result = _dump_cli(*dumped, "--source", str(source), "--drums", "--bars", "2-2")
+    assert result.exit_code == 0, result.output
+    assert result.stdout.splitlines() == [
+        "=== bar 2  0:02.00",
+        "C ",
+        "V 0:C5(2)",
+        "D kick 0",
+    ]
+
+
+def test_cli_refuses_drums_without_a_source(dumped):
+    result = _dump_cli(*dumped, "--drums")
+    assert result.exit_code == 2
+    assert "--drums" in result.output
     assert "--source" in result.output
 
 

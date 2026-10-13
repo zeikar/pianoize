@@ -3,6 +3,7 @@ tick is rounded to the nearest half-sixteenth before its bar is taken, so an ons
 ahead of a bar line reads on the downbeat it anticipates."""
 
 from collections import defaultdict
+from collections.abc import Iterator
 
 import mido
 
@@ -10,7 +11,33 @@ from . import bars, notes
 from .bars import halves, nearest
 from .evidence import markers
 from .finding import clock
-from .melody import pitch_name
+from .melody import _DRUM_CHANNEL, pitch_name
+
+# General MIDI percussion keys by printed name; every other key reads as `other`.
+DRUM_GROUPS = {
+    "kick": {35, 36},
+    "snare": {38, 40},
+    "hihat": {42, 44, 46},
+    "cymbal": {49, 51, 57},
+}
+_OTHER = "other"
+
+
+def _drum_hits(source: mido.MidiFile) -> Iterator[tuple[float, str]]:
+    """(seconds, group) of every strike on the drum channel of any track. A drum's note-off means
+    nothing, so there is no pairing."""
+    segments = notes.tempo_map(source)
+    for track in source.tracks:
+        tick = 0
+        for message in track:
+            tick += message.time
+            if (
+                message.type == "note_on"
+                and message.velocity > 0
+                and message.channel == _DRUM_CHANNEL
+            ):
+                group = next((n for n, keys in DRUM_GROUPS.items() if message.note in keys), _OTHER)
+                yield notes.seconds_at(segments, source.ticks_per_beat, tick), group
 
 
 def lines(
@@ -19,15 +46,19 @@ def lines(
     bar_range: tuple[int, int] | None = None,
     source: mido.MidiFile | None = None,
     every_bar: bool = False,
+    drums: bool = False,
 ) -> list[str]:
     """Per bar, `=== bar N  m:ss.ss` and the markers starting in it, a `C` line of the cover's
     attacks and a `V` line of the melody, positions and durations in sixteenths. With `source`,
     tsumugi's transcription, a bar whose `V` line is empty, or with `every_bar` any bar, gets an
     `I` line per named track of the source that strikes a note in it, drums left out, in the
-    source's order: the track's name and its top line, the highest note of each attack. The
-    melody, the markers and the source are placed by their seconds on the cover's tempo map. Bars
-    run from 1 to the cover's last, or past it to the last any note or marker rounds into;
-    `bar_range`, first and last inclusive, keeps the bars of it that exist."""
+    source's order: the track's name and its top line, the highest note of each attack. With
+    `drums` too, a `D` line follows every `V` line: the source's drum hits, kick, snare, hihat,
+    cymbal then other, each group a name and its positions in sixteenths, groups two spaces apart,
+    `D ` for a bar without hits. The melody, the markers and the source are placed by their
+    seconds on the cover's tempo map. Bars run from 1 to the cover's last, or past it to the last
+    any note or marker rounds into; `bar_range`, first and last inclusive, keeps the bars of it
+    that exist."""
     meter = bars.meter(cover)
     per_bar = 2 * meter.sixteenths_per_bar
 
@@ -75,7 +106,13 @@ def lines(
             line = [f"{half / 2:g}:{pitch_name(p)}({d:g})" for half, p, d in tops]
             instruments[bar].append("  ".join([name, *line]))
 
-    last = max([bars.bar_count(cover, meter), *heads, *struck, *sung, *instruments])
+    # bar -> group -> half-sixteenths into it
+    hits: defaultdict[int, defaultdict[str, set[int]]] = defaultdict(lambda: defaultdict(set))
+    for seconds, group in _drum_hits(source) if drums and source else []:
+        half = halves(meter, notes.tick_in(segments, meter.ticks_per_beat, seconds))
+        hits[half // per_bar + 1][group].add(half % per_bar)
+
+    last = max([bars.bar_count(cover, meter), *heads, *struck, *sung, *instruments, *hits])
     first, final = bar_range or (1, last)
     found: list[str] = []
     for bar in range(max(first, 1), min(final, last) + 1):
@@ -87,6 +124,13 @@ def lines(
         ]
         found.append("C " + "  ".join(played))
         found.append("V " + "  ".join(sung[bar]))
+        if drums:
+            groups = [
+                " ".join([name, *(f"{half / 2:g}" for half in sorted(hits[bar][name]))])
+                for name in [*DRUM_GROUPS, _OTHER]
+                if hits[bar][name]
+            ]
+            found.append("D " + "  ".join(groups))
         if every_bar or not sung[bar]:
             found += ["I " + line for line in instruments[bar]]
     return found
