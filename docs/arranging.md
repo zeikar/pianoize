@@ -274,4 +274,6 @@ A cover whose [meter](#meter) changes, or a type 2 cover, melody or source, prin
 
 The `arrange-cover` skill in `skills/arrange-cover/` runs the [workflow](#workflow) above: its `SKILL.md` gives the steps and the files, and `references/` the judgment it draws on, the arranging rules and how to read the dump. It ships in the same Claude Code plugin as `polish-cover`; the plugin's layout and how to install it are in [docs/polishing.md](polishing.md#running-the-skill).
 
+The inputs come from `pianoize prepare` ([docs/preparing.md](preparing.md)).
+
 The experimental `arrange-transcription` skill, in `skills/arrange-transcription/`, arranges from tsumugi's transcription alone. It uses `pianoize build-grid` in place of the cover and `dump-bars --drums` in the dump, under a clean-room rule: it reads no cover. `arrange-cover` stays the default; see [the decision](decisions.md#the-transcription-only-arrangement-an-experiment-2026-10-13).

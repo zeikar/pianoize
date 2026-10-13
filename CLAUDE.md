@@ -8,6 +8,7 @@ Project-specific instructions for pianoize. The global ~/.claude/CLAUDE.md still
 - [docs/decisions.md](docs/decisions.md): design decisions and their reasons
 - [docs/evaluation.md](docs/evaluation.md): the evaluation tooling and the checkpoint file format
 - [docs/polishing.md](docs/polishing.md): the polishing commands, the candidate and correction-spec formats, the refined-timeline rules
+- [docs/preparing.md](docs/preparing.md): `pianoize setup` and `prepare`, and what they install and write
 - [docs/arranging.md](docs/arranging.md): the score format, the arranging commands and the check's limits
 - [docs/rendering.md](docs/rendering.md): the arrangement JSON, the viewer and the video commands
 - chordotomy's [timeline-json.md](https://github.com/zeikar/chordotomy/blob/main/docs/timeline-json.md): the chord timeline pianoize reads (schema 11)
@@ -20,7 +21,7 @@ The [rules in the README](README.md#rules) apply. The reasons for those and for 
 - **Don't change chordotomy.** pianoize reads its timeline JSON, checks `schema_version`, and runs its CLI as a separately installed tool. It doesn't import chordotomy or share its environment.
 - **No analysis is the answer key.** chordotomy's timeline, web chord charts and tsumugi's transcription are evidence to weigh, not truth. Where they disagree, check the notes before calling anything a mistake.
 - **No GPL/AGPL code in the repo or its dependencies.** That covers vendored code and anything imported or bundled, Python or npm; Neothesia and YourMT3+ are out. LGPL is allowed. A tool the user installs separately and pianoize runs as a subprocess is allowed whatever its license.
-- **Check the license before adding a dependency, model or sample library.** Weights included. Record the date and the source in docs/decisions.md. Weights with non-commercial terms are allowed, and are downloaded into `work/`.
+- **Check the license before adding a dependency, model or sample library.** Weights included. Record the date and the source in docs/decisions.md. Weights with non-commercial terms are allowed. They are installed once into the user's cache (`~/.cache/pianoize`, with Hugging Face weights in `~/.cache/huggingface`), never into `work/` or the repository, with their terms shown.
 - **The CLI never calls an LLM.** An agent session writes the correction spec or the score into `work/`. Code validates it and applies it to the cover, or builds it into MIDI, deterministically: the same inputs give byte-identical output.
 - **Arrangements are playable.** From M3 the arrangement is written for two hands, and `pianoize check-arrangement` verifies notes per hand, hand span, jumps and no crossed hands; a score or a correction must keep it passing.
 - **Models with conflicting dependencies run in their own environments**, not in the core package.

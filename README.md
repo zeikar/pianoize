@@ -2,7 +2,7 @@
 
 Turn a song recording into a piano arrangement, rendered as falling notes.
 
-Status: M1 tooling runs: `pianoize evaluate`, `render` and `melody-clashes`. The M1 experiment scripts are in [`experiments/m1/`](experiments/m1/README.md); their outputs stay in `work/`. M2 tooling runs: `pianoize harmony-evidence`, `refine-timeline`, `find-candidates` and `apply-corrections`, driven by the [`polish-cover`](skills/polish-cover/SKILL.md) Claude Code skill. M3 tooling runs: `pianoize regrid`, `dump-bars`, `build-arrangement` and `check-arrangement`, driven by the [`arrange-cover`](skills/arrange-cover/SKILL.md) skill. The first full-song arrangement is approved. M4 tooling runs: `pianoize export-arrangement`, `preview-video` and `render-video` ([docs/rendering.md](docs/rendering.md)). The first full-song video is approved. An experimental [`arrange-transcription`](skills/arrange-transcription/SKILL.md) skill arranges from tsumugi's transcription alone, with `pianoize build-grid` and `dump-bars --drums`; `arrange-cover` stays the default ([why](docs/decisions.md#the-transcription-only-arrangement-an-experiment-2026-10-13)).
+Status: M1 tooling runs: `pianoize evaluate`, `render` and `melody-clashes`. The M1 experiment scripts are in [`experiments/m1/`](experiments/m1/README.md); their outputs stay in `work/`. M2 tooling runs: `pianoize harmony-evidence`, `refine-timeline`, `find-candidates` and `apply-corrections`, driven by the [`polish-cover`](skills/polish-cover/SKILL.md) Claude Code skill. M3 tooling runs: `pianoize regrid`, `dump-bars`, `build-arrangement` and `check-arrangement`, driven by the [`arrange-cover`](skills/arrange-cover/SKILL.md) skill. The first full-song arrangement is approved. M4 tooling runs: `pianoize export-arrangement`, `preview-video` and `render-video` ([docs/rendering.md](docs/rendering.md)). The first full-song video is approved. An experimental [`arrange-transcription`](skills/arrange-transcription/SKILL.md) skill arranges from tsumugi's transcription alone, with `pianoize build-grid` and `dump-bars --drums`; `arrange-cover` stays the default ([why](docs/decisions.md#the-transcription-only-arrangement-an-experiment-2026-10-13)). Song preparation runs: `pianoize setup` and `prepare`, driven by the [`prepare-song`](skills/prepare-song/SKILL.md) skill ([docs/preparing.md](docs/preparing.md)).
 
 ## Direction so far
 
@@ -16,16 +16,16 @@ Status: M1 tooling runs: `pianoize evaluate`, `render` and `melody-clashes`. The
 
 - Audio never leaves the machine.
 - Recordings, and anything made from them (MIDI, arrangement JSON, video, the checkpoints a song is scored on), are never committed. Neither are chord charts copied from websites. All of it stays in the gitignored `work/`.
-- Model weights with non-commercial terms are never committed. They are downloaded on first use, with their terms shown.
+- Model weights with non-commercial terms are never committed. They are installed once into the user's cache (`~/.cache/pianoize`, with Hugging Face weights in `~/.cache/huggingface`) by `pianoize setup`, with their terms shown.
 - Videos carry only the piano pianoize renders: never the original audio, nor vocals separated from it.
 
 ## Layout
 
 - `src/pianoize/`: the arrangement engine, in Python
 - `viewer/`: the falling-notes page and its capture script, plain HTML, CSS and ES modules, with playwright-core installed by `npm ci` in `viewer/`
-- `experiments/`: [M1 model trial](experiments/m1/README.md) scripts; the scripts and their environments live in `work/m1/`
-- `docs/`: [design decisions](docs/decisions.md), [the score format and the arranging commands](docs/arranging.md), and [the arrangement JSON, the viewer and the video commands](docs/rendering.md)
-- `skills/`: the Claude Code skills; [`polish-cover`](skills/polish-cover/SKILL.md) drives the M2 polishing commands, [`arrange-cover`](skills/arrange-cover/SKILL.md) the M3 arranging commands, and the experimental [`arrange-transcription`](skills/arrange-transcription/SKILL.md) the same from the transcription alone
+- `experiments/`: [M1 model trial](experiments/m1/README.md) scripts; the scripts and their environments lived in `work/m1/`; the tsumugi install moved to the pianoize home
+- `docs/`: [design decisions](docs/decisions.md), [song preparation](docs/preparing.md), [the score format and the arranging commands](docs/arranging.md), and [the arrangement JSON, the viewer and the video commands](docs/rendering.md)
+- `skills/`: the Claude Code skills; [`prepare-song`](skills/prepare-song/SKILL.md) makes a song's inputs, [`polish-cover`](skills/polish-cover/SKILL.md) drives the M2 polishing commands, [`arrange-cover`](skills/arrange-cover/SKILL.md) the M3 arranging commands, and the experimental [`arrange-transcription`](skills/arrange-transcription/SKILL.md) the same from the transcription alone
 - `.claude-plugin/`: the manifests that make the repository a Claude Code plugin and its own marketplace
 - `work/`: recordings and everything made from them, gitignored
 
@@ -43,9 +43,10 @@ uv run ruff check . && uv run ruff format --check .
 (cd viewer && npm ci && npm test)
 ```
 
-Scoring and rendering need [FluidSynth](https://www.fluidsynth.org/), a piano SoundFont and [chordotomy](https://github.com/zeikar/chordotomy), installed separately. Options and environment variables are in [docs/evaluation.md](docs/evaluation.md). The polishing commands, their file formats and the skill that runs them are in [docs/polishing.md](docs/polishing.md); the arranging commands, the score format and their skill are in [docs/arranging.md](docs/arranging.md); the arrangement JSON, the cards file and the video commands are in [docs/rendering.md](docs/rendering.md).
+Preparing a song needs git, uv and, on macOS, Homebrew's FFmpeg ([docs/preparing.md](docs/preparing.md)). Scoring and rendering need [FluidSynth](https://www.fluidsynth.org/), a piano SoundFont and [chordotomy](https://github.com/zeikar/chordotomy), installed separately. Options and environment variables are in [docs/evaluation.md](docs/evaluation.md). The polishing commands, their file formats and the skill that runs them are in [docs/polishing.md](docs/polishing.md); the arranging commands, the score format and their skill are in [docs/arranging.md](docs/arranging.md); the arrangement JSON, the cards file and the video commands are in [docs/rendering.md](docs/rendering.md).
 
 ```sh
+uv run pianoize prepare song.mp3 -o work/song
 uv run pianoize render song.mid -o song.wav
 uv run pianoize evaluate --original original.chords.json --checkpoints checkpoints.json \
   --out-dir work/trial name=result.mid

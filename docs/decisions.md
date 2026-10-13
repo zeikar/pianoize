@@ -30,7 +30,7 @@ The timeline has beats but no downbeats. Beat This! (MIT) predicts both, so pian
 
 ## Licenses
 
-Nothing is monetized, so weights with non-commercial terms are usable. They are never committed. They are downloaded into `work/` on first use, with their terms shown. Each model's code and weight licenses are checked again before it is used, because these change. The date and the source are recorded here.
+Nothing is monetized, so weights with non-commercial terms are usable. They are never committed. They are installed once into the user's cache through `pianoize setup`, with their terms shown ([Song preparation](#song-preparation-the-models-move-out-of-work-2026-10-13)); M1 downloaded them into `work/`. Each model's code and weight licenses are checked again before it is used, because these change. The date and the source are recorded here.
 
 A weight license binds the use of the model, and the repository holds none of its code or weights, so the repository's own license is unaffected. Whether a model's output counts as material adapted from its weights is unsettled, so output of a non-commercial model is treated as non-commercial too: the video stays non-monetized and credits the model. That is why tsumugi-piano-cover (CC BY-NC 4.0), whose cover is the arrangement's base, is credited, while tsumugi's transcriber (MIT code and weights), used as evidence for the harmony and, since M3, for instrument lines the arrangement takes up, carries no such terms. The [transcription-only arrangement](#the-transcription-only-arrangement-an-experiment-2026-10-13) is the path that owes the cover nothing.
 
@@ -85,7 +85,7 @@ Corrections live in the spec, not in hand edits to the cover's MIDI: the cover s
 
 ## M1 license check (2026-10-08)
 
-Upstream programs run as separately installed subprocess tools, each in its own environment under `work/m1/`. Homebrew's FFmpeg (built `--enable-gpl`) is loaded only inside the processes of tsumugi and Etude, through torchcodec. That is accepted because those run as separately installed subprocess tools and nothing committed imports or links FFmpeg. Rows are added as each candidate is tried. PiCoGen2, Sheet Sage and sfizz were judged on 2026-10-08 from their documentation and were never downloaded. Every other row was checked on 2026-10-09, when its weights were downloaded or recorded (`TERMS.txt` and `SHA256SUMS` under `work/m1/models/`, `WEIGHTS.txt` under `work/m1/stems/`).
+Upstream programs run as separately installed subprocess tools, each in its own environment under `work/m1/` (the tsumugi install moved to the pianoize home on 2026-10-13). Homebrew's FFmpeg (built `--enable-gpl`) is loaded only inside the processes of tsumugi and Etude, through torchcodec. That is accepted because those run as separately installed subprocess tools and nothing committed imports or links FFmpeg. Rows are added as each candidate is tried. PiCoGen2, Sheet Sage and sfizz were judged on 2026-10-08 from their documentation and were never downloaded. Every other row was checked on 2026-10-09, when its weights were downloaded or recorded (`TERMS.txt` and `SHA256SUMS` under `work/m1/models/`, `WEIGHTS.txt` under `work/m1/stems/`).
 
 | candidate | code license | weight license | revision | SHA-256 | runs on this Mac? | runtime notes |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -299,3 +299,29 @@ A second scratch script printed the drums per bar.
 - **`arrange-cover` stays the default and is unchanged.**
 - **The video's credit and non-commercial terms stay as they are** ([What goes into a video](#what-goes-into-a-video)).
 - The run's files are in `work/tsumugi-only/`, not committed.
+
+## Song preparation: the models move out of `work/` (2026-10-13)
+
+**Why.** Preparing a song had been one script per song, run from the M1 environments under `work/m1/`. That does not scale to a second song, and a plugin user has no `work/` at all, so the models live user-wide. The second test song was the first real test: starting it from a YouTube link, the user asked about downloading the way chordotomy does, and said: "돌릴때는 레포 캐시말고 전역 사용하면 chordotomy랑 캐시 공유해서 그게 더 좋을듯" (use the global caches, shared with chordotomy). Asked when to build the tooling, they chose "지금 바로 도구화" (now, with the second song as its first real test).
+
+**The user's choices.**
+
+- **Shape:** pianoize commands plus a skill: `pianoize setup`, `pianoize prepare` and the `prepare-song` skill ([docs/preparing.md](preparing.md)).
+- **Location.** "플러그인 사용자 입장에서 보면 거긴 work 디렉토리 없을수 있으니까... 전역에 받아야 하려나". They chose `~/.cache/pianoize`, with the weights in the Hugging Face cache and uv's cache global. npm had already moved to its default cache the same day ([M4](#m4-the-falling-notes-renderer-2026-10-12)).
+
+**Decisions.**
+
+- **The home.** `$PIANOIZE_HOME`, else `$XDG_CACHE_HOME/pianoize`, else `~/.cache/pianoize`. It holds the two clones, their environments, tsumugi's checkpoints and the stem splitter's weights. The cover's weights go in the Hugging Face hub cache (`~/.cache/huggingface/hub` by default), so they are shared with whatever else uses that model.
+- **uv's cache stays global**, shared with chordotomy and every other uv project, instead of the `work/m1/cache` that M1 used.
+- **yt-dlp runs through `uvx … @latest`, not as a dependency.** An old yt-dlp stops working when YouTube changes, so every run takes the newest, as chordotomy's skill does. It stays out of pyproject.toml and out of the repository's dependencies.
+- **The pins** are the tsumugi and tsumugi-piano-cover rows of the [M1 license check](#m1-license-check-2026-10-08): commits for the clones, a revision for the cover's weights, torch 2.13.0 for the generator. tsumugi's checkpoints are fetched from `main`, so they are pinned by content: setup checks each against its recorded SHA-256.
+- **Setup fetches tsumugi's own checkpoints too**, and verifies them by hash. The approved spec says setup installs both models, pinned; otherwise the first `prepare` would download 850 MB unpinned. Setup streams uv's and huggingface_hub's progress to the terminal.
+- **The download call.** One video's audio as mp3, since pianoize's decoder reads wav, flac, ogg and mp3 but not m4a or webm; `--no-playlist -I 1`, so a link to a video in a playlist, or to a playlist, takes a single video; the `deno` extra, for the JavaScript runtime YouTube needs.
+- **The 2-hour limit on the recording was dropped.**
+- **The logs are filtered.** The tools' logs keep their output in order, one line at a time, but leave out the `@@` lines the worker streams to Cover Studio's page.
+- **The melody goes through `grid.build`**, keeping only `source.mid`'s `melody` track and its tempo changes and time signatures, so there are no chord markers and the file reads on the tempo map the cover is built from.
+- **A stopped `prepare` exits 130** and removes its scratch directory.
+
+**Determinism.** Each transcription is one draw ([M1 results](#m1-results-2026-10-09)), so `source.mid` is kept and reused. The cover is generated with seed 0, and a run on the same `source.mid` is expected to give the same `cover.mid`. Expected, not yet checked: Task 7 runs it and replaces this word with the result.
+
+**What the second test song showed.** tsumugi-piano-cover builds its beat tokens from `source.mid`'s tempo map (`piano_cover/source.py`), so where tsumugi's beat tracking is wrong, the cover's rhythm bends with it. On the second test song the tracking ran at half speed in long stretches and squeezed bars elsewhere. The user heard the cover's tempo as strange and suggested arranging from the transcription alone: "이건 source.mid 만 보는게 나을수도 있겠다는 생각이 들었음. cover.mid 자체가 템포가 이상함." The `prepare-song` skill's hand-off cites this when it offers the [transcription-only path](#the-transcription-only-arrangement-an-experiment-2026-10-13); the cover stays the default.

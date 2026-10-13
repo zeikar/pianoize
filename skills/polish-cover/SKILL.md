@@ -22,7 +22,7 @@ pianoize's commands are deterministic and never call an LLM. You write two small
 
 ## Inputs
 
-Ask the user for any input that is missing and stop until you have it; pianoize makes none of them.
+Ask the user for any input that is missing and stop until you have it. The `prepare-song` skill (`../prepare-song/SKILL.md`) makes the `<cover>`, `<source>` and `<melody>`, `pianoize prepare` writing `cover.mid`, `source.mid` and `melody.mid` into the song's directory; when they are missing, offer that skill and stop.
 
 - `<timeline>`: chordotomy's timeline of the song, `<stem>.chords.json` (or `<stem>.edited.chords.json`, saved by chordotomy's viewer with the user's corrections).
 - `<cover>`: the cover MIDI made by tsumugi-piano-cover.

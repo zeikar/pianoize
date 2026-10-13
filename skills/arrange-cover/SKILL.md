@@ -21,7 +21,7 @@ pianoize's commands are deterministic and never call an LLM. You write two text 
 
 ## Inputs
 
-Ask the user for any input that is missing and stop until you have it; pianoize makes none of them.
+Ask the user for any input that is missing and stop until you have it. The `prepare-song` skill (`../prepare-song/SKILL.md`) makes them, `pianoize prepare` writing `cover.mid`, `melody.mid` and `source.mid` into the song's directory; when they are missing, offer that skill and stop.
 
 - `<cover>`: the cover MIDI made by tsumugi-piano-cover.
 - `<melody>`: tsumugi's melody MIDI, its lead vocal track.

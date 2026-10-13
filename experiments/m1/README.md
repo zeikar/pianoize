@@ -41,6 +41,8 @@ Everything is under `work/m1/`, which is gitignored:
 
 `env.sh` moves `XDG_CACHE_HOME` into `work/m1/cache`. chordotomy's Beat This! weights stay in the real cache (`~/.cache/chordotomy`), so a script that runs chordotomy prefixes the call with `XDG_CACHE_HOME="$CHORDOTOMY_XDG_CACHE_HOME"`. The Homebrew install is the one thing outside `work/m1`. `11_leak_check.sh` checks the rest.
 
+The tsumugi clones, environments, weights and stem-splitter cache moved to the pianoize home on 2026-10-13 ([docs/preparing.md](../../docs/preparing.md)), so `rm -rf work/m1` no longer removes them.
+
 ## Rules the scripts follow
 
 - Idempotent. An existing clone, environment, completed download or output is reused. Downloads and `.part` files: see `fetch` in `env.sh`.
