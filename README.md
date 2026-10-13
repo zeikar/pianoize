@@ -2,7 +2,7 @@
 
 Turn a song recording into a piano arrangement, rendered as falling notes.
 
-Status: M1 tooling runs: `pianoize evaluate`, `render` and `melody-clashes`. The M1 experiment scripts are in [`experiments/m1/`](experiments/m1/README.md); their outputs stay in `work/`. M2 tooling runs: `pianoize harmony-evidence`, `refine-timeline`, `find-candidates` and `apply-corrections`, driven by the [`polish-cover`](skills/polish-cover/SKILL.md) Claude Code skill. M3 tooling runs: `pianoize regrid`, `dump-bars`, `build-arrangement` and `check-arrangement`, driven by the [`arrange-cover`](skills/arrange-cover/SKILL.md) skill. The first full-song arrangement is approved. M4 tooling runs: `pianoize export-arrangement`, `preview-video` and `render-video` ([docs/rendering.md](docs/rendering.md)). The first full-song video is approved.
+Status: M1 tooling runs: `pianoize evaluate`, `render` and `melody-clashes`. The M1 experiment scripts are in [`experiments/m1/`](experiments/m1/README.md); their outputs stay in `work/`. M2 tooling runs: `pianoize harmony-evidence`, `refine-timeline`, `find-candidates` and `apply-corrections`, driven by the [`polish-cover`](skills/polish-cover/SKILL.md) Claude Code skill. M3 tooling runs: `pianoize regrid`, `dump-bars`, `build-arrangement` and `check-arrangement`, driven by the [`arrange-cover`](skills/arrange-cover/SKILL.md) skill. The first full-song arrangement is approved. M4 tooling runs: `pianoize export-arrangement`, `preview-video` and `render-video` ([docs/rendering.md](docs/rendering.md)). The first full-song video is approved. An experimental [`arrange-transcription`](skills/arrange-transcription/SKILL.md) skill arranges from tsumugi's transcription alone, with `pianoize build-grid` and `dump-bars --drums`; `arrange-cover` stays the default ([why](docs/decisions.md#the-transcription-only-arrangement-an-experiment-2026-10-13)).
 
 ## Direction so far
 
@@ -25,7 +25,7 @@ Status: M1 tooling runs: `pianoize evaluate`, `render` and `melody-clashes`. The
 - `viewer/`: the falling-notes page and its capture script, plain HTML, CSS and ES modules, with playwright-core installed by `npm ci` in `viewer/`
 - `experiments/`: [M1 model trial](experiments/m1/README.md) scripts; the scripts and their environments live in `work/m1/`
 - `docs/`: [design decisions](docs/decisions.md), [the score format and the arranging commands](docs/arranging.md), and [the arrangement JSON, the viewer and the video commands](docs/rendering.md)
-- `skills/`: the Claude Code skills; [`polish-cover`](skills/polish-cover/SKILL.md) drives the M2 polishing commands, and [`arrange-cover`](skills/arrange-cover/SKILL.md) the M3 arranging commands
+- `skills/`: the Claude Code skills; [`polish-cover`](skills/polish-cover/SKILL.md) drives the M2 polishing commands, [`arrange-cover`](skills/arrange-cover/SKILL.md) the M3 arranging commands, and the experimental [`arrange-transcription`](skills/arrange-transcription/SKILL.md) the same from the transcription alone
 - `.claude-plugin/`: the manifests that make the repository a Claude Code plugin and its own marketplace
 - `work/`: recordings and everything made from them, gitignored
 

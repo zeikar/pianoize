@@ -4,7 +4,7 @@ How pianoize turns an arrangement an agent writes into a two-hand MIDI. An agent
 
 ## Workflow
 
-The [`arrange-cover` skill](#running-the-skill) runs it in these steps. The commands lay out the song and check the score; the agent decides every note.
+The [`arrange-cover` skill](#running-the-skills) runs it in these steps. The commands lay out the song and check the score; the agent decides every note.
 
 1. **Regrid.** [`regrid`](#regridding) writes a copy of the cover with its tempo hiccups regridded; every later command takes the copy as the cover. The spans it reports are named to the user at the listening, to be checked by ear.
 2. **Dump.** [`dump-bars`](#dumping) prints the cover's attacks and tsumugi's melody bar by bar, on the cover's sixteenth grid, and where no one sings, the top line of each instrument of tsumugi's transcription.
@@ -270,6 +270,8 @@ A cover whose [meter](#meter) changes, or a type 2 cover, melody or source, prin
 - **Errors.** An `-o` that is the source, under any spelling the disk takes for it, is refused with `would overwrite an input` and exits 2. A type 2 source, one with no tempo map or a `--track` name no track has prints `error: …` and exits 1, writing nothing. The name error lists the tracks the source names.
 - **Then** [regrid](#regridding) the grid and use the copy as `COVER.mid` for every command. The `C` lines of the dump then show the band's piano and bass, not a cover's notes.
 
-## Running the skill
+## Running the skills
 
 The `arrange-cover` skill in `skills/arrange-cover/` runs the [workflow](#workflow) above: its `SKILL.md` gives the steps and the files, and `references/` the judgment it draws on, the arranging rules and how to read the dump. It ships in the same Claude Code plugin as `polish-cover`; the plugin's layout and how to install it are in [docs/polishing.md](polishing.md#running-the-skill).
+
+The experimental `arrange-transcription` skill, in `skills/arrange-transcription/`, arranges from tsumugi's transcription alone. It uses `pianoize build-grid` in place of the cover and `dump-bars --drums` in the dump, under a clean-room rule: it reads no cover. `arrange-cover` stays the default; see [the decision](decisions.md#the-transcription-only-arrangement-an-experiment-2026-10-13).

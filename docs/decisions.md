@@ -32,7 +32,7 @@ The timeline has beats but no downbeats. Beat This! (MIT) predicts both, so pian
 
 Nothing is monetized, so weights with non-commercial terms are usable. They are never committed. They are downloaded into `work/` on first use, with their terms shown. Each model's code and weight licenses are checked again before it is used, because these change. The date and the source are recorded here.
 
-A weight license binds the use of the model, and the repository holds none of its code or weights, so the repository's own license is unaffected. Whether a model's output counts as material adapted from its weights is unsettled, so output of a non-commercial model is treated as non-commercial too: the video stays non-monetized and credits the model. That is why tsumugi-piano-cover (CC BY-NC 4.0), whose cover is the arrangement's base, is credited, while tsumugi's transcriber (MIT code and weights), used as evidence for the harmony and, since M3, for instrument lines the arrangement takes up, carries no such terms.
+A weight license binds the use of the model, and the repository holds none of its code or weights, so the repository's own license is unaffected. Whether a model's output counts as material adapted from its weights is unsettled, so output of a non-commercial model is treated as non-commercial too: the video stays non-monetized and credits the model. That is why tsumugi-piano-cover (CC BY-NC 4.0), whose cover is the arrangement's base, is credited, while tsumugi's transcriber (MIT code and weights), used as evidence for the harmony and, since M3, for instrument lines the arrangement takes up, carries no such terms. The [transcription-only arrangement](#the-transcription-only-arrangement-an-experiment-2026-10-13) is the path that owes the cover nothing.
 
 The code is published under MIT (2026-10-12), so no GPL or AGPL code goes into the repository or its dependencies, Python or npm, vendored, imported or bundled. Neothesia and YourMT3+ are out for this reason. LGPL is allowed, as in chordotomy. A tool the user installs separately and pianoize runs as a subprocess, such as a MIDI synthesizer, is not part of what is published, so its license doesn't matter.
 
@@ -252,7 +252,7 @@ M3 built four commands, `regrid`, `dump-bars`, `build-arrangement` and `check-ar
 - Nothing tells the band changing between repeats apart from the cover model varying its own.
 - There is no guidance for two vocal notes at one onset.
 - The dump runs past the song's last bar while the cover's last chord rings, so where the score ends is a judgment call.
-- Drums never appear in the dump.
+- Drums never appear in the dump. (`dump-bars --drums` closed this on 2026-10-13; see [the transcription-only arrangement](#the-transcription-only-arrangement-an-experiment-2026-10-13).)
 - A figure played slightly early prints its first note at the end of the previous bar.
 
 ## M4: the falling-notes renderer (2026-10-12)
@@ -273,3 +273,29 @@ M4 built `export-arrangement`, `preview-video` and `render-video`, and the page 
 **The real run.** `render-video` rendered the approved M3 arrangement of the test song with the Salamander SoundFont: 15,895 frames, 264.9 s, 27.8 MB, in 8 min 42 s end to end, at a peak of 0.341. The preview was checked first at the title card, a dense passage and the credits card. The cards file was a draft written from the source file's title, singer and producer, with the credits from [What goes into a video](#what-goes-into-a-video). The run's files are in `work/m4/`, not committed.
 
 **Approval.** The user approved the video on 2026-10-13 with no changes: "ㅇㅋ 이정도면 훌륭함 승인".
+
+## The transcription-only arrangement, an experiment (2026-10-13)
+
+**Why.** The default path's cover comes from tsumugi-piano-cover, whose weights are CC BY-NC 4.0, so its output is treated as non-commercial and the video stays non-monetized ([Licenses](#licenses)). tsumugi's transcriber has MIT code and weights, and hololive's guidelines allow an individual's ad revenue ([What goes into a video](#what-goes-into-a-video)). So an arrangement made from the transcription alone would be monetizable. This tested whether one is good enough.
+
+**The clean-room test** covered bars 1 to 67 of the test song and read no cover. Its three inputs:
+
+- a tempo-grid MIDI that a scratch script built from `source.mid`'s tempo map, time signature and chord markers, with its `piano` and `electric_bass` tracks, run through `regrid`;
+- tsumugi's melody MIDI;
+- `source.mid`, through `dump-bars --source --every-bar`.
+
+A second scratch script printed the drums per bar.
+
+**The verdicts**, by the user:
+
+- v1, the left hand mostly following the bass as single notes: "왼손 반주쪽을 편곡을 좀더 해야할듯함".
+- The two inputs need different instructions: "둘이 프롬프트가 다르게 들어가야 해. 그거 고려해줘." A cover has a pianistic accompaniment to keep the feel of; a band transcription has none, so the band has to be arranged for piano.
+- v2, the left hand re-arranged per section from the kick, snare, hi-hat and strums: "이번엔 너무 뭔가 많은데".
+- v3, thinned to the bass on the main kicks, with chords on the backbeat left to ring: "아직 애매함."
+
+**Decision (2026-10-13): keep it as an experiment; the cover stays the default.** The user: "별도 스킬? 별도 에이전트 같은걸로 킵은 해두되 … tsumugi-piano-cover 이게 더 좋네. 나중에 claude 모델 업데이트 되거나 프롬프트 더 튜닝해서 쓰면 될거 같긴해." They then chose an experimental skill plus the scratch steps as commands.
+
+- **Built.** `pianoize build-grid`, which builds the tempo-grid MIDI from a tsumugi transcription; `dump-bars --drums`, which prints the drum lines; and the `arrange-transcription` skill, with its clean-room rule (no cover is read) and its guidance on arranging a band for piano.
+- **`arrange-cover` stays the default and is unchanged.**
+- **The video's credit and non-commercial terms stay as they are** ([What goes into a video](#what-goes-into-a-video)).
+- The run's files are in `work/tsumugi-only/`, not committed.
