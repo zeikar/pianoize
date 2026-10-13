@@ -1,11 +1,13 @@
-"""Where the tsumugi tools live, which versions pianoize pins, what is missing, and the setup
-that installs them."""
+"""Where the tsumugi tools live, which versions pianoize pins, what is missing, the setup that
+installs them, and the transcription and the generation that run them."""
 
 import os
+import re
 import shlex
 import shutil
 import subprocess
-from collections.abc import Callable
+import sys
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -42,6 +44,10 @@ Code: MIT, https://github.com/anime-song/tsumugi-piano-cover"""
 SNAPSHOT_CODE = """import sys
 from huggingface_hub import snapshot_download
 print(snapshot_download(sys.argv[1], revision=sys.argv[2], cache_dir=sys.argv[3]))"""
+
+# A Python exception's line, the reason a failed run quotes (M1's reason() in
+# experiments/m1/08_tsumugi.sh).
+_ERROR_LINE = re.compile(r"[\w.]+(Error|Exception)")
 
 _INSTALL_HINTS = {
     "git": "install the system's git",
@@ -240,3 +246,91 @@ def setup(install: Install, echo: Echo) -> None:
     _clone(git, COVER_URL, COVER_COMMIT, install.cover_dir, install.cover_commit, echo)
     _envs(uv, install, echo)
     _weights(install, echo)
+
+
+def _run(
+    tool: str, step: str, argv: list[str | Path], log: Path, cwd: Path, env: Mapping[str, str]
+) -> None:
+    """Run a model step with its stdout and stderr, in order, copied into `log`, except the `@@`
+    lines Cover Studio's worker streams for its UI. A failure quotes the output's last exception
+    line, else its last line, and names the log."""
+    error = last = ""
+    # Line-buffered, so `tail -f` follows the run.
+    with log.open("w", encoding="utf-8", buffering=1) as out:
+        try:
+            # Unbuffered, or a Python child's piped output reaches the log in blocks. Text mode
+            # reads universal newlines, so a progress bar's carriage-return redraws come as lines.
+            proc = subprocess.Popen(
+                argv,
+                cwd=cwd,
+                env={**env, "PYTHONUNBUFFERED": "1"},
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+            )
+        except OSError as exc:
+            raise TsumugiError(f"cannot run {argv[0]}: {exc}") from exc
+        # The one pipe is read to its end before the wait, so the child never blocks on it.
+        try:
+            for line in proc.stdout:
+                if line.startswith("@@"):
+                    continue
+                out.write(line)
+                text = line.rstrip("\n")
+                if text.strip():
+                    last = text
+                if _ERROR_LINE.match(text):
+                    error = text
+            code = proc.wait()
+        except BaseException:
+            # Waited for, so the caller removes its scratch directory, where the child writes,
+            # only once the child is gone; a child that the Ctrl-C it also received has already
+            # ended makes both calls no-ops.
+            proc.terminate()
+            proc.wait()
+            raise
+        finally:
+            proc.stdout.close()
+    if code != 0:
+        raise TsumugiError(f"{tool} {step} failed ({code}): {(error or last)[:200]}; log: {log}")
+
+
+def transcribe(install: Install, wav: Path, out: Path, log: Path) -> None:
+    """Transcribe `wav` into the multi-track MIDI `out` with tsumugi, through the cover's worker
+    as Cover Studio runs it, the transcription the cover model was trained on. The worker's stems
+    go to `work` beside `out`, which the worker deletes before and after it runs; both are the
+    caller's scratch paths."""
+    # Absolute, because the worker runs in the tsumugi clone.
+    out = out.resolve()
+    argv = [
+        install.tsumugi_python, "-X", "utf8", install.worker,
+        "--tsumugi-dir", install.tsumugi_dir,
+        "--audio", wav.resolve(), "--out", out, "--work", out.parent / "work",
+    ]  # fmt: skip
+    env = {**os.environ, "STEM_SPLITTER_CACHE": str(install.stem_cache)}
+    if sys.platform == "darwin":
+        # tsumugi's locked torchcodec 0.16 has no rpath to Homebrew's FFmpeg. The variable reaches
+        # it because the env's interpreter is not a protected binary, whose DYLD_ variables macOS
+        # strips.
+        env.setdefault("DYLD_FALLBACK_LIBRARY_PATH", "/opt/homebrew/lib")
+    _run("tsumugi", "transcribe", argv, log, install.tsumugi_dir, env)
+
+
+def generate(install: Install, source: Path, out_dir: Path, log: Path) -> Path:
+    """Generate a piano cover of the transcription `source`, seed 0, into `out_dir`; return the
+    cover's path."""
+    # Absolute, because the generator runs in the cover clone, whose root holds its packages.
+    source, out_dir = source.resolve(), out_dir.resolve()
+    argv = [
+        install.cover_python, "-m", "piano_cover.generate",
+        # The snapshot, laid out as the model repo, so generation needs no network.
+        "--checkpoint", install.weights,
+        "--source", source, "--seed", "0", "--out-dir", out_dir,
+    ]  # fmt: skip
+    _run("tsumugi-piano-cover", "generate", argv, log, install.cover_dir, os.environ)
+    cover = out_dir / f"{source.stem}_ch0_0.mid"
+    if not cover.is_file():
+        raise TsumugiError(f"tsumugi-piano-cover generate wrote no {cover}; log: {log}")
+    return cover

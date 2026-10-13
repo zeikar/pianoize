@@ -1,6 +1,12 @@
+import os
+import re
 import shutil
+import signal
+import subprocess
+import sys
 from pathlib import Path
 
+import mido
 import pytest
 from typer.testing import CliRunner
 
@@ -11,7 +17,10 @@ from pianoize.tsumugi import Install
 
 @pytest.fixture(autouse=True)
 def clean_env(monkeypatch, tmp_path):
-    for name in ("PIANOIZE_HOME", "XDG_CACHE_HOME", "HF_HUB_CACHE", "HF_HOME"):
+    for name in (
+        "PIANOIZE_HOME", "XDG_CACHE_HOME", "HF_HUB_CACHE", "HF_HOME",
+        "STEM_SPLITTER_CACHE", "DYLD_FALLBACK_LIBRARY_PATH",
+    ):  # fmt: skip
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("HOME", str(tmp_path / "user"))
 
@@ -203,3 +212,173 @@ def test_setup_names_a_file_the_download_left_out(fake_installers, monkeypatch):
     assert result.exit_code == 1
     assert "error:" in result.output
     assert str(Install.from_env().weights / "piano_ar" / "config.json") in result.output
+
+
+def _wav(tmp_path: Path) -> Path:
+    wav = tmp_path / "song.wav"
+    wav.touch()  # the fake worker only checks it is there
+    return wav
+
+
+def test_transcribe_writes_the_midi_and_logs_without_streamed_lines(fake_install, tmp_path):
+    install = fake_install.install
+    wav, out, log = _wav(tmp_path), tmp_path / "scratch" / "source.mid", tmp_path / "t.log"
+    out.parent.mkdir()
+
+    tsumugi.transcribe(install, wav, out, log)
+
+    assert [t.name for t in mido.MidiFile(out).tracks] == [
+        "Predicted Tempo Map", "Predicted Chords", "piano", "melody", "drums",
+    ]  # fmt: skip
+    lines = log.read_text(encoding="utf-8").splitlines()
+    assert "Loading AMT model on cpu" in lines
+    assert not any(line.startswith("@@") for line in lines)
+    [record] = fake_install.records()
+    assert record["argv"] == [
+        str(install.tsumugi_python), "-X", "utf8", str(install.worker),
+        "--tsumugi-dir", str(install.tsumugi_dir),
+        "--audio", str(wav), "--out", str(out), "--work", str(tmp_path / "scratch" / "work"),
+    ]  # fmt: skip
+    assert record["cwd"] == str(install.tsumugi_dir)
+    assert record["env"]["STEM_SPLITTER_CACHE"] == str(install.home / "stem-splitter")
+    # Else the log would take a Python child's output in blocks.
+    assert record["env"]["PYTHONUNBUFFERED"] == "1"
+
+
+def test_transcribe_passes_absolute_paths(fake_install, monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    _wav(tmp_path)
+
+    tsumugi.transcribe(fake_install.install, Path("song.wav"), Path("source.mid"), Path("t.log"))
+
+    argv = fake_install.records()[-1]["argv"]
+    for flag, path in (
+        ("--audio", tmp_path / "song.wav"),
+        ("--out", tmp_path / "source.mid"),
+        ("--work", tmp_path / "work"),
+    ):
+        assert argv[argv.index(flag) + 1] == str(path)
+    assert (tmp_path / "source.mid").is_file()
+
+
+def test_transcribe_points_torchcodec_at_homebrew_on_macos(fake_install, monkeypatch, tmp_path):
+    monkeypatch.delenv("DYLD_FALLBACK_LIBRARY_PATH", raising=False)
+    wav = _wav(tmp_path)
+
+    def seen() -> str | None:
+        tsumugi.transcribe(fake_install.install, wav, tmp_path / "source.mid", tmp_path / "t.log")
+        return fake_install.records()[-1]["env"]["DYLD_FALLBACK_LIBRARY_PATH"]
+
+    monkeypatch.setattr(sys, "platform", "darwin")
+    assert seen() == "/opt/homebrew/lib"
+    monkeypatch.setenv("DYLD_FALLBACK_LIBRARY_PATH", "/elsewhere/lib")
+    assert seen() == "/elsewhere/lib"
+    monkeypatch.delenv("DYLD_FALLBACK_LIBRARY_PATH")
+    monkeypatch.setattr(sys, "platform", "linux")
+    assert seen() is None
+
+
+def test_a_failing_worker_names_its_error_and_its_log(fake_install, tmp_path):
+    fake_install.log.with_name("fail").touch()
+    out, log = tmp_path / "source.mid", tmp_path / "t.log"
+
+    with pytest.raises(
+        tsumugi.TsumugiError, match=r"tsumugi transcribe failed \(1\): RuntimeError: boom; log: "
+    ) as info:
+        tsumugi.transcribe(fake_install.install, _wav(tmp_path), out, log)
+
+    assert str(info.value).endswith(f"; log: {log}")
+    assert not out.exists()
+
+
+@pytest.mark.parametrize(
+    ("output", "reason"),
+    [
+        # The last of a chained traceback's error lines, not the first.
+        ("KeyError: 'a'\nloading\nValueError: bad input\nexiting\n\n", "ValueError: bad input"),
+        ("loading\n" + "x" * 300 + "\n\n", "x" * 200),
+    ],
+)
+def test_a_failed_run_quotes_the_error_else_the_last_line(tmp_path, output, reason):
+    # On stderr, which the log takes too, as a traceback goes.
+    code = f"import sys; sys.stderr.write({output!r}); sys.exit(3)"
+    log = tmp_path / "step.log"
+
+    with pytest.raises(tsumugi.TsumugiError) as info:
+        tsumugi._run("tool", "step", [sys.executable, "-c", code], log, tmp_path, os.environ)
+
+    assert str(info.value) == f"tool step failed (3): {reason}; log: {log}"
+    assert log.read_text(encoding="utf-8") == output
+
+
+def test_generate_returns_the_cover(fake_install, monkeypatch, tmp_path):
+    install = fake_install.install
+    monkeypatch.chdir(tmp_path)
+
+    cover = tsumugi.generate(install, Path("source.mid"), Path("cover"), Path("g.log"))
+
+    assert cover == tmp_path / "cover" / "source_ch0_0.mid"
+    assert [t.name for t in mido.MidiFile(cover).tracks] == ["Piano"]
+    assert (tmp_path / "g.log").read_text(encoding="utf-8") == f"{cover}: 1 note\n"
+    [record] = fake_install.records()
+    assert record["argv"] == [
+        str(install.cover_python), "-m", "piano_cover.generate",
+        "--checkpoint", str(install.weights),
+        "--source", str(tmp_path / "source.mid"), "--seed", "0",
+        "--out-dir", str(tmp_path / "cover"),
+    ]  # fmt: skip
+    assert record["cwd"] == str(install.cover_dir)
+    assert record["env"]["STEM_SPLITTER_CACHE"] is None
+
+
+def test_generate_names_the_cover_it_did_not_write(fake_install, tmp_path):
+    fake_install.install.cover_python.write_text("#!/bin/sh\necho 'no cover'\n")
+    expected = tmp_path / "cover" / "source_ch0_0.mid"
+
+    with pytest.raises(tsumugi.TsumugiError, match=re.escape(f"wrote no {expected}")):
+        tsumugi.generate(
+            fake_install.install, tmp_path / "source.mid", tmp_path / "cover", tmp_path / "g.log"
+        )
+
+
+def test_generate_names_an_interpreter_it_cannot_run(fake_install, tmp_path):
+    python = fake_install.install.cover_python
+    python.unlink()
+
+    with pytest.raises(tsumugi.TsumugiError, match=re.escape(f"cannot run {python}: ")):
+        tsumugi.generate(
+            fake_install.install, tmp_path / "source.mid", tmp_path / "cover", tmp_path / "g.log"
+        )
+
+
+def test_an_interrupted_transcribe_stops_the_worker(fake_install, monkeypatch, tmp_path):
+    fake_install.log.with_name("hang").touch()
+    real_popen = subprocess.Popen
+    started = []
+
+    def popen(*args, **kwargs):
+        proc = real_popen(*args, **kwargs)
+        pipe = proc.stdout
+
+        # The interrupt lands where a Ctrl-C does, in the copy loop with the worker running,
+        # and no timing is assumed.
+        def lines():
+            with pipe:
+                for line in pipe:
+                    yield line
+                    if line == "started\n":
+                        raise KeyboardInterrupt
+
+        proc.stdout = lines()
+        started.append(proc)
+        return proc
+
+    monkeypatch.setattr(subprocess, "Popen", popen)
+    log = tmp_path / "t.log"
+
+    with pytest.raises(KeyboardInterrupt):
+        tsumugi.transcribe(fake_install.install, _wav(tmp_path), tmp_path / "source.mid", log)
+
+    [proc] = started
+    assert proc.returncode == -signal.SIGTERM
+    assert log.read_text(encoding="utf-8").splitlines() == ["started"]

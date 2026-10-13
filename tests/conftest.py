@@ -194,11 +194,13 @@ shutil.copy({str(fixture)!r}, argv[3])
 
 
 # The fake programs' shared start: append the call to the log, as a JSON line, so calls from
-# every fake stay in one order.
+# every fake stay in one order. `env` holds the variables the model runs set.
 _LOG_CALL = """import json, os, shutil, sys
 from pathlib import Path
 with open({log!r}, "a") as f:
-    f.write(json.dumps({{"argv": sys.argv, "cwd": os.getcwd()}}) + "\\n")
+    names = ("PYTHONUNBUFFERED", "STEM_SPLITTER_CACHE", "DYLD_FALLBACK_LIBRARY_PATH")
+    env = {{name: os.environ.get(name) for name in names}}
+    f.write(json.dumps({{"argv": sys.argv, "cwd": os.getcwd(), "env": env}}) + "\\n")
 args = sys.argv[1:]
 """
 
@@ -209,7 +211,7 @@ class FakePython:
         self.log = log
 
     def records(self) -> list[dict]:
-        """Every fake program's calls in order, each its raw argv and its cwd."""
+        """Every fake program's calls in order, each its raw argv, its cwd and its env."""
         if not self.log.exists():
             return []
         return [json.loads(line) for line in self.log.read_text().splitlines()]
@@ -224,14 +226,40 @@ def fake_python(tmp_path, monkeypatch) -> FakePython:
     """An interpreter script that logs its calls. As `-c CODE REPO REVISION CACHE` it stands in
     for setup's snapshot download: it writes the weights files into CACHE's snapshot of REPO at
     REVISION, leaving out $FAKE_PYTHON_LEAVE_OUT, and prints the snapshot. HF_HUB_CACHE is set to
-    tmp_path/hub."""
+    tmp_path/hub.
+
+    Given the cover worker, it prints a "Loading" line and two `@@` lines and writes a MIDI
+    shaped like tsumugi's transcription to --out; with a file `fail` beside the calls log it
+    prints "RuntimeError: boom" and exits 1 instead, and with a file `hang` there it first prints
+    "started" and sleeps 10 s. As `-m piano_cover.generate` it checks the checkpoint holds the
+    cover model and writes a one-track cover to OUT_DIR/SOURCE_STEM_ch0_0.mid."""
     monkeypatch.setenv("HF_HUB_CACHE", str(tmp_path / "hub"))
     log = tmp_path / "calls.jsonl"
     script = tmp_path / "fake-python"
     script.write_text(
         f"#!{sys.executable}\n"
         + _LOG_CALL.format(log=str(log))
-        + f"""
+        + f"""import time
+import mido
+
+here = Path({str(log)!r}).parent
+
+
+def option(name):
+    return args[args.index(name) + 1]
+
+
+def track(name, *messages):
+    return mido.MidiTrack([mido.MetaMessage("track_name", name=name), *messages])
+
+
+def notes(channel, pitch):
+    return [
+        mido.Message("note_on", channel=channel, note=pitch, velocity=80),
+        mido.Message("note_off", channel=channel, note=pitch, time=480),
+    ]
+
+
 rest = args[args.index("-c") + 2:] if "-c" in args else []
 if len(rest) == 3:
     repo, revision, cache = rest
@@ -241,6 +269,39 @@ if len(rest) == 3:
             (snapshot / name).parent.mkdir(parents=True, exist_ok=True)
             (snapshot / name).write_text("weights")
     print(snapshot)
+elif any(Path(arg).name == "tsumugi_worker.py" for arg in args):
+    assert Path(option("--audio")).exists(), args
+    if (here / "hang").exists():
+        # Flushed, so the line arrives while it sleeps whatever the buffering.
+        print("started", flush=True)
+        time.sleep(10)
+    print("Loading AMT model on cpu")
+    print("@@progress {{}}")
+    print("@@notes {{}}")
+    if (here / "fail").exists():
+        print("RuntimeError: boom")
+        sys.exit(1)
+    midi = mido.MidiFile(type=1)
+    midi.tracks += [
+        track(
+            "Predicted Tempo Map",
+            mido.MetaMessage("set_tempo", tempo=500000),
+            mido.MetaMessage("time_signature"),
+        ),
+        track("Predicted Chords", mido.MetaMessage("marker", text="C")),
+        track("piano", *notes(0, 60)),
+        track("melody", *notes(1, 72)),
+        track("drums", *notes(9, 36)),
+    ]
+    midi.save(option("--out"))
+elif args[:2] == ["-m", "piano_cover.generate"]:
+    assert (Path(option("--checkpoint")) / "piano_cover" / "model.safetensors").exists(), args
+    cover = Path(option("--out-dir")) / (Path(option("--source")).stem + "_ch0_0.mid")
+    cover.parent.mkdir(parents=True, exist_ok=True)
+    midi = mido.MidiFile(type=1)
+    midi.tracks.append(track("Piano", mido.MetaMessage("set_tempo", tempo=500000), *notes(0, 60)))
+    midi.save(cover)
+    print(f"{{cover}}: 1 note")
 else:
     sys.exit(f"fake python: unexpected arguments {{args}}")
 """,
@@ -307,3 +368,31 @@ if python is not None:
     # As `uv run pianoize` leaves it: pianoize's own venv.
     monkeypatch.setenv("VIRTUAL_ENV", str(tmp_path / "pianoize-venv"))
     return FakeInstallers(fake_python, tmp_path / "home")
+
+
+class FakeInstall(FakePython):
+    def __init__(self, python: FakePython, install: tsumugi.Install) -> None:
+        super().__init__(python.path, python.log)
+        self.install = install
+
+
+@pytest.fixture
+def fake_install(tmp_path, monkeypatch, fake_python) -> FakeInstall:
+    """A complete pianoize home in tmp_path/home, PIANOIZE_HOME set to it: the commit files at
+    the pins, the fake interpreter as both envs' python, an empty cover worker and the weights
+    in the fake hub."""
+    monkeypatch.setenv("PIANOIZE_HOME", str(tmp_path / "home"))
+    install = tsumugi.Install.from_env()
+    install.home.mkdir()
+    install.tsumugi_commit.write_text(tsumugi.TSUMUGI_COMMIT + "\n")
+    install.cover_commit.write_text(tsumugi.COVER_COMMIT + "\n")
+    for python in (install.tsumugi_python, install.cover_python):
+        python.parent.mkdir(parents=True)
+        shutil.copy(fake_python.path, python)
+    install.worker.parent.mkdir(parents=True)
+    install.worker.write_text("")
+    for name in tsumugi.WEIGHTS_FILES:
+        (install.weights / name).parent.mkdir(parents=True, exist_ok=True)
+        (install.weights / name).write_text("weights")
+    assert install.missing() == []
+    return FakeInstall(fake_python, install)
