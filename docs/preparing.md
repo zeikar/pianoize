@@ -170,6 +170,8 @@ error: not installed under <home>: <what is missing>; run `pianoize setup`
 error: decode: cannot read <AUDIO>: <reason>; the decoder reads wav, flac, ogg and mp3
 error: decode: cannot write <DIR>/song.wav: <reason>
 error: tsumugi transcribe failed (<exit code>): <reason>; log: <DIR>/transcribe.log
+error: tsumugi transcribe: a stage failed: <the warning line>; log: <DIR>/transcribe.log
+error: <DIR>/song.wav: cannot read audio: <reason>
 error: melody: <reason>
 error: tsumugi-piano-cover generate failed (<exit code>): <reason>; log: <DIR>/generate.log
 ```

@@ -95,7 +95,11 @@ def _notes(track: mido.MidiTrack) -> int:
 
 
 def _summary(wav: Path, source: Path, melody: Path, cover: Path) -> None:
-    typer.echo(f"song.wav: {soundfile.info(wav).duration:.1f} s")
+    try:
+        duration = soundfile.info(wav).duration
+    except (soundfile.LibsndfileError, OSError) as exc:
+        raise _fail(f"{wav}: cannot read audio: {_reason(exc)}") from exc
+    typer.echo(f"song.wav: {duration:.1f} s")
     tracks = _read_midi(source).tracks
     counts = ", ".join(f"{track.name or '(unnamed)'} {_notes(track)}" for track in tracks)
     typer.echo(f"source.mid: {len(tracks)} tracks: {counts}")

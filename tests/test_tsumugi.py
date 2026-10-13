@@ -340,6 +340,19 @@ def test_transcribe_names_the_midi_it_did_not_write(fake_install, tmp_path):
     assert str(info.value) == f"tsumugi transcribe wrote no {out}; log: {log}"
 
 
+def test_transcribe_fails_on_the_workers_stage_warning(fake_install, tmp_path):
+    fake_install.log.with_name("warns").touch()
+    out, log = tmp_path / "source.mid", tmp_path / "t.log"
+
+    with pytest.raises(tsumugi.TsumugiError) as info:
+        tsumugi.transcribe(fake_install.install, _wav(tmp_path), out, log)
+
+    assert str(info.value) == (
+        "tsumugi transcribe: a stage failed: "
+        f"Warning: Velocity prediction skipped due to error: boom; log: {log}"
+    )
+
+
 @pytest.mark.parametrize(
     ("output", "reason"),
     [

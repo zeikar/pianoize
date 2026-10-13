@@ -99,6 +99,32 @@ def test_a_second_run_reuses_every_file(fake_install, flac, tmp_path):
     assert reused == [f"reusing {out / name}" for name in OUTPUTS]
 
 
+def test_prepare_publishes_no_source_when_a_transcription_stage_failed(
+    fake_install, flac, tmp_path
+):
+    fake_install.log.with_name("warns").touch()
+    out = tmp_path / "out"
+
+    result = prepare(flac, "-o", out)
+
+    assert result.exit_code == 1
+    assert "error: tsumugi transcribe: a stage failed: Warning: Velocity" in result.output
+    assert listing(out) == ["song.wav", "transcribe.log"]
+
+
+def test_a_reused_song_wav_that_cannot_be_read_is_an_error(fake_install, flac, tmp_path):
+    out = tmp_path / "out"
+    assert prepare(flac, "-o", out).exit_code == 0
+    (out / "song.wav").write_bytes(b"not audio")
+
+    result = prepare(flac, "-o", out)
+
+    assert result.exit_code == 1
+    assert result.output.splitlines()[-1].startswith(
+        f"error: {out / 'song.wav'}: cannot read audio: "
+    )
+
+
 def test_a_run_with_the_transcription_kept_decodes_and_generates_again(
     fake_install, flac, tmp_path
 ):

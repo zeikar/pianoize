@@ -106,6 +106,8 @@ ensure_weight_file(SeparationConfig())"""
 # A Python exception's line, the reason a failed run quotes (M1's reason() in
 # experiments/m1/08_tsumugi.sh).
 _ERROR_LINE = re.compile(r"[\w.]+(Error|Exception)")
+# The stage-failure prints of tsumugi's infer_stem, which go on without the stage.
+_STAGE_FAILURE = re.compile(r"Warning: .+ skipped due to error")
 
 _INSTALL_HINTS = {
     "git": "install the system's git",
@@ -418,6 +420,11 @@ def transcribe(install: Install, wav: Path, out: Path, log: Path) -> None:
         # strips.
         env.setdefault("DYLD_FALLBACK_LIBRARY_PATH", "/opt/homebrew/lib")
     _run("tsumugi", "transcribe", argv, log, install.tsumugi_dir, env)
+    # tsumugi and its worker only warn, and exit 0, when instrument refinement, velocity or
+    # beat/chord estimation fails inside; the MIDI then lacks what the cover model was trained on.
+    for line in log.read_text(encoding="utf-8", errors="replace").splitlines():
+        if line.startswith("警告") or _STAGE_FAILURE.match(line):
+            raise TsumugiError(f"tsumugi transcribe: a stage failed: {line}; log: {log}")
     if not out.is_file():
         raise TsumugiError(f"tsumugi transcribe wrote no {out}; log: {log}")
 
