@@ -58,8 +58,9 @@ def test_hub_cache_resolution(monkeypatch, tmp_path):
 
 def test_missing_on_empty_home(tmp_path):
     missing = Install(tmp_path / "home").missing()
-    assert len(missing) == 6
+    assert len(missing) == 7
     assert any("weights" in m for m in missing)
+    assert any("checkpoints" in m for m in missing)
 
 
 def test_missing_is_empty_on_a_complete_layout(monkeypatch, tmp_path):
@@ -68,12 +69,21 @@ def test_missing_is_empty_on_a_complete_layout(monkeypatch, tmp_path):
     install.tsumugi_commit.parent.mkdir(parents=True)
     install.tsumugi_commit.write_text(tsumugi.TSUMUGI_COMMIT + "\n")
     install.cover_commit.write_text(tsumugi.COVER_COMMIT + "\n")
-    files = [install.tsumugi_python, install.cover_python, install.worker]
+    files = [install.tsumugi_python, install.cover_python, install.worker, *install.checkpoints]
     files += [install.weights / f for f in tsumugi.WEIGHTS_FILES]
     for path in files:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.touch()
     assert install.missing() == []
+
+
+def test_missing_names_the_checkpoints_when_one_is_absent(fake_install):
+    install = fake_install.install
+    (install.tsumugi_dir / "checkpoints" / "best_model_bass_v2.pth").unlink()
+
+    [phrase] = install.missing()
+
+    assert "tsumugi checkpoints" in phrase and str(install.tsumugi_dir) in phrase
 
 
 def test_missing_names_a_commit_that_is_not_the_pin(tmp_path):
@@ -107,16 +117,21 @@ def test_setup_installs_into_a_fresh_home(fake_installers, tmp_path):
          str(install.cover_python.parents[1])],
         ["uv", "pip", "install", "--python", str(install.cover_python),
          *tsumugi.GENERATOR_PACKAGES],
+        ["python", "-I", "-c", tsumugi.FETCH_CODE],
         ["python", "-I", "-c", tsumugi.SNAPSHOT_CODE, tsumugi.WEIGHTS_REPO,
          tsumugi.WEIGHTS_REVISION, str(tmp_path / "hub")],
     ]  # fmt: skip
     records = fake_installers.records()
-    home, here = str(install.home), str(tmp_path)
+    home, here, clone = str(install.home), str(tmp_path), str(install.tsumugi_dir)
     assert [r["cwd"] for r in records] == [
-        here, tsumugi_part, here, cover_part, str(install.tsumugi_dir), home, home, here,
+        here, tsumugi_part, here, cover_part, clone, home, home, clone, here,
     ]  # fmt: skip
-    assert records[-1]["argv"][0] == str(install.cover_python)
-    assert result.output.index(tsumugi.TERMS) < result.output.index("downloading")
+    fetch, download = records[-2:]
+    assert fetch["argv"][0] == str(install.tsumugi_python)
+    assert fetch["env"]["STEM_SPLITTER_CACHE"] == str(install.stem_cache)
+    assert download["argv"][0] == str(install.cover_python)
+    weights_line = f"downloading {tsumugi.WEIGHTS_REPO} "
+    assert result.output.index(tsumugi.TERMS) < result.output.index(weights_line)
     # The download's stdout, the snapshot it resolved, is captured and echoed.
     assert f"\n{install.weights}\n" in result.output
     assert install.tsumugi_commit.read_text().strip() == tsumugi.TSUMUGI_COMMIT
@@ -149,9 +164,34 @@ def test_setup_again_only_audits_the_envs(fake_installers):
     for line in (
         f"tsumugi: already at {tsumugi.TSUMUGI_COMMIT[:7]}",
         f"tsumugi-piano-cover: already at {tsumugi.COVER_COMMIT[:7]}",
+        "tsumugi checkpoints: present",
         f"weights: present at {install.weights}",
     ):
         assert line in result.output.splitlines()
+
+
+def test_setup_refuses_a_checkpoint_whose_hash_changed(fake_installers, monkeypatch):
+    name = "checkpoints/best_velocity_model.pth"
+    monkeypatch.setitem(tsumugi.TSUMUGI_CHECKPOINTS, name, "0" * 64)
+
+    result = _setup()
+
+    assert result.exit_code == 1
+    found = tsumugi._sha256(Install.from_env().tsumugi_dir / name)
+    for text in ("error:", str(Install.from_env().tsumugi_dir / name), "0" * 64, found):
+        assert text in result.output
+    assert "docs/decisions.md" in result.output
+    # Stopped before the cover's weights.
+    assert fake_installers.calls()[-1] == ["python", "-I", "-c", tsumugi.FETCH_CODE]
+
+
+def test_setup_names_a_checkpoint_the_fetch_left_out(fake_installers, monkeypatch):
+    monkeypatch.setenv("FAKE_PYTHON_LEAVE_OUT", "stem_splitter.pt")
+
+    result = _setup()
+
+    assert result.exit_code == 1
+    assert str(Install.from_env().stem_cache / "stem_splitter.pt") in result.output
 
 
 def test_setup_refuses_a_clone_at_another_commit(fake_installers):

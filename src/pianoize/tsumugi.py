@@ -1,6 +1,7 @@
 """Where the tsumugi tools live, which versions pianoize pins, what is missing, the setup that
 installs them, and the transcription and the generation that run them."""
 
+import hashlib
 import os
 import re
 import shlex
@@ -29,6 +30,42 @@ WEIGHTS_FILES = (
     "README.md",
 )
 
+# tsumugi's own checkpoints and their SHA-256s, as docs/decisions.md records them: tsumugi's code
+# fetches them from each Hugging Face repo's `main`, unpinned, so setup checks what it got. Paths
+# are relative to the clone, the stem splitter's to $STEM_SPLITTER_CACHE.
+TSUMUGI_CHECKPOINTS = {
+    "beat_chord_checkpoints/best_beat_chord_key.pth": (
+        "7a7e138d65bc574dfaa76a8c9a80b59ce867ce9b7fbba0fb4959728a1bdad105"
+    ),
+    "checkpoints/best_instrument_refinement.pth": (
+        "75b2846c492fbb7e6e36336c4eb0fa6ac48a9ec8f6de1c6a85f1c57b8e9639b9"
+    ),
+    "checkpoints/best_model_bass_v2.pth": (
+        "807eedb409c77a710357d57c9e47d17821c4518db3b09c78d8dabd205a2b604a"
+    ),
+    "checkpoints/best_model_drums_v1_5.pth": (
+        "65138ad1dd919f33fb0ce56e54c0c23c87deaad6511132d69137cf4901ee9319"
+    ),
+    "checkpoints/best_model_guitar_v1_5.pth": (
+        "59c8335517d1faf7d735fef29e061181d87b96385f2e9a08332791e2b64affd4"
+    ),
+    "checkpoints/best_model_other_v1_5.pth": (
+        "e836d5b30a29ad2301726aedb9ae348db927fbb4813359cdfb2e304ba3084501"
+    ),
+    "checkpoints/best_model_vocal_harmony_v1_5.pth": (
+        "9f068d21313039810c82ede5f01e30bf8bc25fe2ba42f2cad16f57a2095b5e97"
+    ),
+    "checkpoints/best_model.pth": (
+        "ef752daf323314b9c36d8f7a41089661734627d3437aefbee211e7d130c3c80d"
+    ),
+    "checkpoints/best_velocity_model.pth": (
+        "df8b0877c8b71cb5c3c224d69d386d67520417ecbc03728f02a2951abc4d2ae1"
+    ),
+}
+STEM_SPLITTER_CHECKPOINTS = {
+    "stem_splitter.pt": "46e65bdd7cc404580b63676cfbb15049dc31aa4cb69e7cb7f3ddd6d414cfd8d7",
+}
+
 # Only what piano_cover.generate imports; the repo's requirements.txt pins a torch with no macOS
 # wheel (experiments/m1/08_tsumugi.sh).
 GENERATOR_PACKAGES = ("torch==2.13.0", "numpy", "symusic", "safetensors", "huggingface_hub")
@@ -44,6 +81,27 @@ Code: MIT, https://github.com/anime-song/tsumugi-piano-cover"""
 SNAPSHOT_CODE = """import sys
 from huggingface_hub import snapshot_download
 print(snapshot_download(sys.argv[1], revision=sys.argv[2], cache_dir=sys.argv[3]))"""
+
+# tsumugi's own fetchers, the ones its worker calls, so pianoize names none of its URLs: the six
+# AMT models the worker picks per stem, velocity, instrument refinement, beat/chord and the stem
+# splitter. tsumugi isn't installed into its env (its pyproject.toml has `package = false`), so
+# the clone, the cwd the fetchers write relative to, goes on sys.path as the worker puts it. The
+# fetchers announce each download on stdout; on stderr it streams in order with their progress.
+FETCH_CODE = """import os, sys
+sys.path.insert(0, os.getcwd())
+sys.stdout = sys.stderr
+from instrument_agnostic_amt.amt.cli.infer import _ensure_checkpoint
+from instrument_agnostic_amt.beat_chord.cli.infer import ensure_beat_chord_checkpoint
+from instrument_agnostic_amt.instrument_refinement.cli.infer import ensure_refinement_checkpoint
+from instrument_agnostic_amt.velocity.cli.infer_velocity import ensure_velocity_checkpoint
+from stem_splitter.inference import SeparationConfig, ensure_weight_file
+for model_type in ("default", "bass_v2", "drums_v1_5", "guitar_v1_5", "other_v1_5",
+                   "vocal_harmony_v1_5"):
+    _ensure_checkpoint(None, model_type)
+ensure_velocity_checkpoint()
+ensure_refinement_checkpoint()
+ensure_beat_chord_checkpoint()
+ensure_weight_file(SeparationConfig())"""
 
 # A Python exception's line, the reason a failed run quotes (M1's reason() in
 # experiments/m1/08_tsumugi.sh).
@@ -131,6 +189,14 @@ class Install:
         name = "models--" + WEIGHTS_REPO.replace("/", "--")
         return hub_cache() / name / "snapshots" / WEIGHTS_REVISION
 
+    @property
+    def checkpoints(self) -> dict[Path, str]:
+        """tsumugi's ten checkpoints by absolute path, each with its recorded SHA-256."""
+        return {
+            **{self.tsumugi_dir / name: sha for name, sha in TSUMUGI_CHECKPOINTS.items()},
+            **{self.stem_cache / name: sha for name, sha in STEM_SPLITTER_CHECKPOINTS.items()},
+        }
+
     def missing(self) -> list[str]:
         """One phrase per piece that is absent or not at its pin."""
         out = []
@@ -148,6 +214,8 @@ class Install:
                 out.append(f"{name} ({python})")
         if not self.worker.is_file():
             out.append(f"the cover worker ({self.worker})")
+        if not all(path.is_file() for path in self.checkpoints):
+            out.append(f"the tsumugi checkpoints (in {self.tsumugi_dir} and {self.stem_cache})")
         if not all((self.weights / f).is_file() for f in WEIGHTS_FILES):
             out.append(f"the tsumugi-piano-cover weights ({self.weights})")
         return out
@@ -160,12 +228,14 @@ def _tool(name: str) -> str:
     return found
 
 
-def _call(argv: list[str], cwd: Path | None = None) -> str:
-    """Run a command and return its stdout. Its stderr goes straight to the terminal, so uv's
-    and huggingface_hub's progress shows during the minutes a first install takes."""
+def _call(argv: list[str], cwd: Path | None = None, extra: Mapping[str, str] | None = None) -> str:
+    """Run a command, with `extra` added to the environment, and return its stdout. Its stderr
+    goes straight to the terminal, so the progress of uv and of the downloads shows during the
+    minutes a first install takes."""
     # Dropped from every call because only uv reads it: `uv run pianoize` sets it to pianoize's
     # own venv, and uv's project commands such as `uv sync` warn that it doesn't match.
     env = {key: value for key, value in os.environ.items() if key != "VIRTUAL_ENV"}
+    env.update(extra or {})
     try:
         done = subprocess.run(argv, cwd=cwd, env=env, check=True, stdout=subprocess.PIPE, text=True)
     except subprocess.CalledProcessError as exc:
@@ -217,6 +287,37 @@ def _envs(uv: str, install: Install, echo: Echo) -> None:
         _call(argv, cwd)
 
 
+def _sha256(path: Path) -> str:
+    with path.open("rb") as f:
+        return hashlib.file_digest(f, "sha256").hexdigest()
+
+
+def _checkpoints(install: Install, echo: Echo) -> None:
+    if all(path.is_file() for path in install.checkpoints):
+        echo("tsumugi checkpoints: present")
+    else:
+        echo(
+            "downloading tsumugi's checkpoints (about 850 MB, MIT) from "
+            "anime-song/instrument_agnostic_amt and anime-song/stem-splitter"
+        )
+        _call(
+            [str(install.tsumugi_python), "-I", "-c", FETCH_CODE],
+            cwd=install.tsumugi_dir,
+            extra={"STEM_SPLITTER_CACHE": str(install.stem_cache)},
+        )
+    # Checked on every run: what tsumugi fetches is whatever `main` holds.
+    for path, recorded in install.checkpoints.items():
+        if not path.is_file():
+            raise TsumugiError(f"the checkpoint download left out {path}")
+        found = _sha256(path)
+        if found != recorded:
+            raise TsumugiError(
+                f"{path} has SHA-256 {found}, not the recorded {recorded}: tsumugi's checkpoints "
+                "on Hugging Face changed, and the pins recorded in docs/decisions.md need a "
+                "decision"
+            )
+
+
 def _weights(install: Install, echo: Echo) -> None:
     def absent() -> list[Path]:
         return [install.weights / f for f in WEIGHTS_FILES if not (install.weights / f).is_file()]
@@ -235,8 +336,8 @@ def _weights(install: Install, echo: Echo) -> None:
 
 
 def setup(install: Install, echo: Echo) -> None:
-    """Clone tsumugi and tsumugi-piano-cover at their pins, build their envs and download the
-    weights; what is already in place is kept."""
+    """Clone tsumugi and tsumugi-piano-cover at their pins, build their envs and download both
+    models' weights; what is already in place is kept."""
     echo(f"pianoize home: {install.home}")
     # Both up front, so a machine without one fails before any clone.
     git, uv = _tool("git"), _tool("uv")
@@ -245,6 +346,7 @@ def setup(install: Install, echo: Echo) -> None:
     _clone(git, TSUMUGI_URL, TSUMUGI_COMMIT, install.tsumugi_dir, install.tsumugi_commit, echo)
     _clone(git, COVER_URL, COVER_COMMIT, install.cover_dir, install.cover_commit, echo)
     _envs(uv, install, echo)
+    _checkpoints(install, echo)
     _weights(install, echo)
 
 

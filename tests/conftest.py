@@ -1,3 +1,4 @@
+import hashlib
 import json
 import os
 import shutil
@@ -205,6 +206,9 @@ args = sys.argv[1:]
 """
 
 
+FAKE_CHECKPOINT = "checkpoint"
+
+
 class FakePython:
     def __init__(self, path: Path, log: Path) -> None:
         self.path = path
@@ -226,7 +230,9 @@ def fake_python(tmp_path, monkeypatch) -> FakePython:
     """An interpreter script that logs its calls. As `-c CODE REPO REVISION CACHE` it stands in
     for setup's snapshot download: it writes the weights files into CACHE's snapshot of REPO at
     REVISION, leaving out $FAKE_PYTHON_LEAVE_OUT, and prints the snapshot. HF_HUB_CACHE is set to
-    tmp_path/hub.
+    tmp_path/hub. As `-c CODE` alone it stands in for setup's checkpoint fetch: it writes
+    FAKE_CHECKPOINT to each of tsumugi's checkpoints, relative to its cwd and to
+    $STEM_SPLITTER_CACHE, leaving out the one whose file name is $FAKE_PYTHON_LEAVE_OUT.
 
     Given the cover worker, it prints a "Loading" line and two `@@` lines and writes a MIDI
     shaped like tsumugi's transcription to --out; with a file `fail` beside the calls log it
@@ -271,6 +277,15 @@ if len(rest) == 3:
             (snapshot / name).parent.mkdir(parents=True, exist_ok=True)
             (snapshot / name).write_text("weights")
     print(snapshot)
+elif "-c" in args and not rest:
+    # As tsumugi's fetchers do: relative to the cwd, the stem splitter's under its cache.
+    stem_cache = Path(os.environ["STEM_SPLITTER_CACHE"])
+    paths = [Path(name) for name in {list(tsumugi.TSUMUGI_CHECKPOINTS)!r}]
+    paths += [stem_cache / name for name in {list(tsumugi.STEM_SPLITTER_CHECKPOINTS)!r}]
+    for path in paths:
+        if path.name != os.environ.get("FAKE_PYTHON_LEAVE_OUT"):
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text({FAKE_CHECKPOINT!r})
 elif any(Path(arg).name == "tsumugi_worker.py" for arg in args):
     assert Path(option("--audio")).exists(), args
     if (here / "hang").exists():
@@ -357,9 +372,13 @@ def fake_installers(tmp_path, monkeypatch, fake_python) -> FakeInstallers:
     PIANOIZE_HOME set to tmp_path/home and the test run from tmp_path. `git clone URL DIR` makes
     DIR, with the cover worker when URL is the cover's, then fails if $FAKE_GIT_CLONE_FAILS is
     set; `git checkout` only logs. `uv sync` and `uv venv DIR` put the fake interpreter where the
-    env's python goes; `uv pip install` only logs."""
+    env's python goes; `uv pip install` only logs. The checkpoints' recorded SHA-256s are those
+    of the files the fake fetch writes."""
     # A fake handed the wrong cwd then writes into tmp_path, never into the repo's .venv.
     monkeypatch.chdir(tmp_path)
+    fake_sha = hashlib.sha256(FAKE_CHECKPOINT.encode()).hexdigest()
+    for name in ("TSUMUGI_CHECKPOINTS", "STEM_SPLITTER_CHECKPOINTS"):
+        monkeypatch.setattr(tsumugi, name, dict.fromkeys(getattr(tsumugi, name), fake_sha))
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir(exist_ok=True)
     log_call = _LOG_CALL.format(log=str(fake_python.log))
@@ -413,8 +432,8 @@ class FakeInstall(FakePython):
 @pytest.fixture
 def fake_install(tmp_path, monkeypatch, fake_python) -> FakeInstall:
     """A complete pianoize home in tmp_path/home, PIANOIZE_HOME set to it: the commit files at
-    the pins, the fake interpreter as both envs' python, an empty cover worker and the weights
-    in the fake hub."""
+    the pins, the fake interpreter as both envs' python, an empty cover worker, tsumugi's
+    checkpoints and the weights in the fake hub."""
     monkeypatch.setenv("PIANOIZE_HOME", str(tmp_path / "home"))
     install = tsumugi.Install.from_env()
     install.home.mkdir()
@@ -425,6 +444,9 @@ def fake_install(tmp_path, monkeypatch, fake_python) -> FakeInstall:
         shutil.copy(fake_python.path, python)
     install.worker.parent.mkdir(parents=True)
     install.worker.write_text("")
+    for path in install.checkpoints:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(FAKE_CHECKPOINT)
     for name in tsumugi.WEIGHTS_FILES:
         (install.weights / name).parent.mkdir(parents=True, exist_ok=True)
         (install.weights / name).write_text("weights")
