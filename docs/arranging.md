@@ -1,6 +1,6 @@
 # Arranging
 
-How pianoize turns an arrangement an agent writes into a two-hand MIDI. An agent session reads a tsumugi-piano-cover MIDI and tsumugi's melody, with tsumugi's transcription of the whole band where it has one, and writes a per-bar score for two hands into `work/`. pianoize builds the score into MIDI on the cover's tempo grid, every note at one velocity, and checks that it is playable and fits its own chords. The CLI never calls an LLM: the same score and cover give byte-identical MIDI. The reasons are in [docs/decisions.md](decisions.md#m3-an-agent-writes-the-arrangement-2026-10-11).
+How pianoize turns an arrangement an agent writes into a two-hand MIDI. An agent session reads a tsumugi-piano-cover MIDI and tsumugi's melody, with tsumugi's transcription of the whole band where it has one, and writes a per-bar score for two hands into `work/`. pianoize builds the score into MIDI on the cover's tempo grid, every note at one velocity, and checks that it is playable and fits its own chords. The CLI never calls an LLM: the same score and cover give byte-identical MIDI. Without a cover, [`build-grid`](#building-the-grid-from-a-transcription) builds one from tsumugi's transcription alone. The reasons are in [docs/decisions.md](decisions.md#m3-an-agent-writes-the-arrangement-2026-10-11).
 
 ## Workflow
 
@@ -250,6 +250,24 @@ I electric_bass  0:A#1(6)  6:A#1(2)  8:F2(8)
 - **`--bars A-B`** prints bars A to B, both included. A range not written `A-B`, starting below 1 or running backwards exits 2; one past the last bar prints what exists of it, which can be nothing.
 
 A cover whose [meter](#meter) changes, or a type 2 cover, melody or source, prints `error: …` and exits 1.
+
+## Building the grid from a transcription
+
+`pianoize build-grid SOURCE.mid -o GRID.mid [--track NAME ...]` builds the cover for the transcription-only path, which starts from tsumugi's transcription (`source.mid`) and not from its cover MIDI.
+
+- **The conductor** is the grid's first track. It holds every tempo change, time signature and chord marker of the source, from whichever track carries it, merged by tick, so the tempo map lands once. It has no notes, and it ends at the latest end of any source track, so the grid is as long as the transcription.
+- **The tracks** follow in the source's order: each track whose name is one of the `--track` names, matched exactly. `--track` repeats, and its default is `piano` and `electric_bass`. A track keeps everything it carries but the conductor's messages, and ends where its source track did, so a note only the track's end closes keeps its length.
+- **Output.** It prints what it wrote:
+
+  ```
+  conductor: 12 tempo changes, 1 time signatures, 48 markers
+  piano: 530 notes
+  electric_bass: 312 notes
+  ```
+
+  The same source gives byte-identical output, and the write is atomic, as `build-arrangement` does.
+- **Errors.** An `-o` that is the source, under any spelling the disk takes for it, is refused with `would overwrite an input` and exits 2. A type 2 source, one with no tempo map or a `--track` name no track has prints `error: …` and exits 1, writing nothing. The name error lists the tracks the source names.
+- **Then** [regrid](#regridding) the grid and use the copy as `COVER.mid` for every command. The `C` lines of the dump then show the band's piano and bass, not a cover's notes.
 
 ## Running the skill
 

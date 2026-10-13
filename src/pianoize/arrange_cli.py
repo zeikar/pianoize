@@ -11,7 +11,7 @@ from typing import Annotated
 import mido
 import typer
 
-from . import arrange, arrangement, bars, dump, evidence, files, notes, playability, regrid
+from . import arrange, arrangement, bars, dump, evidence, files, grid, notes, playability, regrid
 from .cli import _fail, _read_midi, _refuse_input, app
 
 _RANGE = re.compile(r"(\d+)-(\d+)")
@@ -208,3 +208,39 @@ def regrid_cover(
         )
     if not spans:
         typer.echo("no tempo hiccups")
+
+
+@app.command("build-grid")
+def build_grid(
+    source: Annotated[Path, typer.Argument(metavar="SOURCE.mid", exists=True, dir_okay=False)],
+    out: Annotated[Path, typer.Option("-o", "--out", help="The grid MIDI to write.")],
+    tracks: Annotated[
+        list[str],
+        typer.Option(
+            "--track",
+            metavar="NAME",
+            default_factory=lambda: list(grid.DEFAULT_TRACKS),
+            help="A track of the transcription to copy, by name; repeat it for several. "
+            f"Default: {', '.join(grid.DEFAULT_TRACKS)}.",
+        ),
+    ],
+) -> None:
+    """Build the tempo-grid cover of a transcription: its tempo map, chord markers and band."""
+    _refuse_input(out, [source], "--out")
+    midi = _read_midi(source)
+    try:
+        built = grid.build(midi, tracks)
+    except grid.GridError as exc:
+        raise _fail(f"{source}: {exc}") from exc
+    try:
+        files.write_all({out: built.save})
+    except OSError as exc:
+        raise _fail(str(exc)) from exc
+    conductor, *copied = built.tracks
+    count = [sum(m.type == kind for m in conductor) for kind in grid.CONDUCTOR]
+    typer.echo(
+        f"conductor: {count[0]} tempo changes, {count[1]} time signatures, {count[2]} markers"
+    )
+    for track in copied:
+        played = sum(m.type == "note_on" and m.velocity > 0 for m in track)
+        typer.echo(f"{track.name}: {played} notes")
