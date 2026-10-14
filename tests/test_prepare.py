@@ -299,12 +299,83 @@ def test_prepare_names_a_song_it_cannot_write(fake_install, flac, monkeypatch, t
     assert listing(out) == []
 
 
-def test_prepare_needs_a_melody_track(fake_install, flac, tmp_path):
+def test_an_instrumental_prepares_without_a_melody(fake_install, flac, tmp_path):
     fake_install.log.with_name("no-melody").touch()
     out = tmp_path / "out"
 
     result = prepare(flac, "-o", out)
 
-    assert result.exit_code == 1
-    assert "error: melody: no track named 'melody'; tracks named: " in result.output
+    assert result.exit_code == 0, result.output
+    assert listing(out) == sorted(
+        [
+            "song.wav",
+            "transcription.mid",
+            "source.mid",
+            "cover.mid",
+            "transcribe.log",
+            "generate.log",
+        ]
+    )
+    assert fake_install.records()[-1]["argv"][1:3] == ["-m", "piano_cover.generate"]
+    assert (
+        "melody.mid: none: no track named 'melody'; --melody-track NAME takes a track as the melody"
+        in result.output.splitlines()
+    )
+
+
+def test_melody_track_takes_the_named_track(fake_install, flac, tmp_path):
+    out = tmp_path / "out"
+
+    result = prepare(flac, "-o", out, "--melody-track", "piano")
+
+    assert result.exit_code == 0, result.output
+    assert [t.name for t in mido.MidiFile(out / "melody.mid").tracks] == ["", "piano"]
+    assert "melody.mid: 1 notes" in result.output.splitlines()
+
+
+def unboxed(output: str) -> str:
+    """Typer's usage-error box with its borders removed and its wrapped lines joined."""
+    return " ".join(output.translate(str.maketrans("", "", "│╭╮╰╯─")).split())
+
+
+UNKNOWN_TRACK = (
+    "no track named 'nope'; tracks named: 'Predicted Tempo Map', 'Predicted Chords', 'piano', "
+    "'melody', 'drums'"
+)
+
+
+def test_an_unknown_melody_track_is_a_usage_error(fake_install, flac, tmp_path):
+    out = tmp_path / "out"
+
+    result = prepare(flac, "-o", out, "--melody-track", "nope")
+
+    assert result.exit_code == 2
+    assert UNKNOWN_TRACK in unboxed(result.output)
+    assert "--melody-track" in result.output
     assert listing(out) == ["song.wav", "source.mid", "transcribe.log", "transcription.mid"]
+    calls = len(fake_install.records())
+
+    result = prepare(flac, "-o", out, "--melody-track", "piano")
+
+    assert result.exit_code == 0, result.output
+    assert f"reusing {out / 'source.mid'}" in result.output.splitlines()
+    assert len(fake_install.records()) == calls + 1
+
+
+def test_an_unknown_melody_track_is_refused_on_a_finished_directory(fake_install, flac, tmp_path):
+    out = tmp_path / "out"
+    assert prepare(flac, "-o", out).exit_code == 0
+    calls = len(fake_install.records())
+    before = {p.name: p.read_bytes() for p in out.iterdir()}
+
+    result = prepare(flac, "-o", out, "--melody-track", "nope")
+
+    assert result.exit_code == 2
+    assert UNKNOWN_TRACK in unboxed(result.output)
+    assert len(fake_install.records()) == calls
+    assert {p.name: p.read_bytes() for p in out.iterdir()} == before
+
+    result = prepare(flac, "-o", out, "--melody-track", "melody")
+
+    assert result.exit_code == 0, result.output
+    assert f"reusing {out / 'melody.mid'}" in result.output.splitlines()

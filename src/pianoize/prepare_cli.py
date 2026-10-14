@@ -17,6 +17,8 @@ import typer
 from . import files, grid, steady, tsumugi
 from .cli import _fail, _read_midi, _refuse_input, _stop_on_signals, app
 
+DEFAULT_MELODY_TRACK = "melody"
+
 
 @app.command()
 def setup() -> None:
@@ -86,13 +88,26 @@ def _grid(transcription: Path, source: Path) -> None:
     files.write_all({source: steady.apply(midi, found).save})
 
 
-def _melody(source: Path, melody: Path) -> None:
-    """tsumugi's lead vocal line, the track it names `melody`, on the transcription's tempo map
-    and time signatures, without its chord markers."""
-    try:
-        built = grid.build(
-            _read_midi(source), ["melody"], conductor=("set_tempo", "time_signature")
+def _check_melody_track(source: Path, name: str) -> None:
+    """Refuse a --melody-track the transcription doesn't have, before any melody.mid is reused,
+    so a wrong name never passes quietly."""
+    tracks = _read_midi(source).tracks
+    if not any(track.name == name for track in tracks):
+        named = ", ".join(repr(track.name) for track in tracks if track.name)
+        raise typer.BadParameter(
+            f"no track named {name!r}; tracks named: {named or 'none'}", param_hint="--melody-track"
         )
+
+
+def _melody(source: Path, melody: Path, name: str) -> None:
+    """The transcription's lead line, the track named `name` (tsumugi's `melody` is its lead
+    vocal), on the transcription's tempo map and time signatures, without its chord markers. An
+    instrumental has no `melody` track, and then there is no melody.mid."""
+    midi = _read_midi(source)
+    if name == DEFAULT_MELODY_TRACK and not any(track.name == name for track in midi.tracks):
+        return
+    try:
+        built = grid.build(midi, [name], conductor=("set_tempo", "time_signature"))
     except grid.GridError as exc:
         raise _fail(f"melody: {exc}") from exc
     files.write_all({melody: built.save})
@@ -122,7 +137,13 @@ def _summary(wav: Path, source: Path, melody: Path, cover: Path) -> None:
     tracks = _read_midi(source).tracks
     counts = ", ".join(f"{track.name or '(unnamed)'} {_notes(track)}" for track in tracks)
     typer.echo(f"source.mid: {len(tracks)} tracks: {counts}")
-    typer.echo(f"melody.mid: {sum(map(_notes, _read_midi(melody).tracks))} notes")
+    if melody.exists():
+        typer.echo(f"melody.mid: {sum(map(_notes, _read_midi(melody).tracks))} notes")
+    else:
+        typer.echo(
+            f"melody.mid: none: no track named {DEFAULT_MELODY_TRACK!r}; "
+            "--melody-track NAME takes a track as the melody"
+        )
     played = _read_midi(cover)
     typer.echo(f"cover.mid: {sum(map(_notes, played.tracks))} notes, {played.length:.1f} s")
 
@@ -146,6 +167,15 @@ def prepare(
             help="Where song.wav, transcription.mid, source.mid, melody.mid and cover.mid go.",
         ),
     ],
+    melody_track: Annotated[
+        str | None,
+        typer.Option(
+            "--melody-track",
+            metavar="NAME",
+            help="A track of the transcription to take as melody.mid instead of `melody`, for an "
+            "instrumental's lead.",
+        ),
+    ] = None,
 ) -> None:
     """Decode a song, transcribe it with tsumugi, fit its steady tempo grid, take its melody and
     generate its cover.
@@ -183,8 +213,12 @@ def prepare(
                 if not _reusing(transcription):
                     _transcribe(install, wav, transcription, scratch)
                 _grid(transcription, source)
+            if melody_track is not None:
+                _check_melody_track(source, melody_track)
             if not _reusing(melody):
-                _melody(source, melody)
+                _melody(
+                    source, melody, DEFAULT_MELODY_TRACK if melody_track is None else melody_track
+                )
             if not _reusing(cover):
                 _generate(install, source, cover, scratch)
     except (tsumugi.TsumugiError, OSError) as exc:
