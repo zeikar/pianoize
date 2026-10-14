@@ -360,4 +360,6 @@ A second scratch script printed the drums per bar.
 
 The second song's first downbeat matched the song's own bars.
 
+**The real runs** through `prepare` printed the same tempo, first downbeat and coverage as the probes (170.00 bpm, 0.706 s, 89%; 171.96 bpm, 0.799 s, 77%). The second song's cover took 67 to 68 s to generate (a 307 s song) and the instrumental's 21 s. Two runs of `prepare` from the same `transcription.mid` gave byte-identical `source.mid` and `cover.mid`. `regrid` found no tempo hiccups in the new cover, and its bars 2 to 4 start within 10 ms of the fitted grid.
+
 **The limits** are in [the tempo grid](preparing.md#the-tempo-grid). Directories made before this are not migrated ([reusing outputs](preparing.md#reusing-outputs)).
