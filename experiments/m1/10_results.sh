@@ -48,7 +48,7 @@ for name in $covers; do
 done
 XDG_CACHE_HOME="$CHORDOTOMY_XDG_CACHE_HOME" "$PIANOIZE" evaluate \
   --original "$ORIGINAL" \
-  --checkpoints "$M1/momonone.checkpoints.json" \
+  --checkpoints "$M1/song.checkpoints.json" \
   --out-dir "$RESULTS" \
   "${rows[@]}"
 

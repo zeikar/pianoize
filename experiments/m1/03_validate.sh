@@ -30,7 +30,7 @@ analyzed=1
 start=$SECONDS
 XDG_CACHE_HOME="$CHORDOTOMY_XDG_CACHE_HOME" "$PIANOIZE" evaluate \
   --original "${SONG_MP3%.mp3}.chords.json" \
-  --checkpoints "$M1/momonone.checkpoints.json" \
+  --checkpoints "$M1/song.checkpoints.json" \
   --out-dir "$RESULTS" \
   "human=${COVER_MP3%.mp3}.chords.json" \
   "original-wav=$M1/input/song.wav"

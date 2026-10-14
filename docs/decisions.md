@@ -38,7 +38,7 @@ The code is published under MIT (2026-10-12), so no GPL or AGPL code goes into t
 
 ## What goes into a video
 
-A video carries only the piano pianoize renders, never the original audio or vocals separated from it. Its description credits the song, the artist and the composer, and the arrangement model, tsumugi-piano-cover (anime-song, CC BY-NC 4.0), whose license asks for attribution. Songs under a creator's fan-work guidelines follow them. For モモノネ that is hololive's music guidelines ([hololivepro.com/terms](https://hololivepro.com/terms/), read 2026-10-13): the credit is required, and registering the video with Content ID or any other automatic identification is not allowed. Corporate use, and for-profit use beyond the sharing site's own monetization, is refused; an individual may use the site's partner program, YouTube's ad revenue included. Before uploading, check that the song is not on the guidelines' exclusion list, and its registration with JASRAC or NexTone, whose databases the guidelines point to.
+A video carries only the piano pianoize renders, never the original audio or vocals separated from it. Its description credits the song, the artist and the composer, and the arrangement model, tsumugi-piano-cover (anime-song, CC BY-NC 4.0), whose license asks for attribution. Songs under a creator's fan-work guidelines follow them. For a hololive song that is hololive's music guidelines ([hololivepro.com/terms](https://hololivepro.com/terms/), read 2026-10-13): the credit is required, and registering the video with Content ID or any other automatic identification is not allowed. Corporate use, and for-profit use beyond the sharing site's own monetization, is refused; an individual may use the site's partner program, YouTube's ad revenue included. Before uploading, check that the song is not on the guidelines' exclusion list, and its registration with JASRAC or NexTone, whose databases the guidelines point to.
 
 What the video shows on screen is in [M4](#m4-the-falling-notes-renderer-2026-10-12).
 
@@ -108,7 +108,7 @@ The SoundFont is Salamander Grand Piano V3 (SF2; CC BY 3.0, Alexander Holm; [Fre
 
 ## M1 results (2026-10-09)
 
-The runs were on 2026-10-09, one day after the license check above. The song is one recording, scored on 20 checkpoints (68 segments) taken from it; how a row is scored is in [docs/evaluation.md](evaluation.md), including the beat-grid distance. The checkpoint times and chords stay in `work/m1/momonone.checkpoints.json`. Everything below is from `work/m1/results/table.md`, `melody.md`, `not-run.md` and `first-note.txt`, unless another file is named.
+The runs were on 2026-10-09, one day after the license check above. The song is one recording, scored on 20 checkpoints (68 segments) taken from it; how a row is scored is in [docs/evaluation.md](evaluation.md), including the beat-grid distance. The checkpoint times and chords stay in `work/m1/song.checkpoints.json`. Everything below is from `work/m1/results/table.md`, `melody.md`, `not-run.md` and `first-note.txt`, unless another file is named.
 
 GAME, Etude and tsumugi's transcriber are not deterministic (GAME and Etude were seen to give different output on a second run), so their rows are one draw. tsumugi-piano-cover's generator is seeded (seed 0).
 
