@@ -365,3 +365,22 @@ The second song's first downbeat matched the song's own bars.
 **The real runs** through `prepare` printed the same tempo, first downbeat and coverage as the probes (170.00 bpm, 0.706 s, 89%; 171.96 bpm, 0.799 s, 77%). The second song's cover took 67 to 68 s to generate (a 307 s song) and the instrumental's 21 s. Two runs of `prepare` from the same `transcription.mid` gave byte-identical `source.mid` and `cover.mid`. `regrid` found no tempo hiccups in the new cover, and its bars 2 to 4 start within 10 ms of the fitted grid.
 
 **The limits** are in [the tempo grid](preparing.md#the-tempo-grid). Directories made before this are not migrated ([reusing outputs](preparing.md#reusing-outputs)).
+
+## The viewer on GitHub Pages (2026-10-14)
+
+**Why.** The viewer ran only behind pianoize's local server, which serves the run's manifest, notes and audio. The user asked for it on GitHub Pages, opening files they pick: "지금 뷰어가 github pages로 안뜨지? 추가하고 사용자 입력한 파일 볼수있게 하자."
+
+**The user's choices.**
+
+- **The input:** the arrangement JSON and an audio file, chosen over the arranged MIDI itself, which needs a MIDI reader in JavaScript beside `roll.export`, and over a saved preview run (manifest, notes and padded audio), which needs a new CLI option.
+- **The audio is required.** The `<audio>` control stays the clock, chosen over a silent mode with its own transport.
+
+**Decisions.**
+
+- **One page.** `main.js` fetches `run/manifest.json` by a relative path; a 404 shows the file picker. The preview and the capture are unchanged, and the page works below `/pianoize/`.
+- **The files stay in the browser.** They are read through blob URLs and sent nowhere, so the rule that audio never leaves the machine holds.
+- **The JSON is checked.** `load()` refuses a file with no `notes` array or a pitch off the 88 keys, which `export-arrangement` never writes; a picked file can, and one such note threw inside the animation frame and stopped the drawing for good.
+- **No cards or lead-in.** The audio's 0 s is the music's 0 s, so the page draws the roll from 0 s and never reaches the credits.
+- **`color-scheme: dark`** gives the picker light text and dark controls without a colour in the CSS. It darkens the preview's audio control too.
+- **The deploy.** A GitHub Actions workflow, since a branch deploy publishes only the root or `docs/`. It uploads only the page's files.
+- **Licenses (checked 2026-10-14).** The workflow's actions are MIT: actions/checkout v7.0.1, actions/configure-pages v6.0.0, actions/upload-pages-artifact v5.0.0 and actions/deploy-pages v5.0.1, each the latest release on GitHub. They run in GitHub's CI and are not in the repository or a dependency of it.

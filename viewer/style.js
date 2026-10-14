@@ -42,6 +42,13 @@ export const style = {
     seconds: 3,
   },
 
+  // The file picker the page shows without a run, as on GitHub Pages. Its padding is also
+  // the space between its lines; its text is in the cards' font.
+  picker: {
+    padding: 16,
+    error: "#ff8a80",
+  },
+
   cards: {
     fontFamily: "Helvetica Neue, Arial, sans-serif",
     titleSize: 72,

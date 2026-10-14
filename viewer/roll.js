@@ -1,3 +1,5 @@
+import { FIRST_PITCH, LAST_PITCH } from "./keyboard.js";
+
 export const FORMAT_VERSION = 1;
 
 export function load(json) {
@@ -5,6 +7,16 @@ export function load(json) {
     throw new Error(
       `arrangement format_version ${json.format_version}, this viewer reads ${FORMAT_VERSION}`,
     );
+  }
+  // export-arrangement never writes these, but a file picked on GitHub Pages can hold them, and
+  // a pitch off the keys has no lane to fall in.
+  if (!Array.isArray(json.notes)) throw new Error("the arrangement has no notes array");
+  for (const n of json.notes) {
+    if (!Number.isInteger(n?.pitch) || n.pitch < FIRST_PITCH || n.pitch > LAST_PITCH) {
+      throw new Error(
+        `a note's pitch ${n?.pitch} is off the 88 keys (${FIRST_PITCH} to ${LAST_PITCH})`,
+      );
+    }
   }
   return json.notes;
 }

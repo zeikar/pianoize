@@ -1,5 +1,11 @@
-/* No colours or sizes here: main.js sets the background and the canvas's pixel size from
-   style.js. */
+/* No colours or sizes here: main.js sets the background, the canvas's pixel size and the
+   picker's spacing from style.js. */
+
+/* Light text and dark controls on the dark background. */
+:root {
+  color-scheme: dark;
+}
+
 body {
   margin: 0;
   display: flex;
@@ -20,6 +26,27 @@ canvas {
 audio {
   display: block;
   width: 100%;
+}
+
+/* The file picker, shown only when the page has no run. A display here would override the
+   hidden attribute, so the rule skips a hidden form. */
+form:not([hidden]) {
+  display: flex;
+  flex-direction: column;
+  /* So a label is as wide as its text, and a click beside it doesn't open the dialog. */
+  align-items: flex-start;
+}
+
+form p {
+  margin: 0;
+}
+
+form code {
+  white-space: nowrap;
+}
+
+form p:empty {
+  display: none;
 }
 
 /* Capture screenshots the page at the canvas's pixel size, so it must not be scaled. */

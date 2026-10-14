@@ -138,23 +138,34 @@ Two renders of the same inputs with the same Chrome and ffmpeg gave identical fr
 
 ## The viewer
 
-`viewer/` is the page, plain ES modules with no build step. Python serves it and the run's files, and Chrome captures it.
+`viewer/` is the page, plain ES modules with no build step. Python serves it and the run's files, and Chrome captures it. It is also published on GitHub Pages ([below](#on-github-pages)).
 
 | file | what it is for |
 | --- | --- |
-| `index.html`, `style.css` | The page: an `<audio>` control and a canvas. The CSS has no colours or sizes. |
+| `index.html`, `style.css` | The page: the file picker, an `<audio>` control and a canvas. The CSS has no colours or sizes. |
 | `style.js` | Every colour and size, and the fall time (`fall.seconds`). No other module holds one. Timing that is not the fall time lives in Python. |
 | `keyboard.js` | The 88 keys' layout: positions and sizes of the white and black keys. |
 | `roll.js` | The data: `FORMAT_VERSION`, loading the notes, the phase at a time (title, roll, credits), which keys are pressed, and the falling notes' rectangles. |
 | `draw.js` | Draws one frame at a time `t` on the canvas. |
-| `main.js` | Loads the manifest and the notes, and runs the page in one of its two modes. |
+| `main.js` | Loads the manifest and the notes, and runs the page in one of its three modes. |
 | `capture.mjs` | Loads the page in Chrome and writes a PNG per frame to stdout. |
 | `test/` | Node tests of the layout and the data. |
 
 - **The manifest.** The run's directory is served at `/run/`. `/run/manifest.json` names the run's `arrangement.json` and `audio.wav`, and holds the cards' lines and the timeline's `music_start`, `music_end` and `end`.
-- **Two modes.** Without a query, the page is the preview: it draws a frame at the audio control's current time on every animation frame. With `?capture` it hides the control and draws nothing by itself; `capture.mjs` calls `window.pianoize.drawAt(t)` for frame `i` at `t = i / FPS` and screenshots it.
+- **Three modes.** Without a query, the page is the preview: it draws a frame at the audio control's current time on every animation frame. With `?capture` it hides the control and draws nothing by itself; `capture.mjs` calls `window.pianoize.drawAt(t)` for frame `i` at `t = i / FPS` and screenshots it. Where `run/manifest.json` is a 404, as on GitHub Pages, it shows the file picker. It fetches the run's files by relative paths, so it works below a path too.
 - **The sync rule.** A key lights while `on <= tMusic < off`, where `tMusic` is the video's time minus `music_start`. A note's key lights on the first frame at or after its onset, so within one frame (1/60 s) of the sound's start. The sync test measured the key lighting on the onset's frame, while the Salamander piano's attack passes −40 dBFS (0.01) about 20 ms later.
 - **Tests.** `cd viewer && npm ci && npm test` runs the Node tests. They need no browser.
 - **The npm cache** is npm's default, `~/.npm`.
 
 The Python tests are `tests/test_roll.py`, `tests/test_video.py` and `tests/test_serve.py`. `uv run --frozen pytest -m "not video"` skips the slow ones that capture in Chrome and encode. The sync test also needs `PIANOIZE_SOUNDFONT` and FluidSynth.
+
+### On GitHub Pages
+
+The page is at <https://zeikar.dev/pianoize/>; `zeikar.github.io/pianoize/` redirects there. It has no run there, so it shows an empty keyboard and asks for two files:
+
+- **The arrangement JSON**, from `pianoize export-arrangement`. A file that isn't JSON, has another `format_version`, has no `notes` array or has a pitch off the 88 keys shows its error under the picker.
+- **Its audio**, such as the WAV `pianoize render` writes from the same MIDI. Any audio the browser plays will do. It is required: the `<audio>` control is the page's clock.
+
+The files are read in the browser and sent nowhere. The audio's 0 s is the music's 0 s, so there are no cards and no lead-in: notes that start in the first 3 s (`fall.seconds`) are already falling at 0 s. Picking other files replaces both.
+
+`.github/workflows/pages.yml` publishes it on a push to `main` that touches `viewer/` or the workflow, and on a manual run. The repository's Pages source is set to GitHub Actions; without that, the deploy fails. It uploads only `index.html`, `style.css` and the `*.js` modules, not `capture.mjs`, the tests or the npm files.

@@ -19,6 +19,14 @@ test("load rejects version 2 naming both versions", () => {
   assert.throws(() => load({ format_version: 2, notes: [] }), /2.*1/);
 });
 
+test("load rejects a missing notes array and a pitch off the keys", () => {
+  assert.throws(() => load({ format_version: FORMAT_VERSION }), /no notes array/);
+  for (const pitch of [20, 109, 60.5, undefined]) {
+    const notes = [{ pitch, hand: "right", on: 0, off: 1 }];
+    assert.throws(() => load({ format_version: FORMAT_VERSION, notes }), /off the 88 keys/);
+  }
+});
+
 test("phase at each boundary", () => {
   const tl = { music_start: 6, music_end: 20, end: 26 };
   assert.equal(phase(0, tl, FALL), "title");

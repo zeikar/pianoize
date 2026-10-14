@@ -22,11 +22,12 @@ Status: M1 tooling runs: `pianoize evaluate`, `render` and `melody-clashes`. The
 ## Layout
 
 - `src/pianoize/`: the arrangement engine, in Python
-- `viewer/`: the falling-notes page and its capture script, plain HTML, CSS and ES modules, with playwright-core installed by `npm ci` in `viewer/`
+- `viewer/`: the falling-notes page and its capture script, plain HTML, CSS and ES modules, with playwright-core installed by `npm ci` in `viewer/`; the page is also on [GitHub Pages](https://zeikar.dev/pianoize/), where it plays an arrangement JSON with its audio, both read in the browser ([docs/rendering.md](docs/rendering.md#on-github-pages))
 - `experiments/`: [M1 model trial](experiments/m1/README.md) scripts; the scripts and their environments lived in `work/m1/`; the tsumugi install moved to the pianoize home
 - `docs/`: [design decisions](docs/decisions.md), [song preparation](docs/preparing.md), [the score format and the arranging commands](docs/arranging.md), and [the arrangement JSON, the viewer and the video commands](docs/rendering.md)
 - `skills/`: the Claude Code skills; [`prepare-song`](skills/prepare-song/SKILL.md) makes a song's inputs, [`polish-cover`](skills/polish-cover/SKILL.md) drives the M2 polishing commands, [`arrange-cover`](skills/arrange-cover/SKILL.md) the M3 arranging commands, and the experimental [`arrange-transcription`](skills/arrange-transcription/SKILL.md) the same from the transcription alone
 - `.claude-plugin/`: the manifests that make the repository a Claude Code plugin and its own marketplace
+- `.github/workflows/`: `pages.yml`, which publishes the viewer to GitHub Pages
 - `work/`: recordings and everything made from them, gitignored
 
 The engine and the viewer meet at a documented arrangement JSON: the notes and the hand playing each ([docs/rendering.md](docs/rendering.md#the-arrangement-json)).

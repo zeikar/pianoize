@@ -2,11 +2,20 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>pianoize</title>
+<link rel="icon" href="data:,">
 <link rel="stylesheet" href="style.css">
 <script type="module" src="main.js"></script>
 </head>
 <body>
+<form id="files" hidden>
+<p>Pick an arrangement JSON from <code>pianoize export-arrangement</code> and its audio, such as
+<code>pianoize render</code>'s WAV. They are read in this browser and sent nowhere.</p>
+<label>Arrangement JSON <input type="file" name="arrangement" accept=".json,application/json"></label>
+<label>Audio <input type="file" name="audio" accept="audio/*"></label>
+<p id="error" role="alert"></p>
+</form>
 <audio id="audio" controls></audio>
 <canvas id="screen"></canvas>
 </body>

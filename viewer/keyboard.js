@@ -1,5 +1,5 @@
-const FIRST_PITCH = 21; // A0
-const LAST_PITCH = 108; // C8
+export const FIRST_PITCH = 21; // A0
+export const LAST_PITCH = 108; // C8
 const WHITE_KEYS = 52;
 // Pitch classes C#, D#, F#, G#, A#.
 const BLACK_CLASSES = new Set([1, 3, 6, 8, 10]);
