@@ -1,10 +1,10 @@
 # Preparing a song
 
-How pianoize makes a song's arranging inputs from its recording. `pianoize setup` installs tsumugi and tsumugi-piano-cover once, pinned, outside the repository. `pianoize prepare` decodes the recording, transcribes it with tsumugi, takes its melody and generates its piano cover: `source.mid`, `melody.mid` and `cover.mid`, which [docs/arranging.md](arranging.md) starts from. Both models run as separately installed tools, each with its own interpreter; pianoize imports neither. The reasons are in [docs/decisions.md](decisions.md#song-preparation-the-models-move-out-of-work-2026-10-13).
+How pianoize makes a song's arranging inputs from its recording. `pianoize setup` installs tsumugi and tsumugi-piano-cover once, pinned, outside the repository. `pianoize prepare` decodes the recording, transcribes it with tsumugi, fits a steady tempo grid to the transcription, takes its melody and generates its piano cover: `transcription.mid`, `source.mid`, `melody.mid` and `cover.mid`. [docs/arranging.md](arranging.md) starts from the last three. An instrumental has no melody, and `melody.mid` is then left out or taken from the track `--melody-track` names. Both models run as separately installed tools, each with its own interpreter; pianoize imports neither. The reasons are in [docs/decisions.md](decisions.md#song-preparation-the-models-move-out-of-work-2026-10-13).
 
 ```
 pianoize setup
-pianoize prepare AUDIO -o DIR
+pianoize prepare AUDIO -o DIR [--melody-track NAME]
 ```
 
 ## Setup
@@ -109,8 +109,9 @@ Where the variables above are set, remove the home and the hub cache's `models--
 | file | made by | what it is |
 | --- | --- | --- |
 | `song.wav` | decoding `AUDIO` with libsndfile | the recording as a 16-bit PCM WAV at its own rate and channels; tsumugi's stem splitter resamples it to 44.1 kHz itself |
-| `source.mid` | tsumugi, through Cover Studio's worker | the band's transcription: a track per instrument, `drums` among them, the tempo map (`Predicted Tempo Map`), the chord markers (`Predicted Chords`) and the lead vocal, `melody` |
-| `melody.mid` | pianoize, from `source.mid` | an unnamed first track with `source.mid`'s tempo changes and time signatures, no chord markers, then its `melody` track |
+| `transcription.mid` | tsumugi, through Cover Studio's worker | the band's transcription as tsumugi wrote it: a track per instrument, `drums` among them, the tempo map (`Predicted Tempo Map`), the chord markers (`Predicted Chords`) and the lead vocal, `melody`. It is kept and read only when `source.mid` is made |
+| `source.mid` | pianoize, from `transcription.mid` | the transcription on a steady tempo grid ([below](#the-tempo-grid)), or a byte copy of it when the fit is not applied |
+| `melody.mid` | pianoize, from `source.mid` | an unnamed first track with `source.mid`'s tempo changes and time signatures, no chord markers, then its `melody` track, or the track `--melody-track` names. An instrumental has no `melody` track, and then no `melody.mid` |
 | `cover.mid` | tsumugi-piano-cover's generator, `piano_cover.generate`, from `source.mid` | the piano cover, seed 0 |
 | `transcribe.log` | the transcription | tsumugi's output |
 | `generate.log` | the generation | the generator's output |
@@ -120,6 +121,7 @@ A made-up run prints:
 ```
 transcribing with tsumugi, about twice the song's length on an Apple-silicon Mac; log: /…/work/a-made-up-song/transcribe.log
 transcribe: 431 s
+tempo grid: 128.00 bpm, first downbeat at 0.512 s, 91% of 5210 attacks within a quarter sixteenth (29 ms)
 generating the cover with tsumugi-piano-cover, about a third of the song's length on an Apple-silicon Mac; log: /…/work/a-made-up-song/generate.log
 generate: 68 s
 song.wav: 212.4 s
@@ -129,8 +131,30 @@ cover.mid: 2214 notes, 210.9 s
 ```
 
 - **Each tool step** prints a line as it starts, naming its log, and its wall time in seconds when it ends. The decode and the melody print nothing. Every path printed is absolute.
-- **The summary** is the last four lines: `song.wav`'s length in seconds; `source.mid`'s tracks, each with its notes, in the file's order, a track without a name as `(unnamed)`; `melody.mid`'s notes; `cover.mid`'s notes and its length in seconds. A note is a note-on with a velocity above 0. Every run that succeeds prints it, from reused files too.
+- **The grid** prints one `tempo grid:` line when `source.mid` is made: the fit, or why it is not applied ([below](#the-tempo-grid)).
+- **The summary** is the last four lines: `song.wav`'s length in seconds; `source.mid`'s tracks, each with its notes, in the file's order, a track without a name as `(unnamed)`; `melody.mid`'s notes, or on an instrumental `melody.mid: none: no track named 'melody'; --melody-track NAME takes a track as the melody`; `cover.mid`'s notes and its length in seconds. A note is a note-on with a velocity above 0. Every run that succeeds prints it, from reused files too.
 - **The logs** hold each tool's output and errors in order, written a line at a time, so `tail -f` follows a run, and a progress bar's redraws come as lines of their own. The `@@` lines the worker streams to Cover Studio's page are left out. tsumugi's log names the device as it loads each model (`Loading … on mps`). A step that runs again starts its log afresh; a failed step's log stays.
+
+### The tempo grid
+
+tsumugi's tempo map comes from a beat tracker, which can run at half speed over a long stretch of a song and squeeze bars elsewhere. The bar lines then fall off the song's downbeats, and the cover model, which builds its beat rows from `source.mid`'s tempo map, bends its rhythm with them ([why](decisions.md#steady-tempo-grid-and-instrumentals-2026-10-14)). So `prepare` fits one steady tempo to the transcription (`src/pianoize/steady.py`) and writes `source.mid` on it, before the melody and the cover are made. A fit that isn't good leaves the map alone, and `source.mid` is then tsumugi's file as it was.
+
+- **The attacks** are every note-on of every track, drums included, as distinct seconds rounded to the millisecond, so a chord counts once. Drums mark the beat best.
+- **The tempo band** is 15% either side of tsumugi's dominant tempo, the median of its tempo segments weighted by their seconds, so the search cannot settle on double or half speed: a nearest-sixteenth cost always prefers double.
+- **The search** fits a sixteenth grid, a tempo and an offset: every tempo in the band on a 0.01 bpm step, and 32 offsets within a sixteenth. Its cost is the attacks' mean distance to the nearest sixteenth, each distance capped at three eighths of a sixteenth so a slip, an ornament or a triplet doesn't pull the grid. The step is 0.01 bpm because over a 5-minute song a 0.01 bpm error drifts 18 ms, so a coarse pass would miss it.
+- **On the grid** means within a quarter of a sixteenth, 22 ms at 170 bpm. The window scales with the tempo so that attacks placed at random land on the grid half the time at every tempo; with a fixed window no single percentage could gate every song.
+- **A good fit** has at least 300 distinct attacks and at least 70% of them on the grid. The best grid the search finds for randomly timed attacks over 60 s reaches 62% with 300 attacks, whatever the tempo, and up to 73% with 100; real transcriptions are far above both.
+- **The first downbeat** comes from tsumugi's own bar lines. Each bar line inside a tempo segment within 5% of the fitted tempo votes for the sixteenth of the bar it falls on, and that sixteenth must hold more than half of the votes. Where tsumugi's tempo is right its bars are right. A tempo a little off passes the 5% test but drifts through every sixteenth of the bar, so it gets no majority. A downbeat within the window of a bar line counts as the bar line.
+- **What changes** is the tempo map and the ticks, never a note's time. The new map is the steady tempo from tick 0. When the song starts off a downbeat, bar 1 is a pickup bar at the tempo that fits it into the seconds before the first downbeat, and the steady tempo starts at bar 2; this keeps tick 0 at 0 s and the bar lines on the downbeats. Every event of every track moves to the tick nearest its seconds, so it keeps them within half a tick. Type, resolution, track order, tsumugi's meter and every other message stay as they were.
+- **When it is applied,** the line is `tempo grid: B bpm, first downbeat at D s, P% of N attacks within a quarter sixteenth (W ms)`. The measured fits on two songs are in [the decision](decisions.md#steady-tempo-grid-and-instrumentals-2026-10-14).
+- **It is not applied** when one of these holds, and `source.mid` is then a byte copy of `transcription.mid`. The line is `tempo grid: keeping tsumugi's tempo map: ` and the reason:
+  - `N distinct attacks, fewer than 300`.
+  - The meter changes, or is not a whole number of sixteenths (the error is `bars.meter`'s own text).
+  - `best fit B bpm puts P% of N attacks within a quarter sixteenth, under 70%`.
+  - `none of tsumugi's bars run within 5% of B bpm, so the downbeats are unknown`.
+  - `tsumugi's bars agree on no downbeat: the most-voted sixteenth holds K of M bar lines`.
+- **The limits.** One steady tempo or none: a song that really changes tempo, or has a rubato stretch, keeps its seconds there and its bar lines sit off the bars, because the grid does not follow it. A song tsumugi tracks at half speed throughout grids at half speed, since the octave comes from tsumugi's dominant tempo. Notes are not quantized: they keep their seconds.
+- **`regrid` stays** ([docs/arranging.md](arranging.md#regridding)) for covers made before the grid and for songs whose fit is not applied.
 
 ### Devices and time
 
@@ -138,7 +162,7 @@ tsumugi runs on CUDA, else MPS, else the CPU; the generator on CUDA, else the CP
 
 ### Reusing outputs
 
-A step whose output is already in `DIR` is skipped, with `reusing <path>`, and the steps after it read that file. Each output is matched by its name alone, each on its own: `prepare` doesn't check which recording, or which `source.mid`, a file came from. So:
+A step whose output is already in `DIR` is skipped, with `reusing <path>`, and the steps after it read that file. Each output is matched by its name alone, each on its own: `prepare` doesn't check which recording, or which `source.mid`, a file came from. `transcription.mid` is looked for only when `source.mid` is missing. So:
 
 - **One directory per recording.** Run another recording into a directory that holds a song's files, and it reuses them.
 - **A failed or stopped run** is finished by running the same command again: what it finished is reused.
@@ -146,16 +170,20 @@ A step whose output is already in `DIR` is skipped, with `reusing <path>`, and t
 
   | to redo | delete |
   | --- | --- |
-  | `song.wav` | all four: `song.wav`, `source.mid`, `melody.mid` and `cover.mid` |
-  | `source.mid` | `source.mid`, `melody.mid` and `cover.mid`: a new transcription is a new draw, and the melody and the cover come from it |
+  | `song.wav` | all five: `song.wav`, `transcription.mid`, `source.mid`, `melody.mid` and `cover.mid` |
+  | `transcription.mid` | it and the three made from it: `source.mid`, `melody.mid` and `cover.mid`. A new transcription is a new draw |
+  | `source.mid` | it, `melody.mid` and `cover.mid`: it is gridded again from `transcription.mid`, which is transcribed first if there is none |
   | `melody.mid` | `melody.mid` alone |
   | `cover.mid` | `cover.mid` alone |
 
-The install is checked before any step, so even a run that would reuse all four needs it.
+- **A directory from before the grid** has a raw `source.mid` and no `transcription.mid`. It is reused as it is and runs no tool; nothing is migrated. To grid its draw, copy `source.mid` to `transcription.mid`, then delete `source.mid`, `melody.mid` and `cover.mid`. This applies to a directory made before 2026-10-14.
+- **`--melody-track`.** A known name reuses an existing `melody.mid`, whichever track it was made from; delete `melody.mid` to take another track. An unknown name is refused before `melody.mid` is reused.
+
+The install is checked before any step, so even a run that would reuse all five needs it.
 
 ### Writing
 
-Each output appears whole or not at all. `song.wav` and `melody.mid` are written to a scratch file beside their destination and renamed into place. The tools write `source.mid` and `cover.mid` into a scratch directory, `.prepare-*` in `DIR`, from which each is renamed into place once its step succeeds. The scratch directory also holds tsumugi's stems while it runs, and is removed when the run ends, whether it succeeds, fails or is [stopped](#stopping). A run killed outright, by SIGKILL (`kill -9`) or a crash, leaves its `.prepare-*` directory behind, and later runs don't sweep it: delete it by hand. Either way, a failed or stopped step leaves no output, never a partial one, and a file `prepare` reuses is a finished one.
+Each output appears whole or not at all. `song.wav`, `source.mid` and `melody.mid` are written by pianoize to a scratch file beside their destination and renamed into place. The tools write `transcription.mid` and `cover.mid` into a scratch directory, `.prepare-*` in `DIR`, from which each is renamed into place once its step succeeds. The scratch directory also holds tsumugi's stems while it runs, and is removed when the run ends, whether it succeeds, fails or is [stopped](#stopping). A run killed outright, by SIGKILL (`kill -9`) or a crash, leaves its `.prepare-*` directory behind, and later runs don't sweep it: delete it by hand. Either way, a failed or stopped step leaves no output, never a partial one, and a file `prepare` reuses is a finished one.
 
 ### Stopping
 
@@ -163,7 +191,7 @@ Ctrl-C, `kill` (SIGTERM) and closing the terminal (SIGHUP) stop it the same way:
 
 ### Errors
 
-Usage errors exit 2: an `AUDIO` that doesn't exist or is a directory, no `-o`, and a `DIR` whose `song.wav` would be `AUDIO` itself (`would overwrite an input`). Everything else prints one line and exits 1. Most name their step, and a tool's failure names the tool:
+Usage errors exit 2: an `AUDIO` that doesn't exist or is a directory, no `-o`, a `DIR` whose `song.wav` would be `AUDIO` itself (`would overwrite an input`), and a `--melody-track` the transcription doesn't have (`no track named 'NAME'; tracks named: …`, listing the named tracks). Everything else prints one line and exits 1. Most name their step, and a tool's failure names the tool:
 
 ```
 error: not installed under <home>: <what is missing>; run `pianoize setup`
@@ -179,16 +207,16 @@ error: tsumugi-piano-cover generate failed (<exit code>): <reason>; log: <DIR>/g
 - **Not installed** is checked first. Each missing piece is named with its path, tsumugi's checkpoints among them: `tsumugi at a700b8c (…)`, `the tsumugi-piano-cover weights (…)`.
 - **decode** refuses a format libsndfile doesn't read, an m4a for one (`Format not recognised`). Converting it locally keeps the audio on the machine: `ffmpeg -i song.m4a song.flac`.
 - **A tool's failure** quotes, as its reason, the output's last line naming a Python exception (`RuntimeError: …`), else its last non-blank line that isn't an `@@` line, cut to 200 characters. Read the log for the rest. A tool that exits 0 without its file fails as `tsumugi transcribe wrote no …; log: …` or `tsumugi-piano-cover generate wrote no …; log: …`, and an interpreter that won't start as `cannot run <interpreter>: …`.
-- **melody** fails on a `source.mid` without a `melody` track, `melody: no track named 'melody'; tracks named: …`, or without a tempo map.
-- **A file in `DIR` that isn't MIDI**, reused as `source.mid`, `melody.mid` or `cover.mid`, fails as `<path>: cannot read MIDI: …`.
+- **melody** fails on a `source.mid` without a tempo map. A missing `melody` track is no error: an instrumental has no `melody.mid`. A missing track named by `--melody-track` is a usage error, above.
+- **A file in `DIR` that isn't MIDI**, reused as `transcription.mid`, `source.mid`, `melody.mid` or `cover.mid`, fails as `<path>: cannot read MIDI: …`. A corrupt `transcription.mid` fails every rerun that needs it; delete it to transcribe again.
 - **A `DIR` that can't be made**, or an output that can't be moved into place, prints the system's error.
 
 A failed step keeps every output made before it, and its log.
 
 ### Determinism
 
-tsumugi's transcription is one draw, not a result a second run repeats ([M1 results](decisions.md#m1-results-2026-10-09)), so `source.mid` is kept and reused rather than made again. The cover is generated with seed 0. Whether the same `source.mid` gives a byte-identical `cover.mid` on a given machine is what [docs/decisions.md](decisions.md#song-preparation-the-models-move-out-of-work-2026-10-13) records from the first real run; this page claims no more.
+tsumugi's transcription is one draw, not a result a second run repeats ([M1 results](decisions.md#m1-results-2026-10-09)), so `transcription.mid` is kept and reused rather than made again. The grid is deterministic: the same `transcription.mid` gives a byte-identical `source.mid`. The cover is generated with seed 0. Whether the same `source.mid` gives a byte-identical `cover.mid` on a given machine is what [docs/decisions.md](decisions.md#song-preparation-the-models-move-out-of-work-2026-10-13) records from the first real run; this page claims no more.
 
 ## Running the skill
 
-The `prepare-song` skill in `skills/prepare-song/` makes a song's arranging inputs from a YouTube link or an audio file: its `SKILL.md` gives the steps and the files, and `references/download.md` the download, yt-dlp run through `uvx` from uv's cache. It checks for uv and ffmpeg, downloads the audio for a link, runs `pianoize setup` and `pianoize prepare`, reports the summary, and offers the result to `arrange-cover` or `arrange-transcription` ([docs/arranging.md](arranging.md#running-the-skills)) without starting the arrangement. It ships in the same Claude Code plugin as the other skills; the plugin's layout and how to install it are in [docs/polishing.md](polishing.md#running-the-skill).
+The `prepare-song` skill in `skills/prepare-song/` makes a song's arranging inputs from a YouTube link or an audio file: its `SKILL.md` gives the steps and the files, and `references/download.md` the download, yt-dlp run through `uvx` from uv's cache. It checks for uv and ffmpeg, downloads the audio for a link, runs `pianoize setup` and `pianoize prepare`, reports the summary (on an instrumental, `melody.mid` is none unless `--melody-track NAME` names an instrument's track), and offers the result to `arrange-cover` or `arrange-transcription` ([docs/arranging.md](arranging.md#running-the-skills)) without starting the arrangement. It ships in the same Claude Code plugin as the other skills; the plugin's layout and how to install it are in [docs/polishing.md](polishing.md#running-the-skill).

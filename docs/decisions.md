@@ -324,6 +324,40 @@ A second scratch script printed the drums per bar.
 
 **Determinism.** Each transcription is one draw ([M1 results](#m1-results-2026-10-09)), so `source.mid` is kept and reused. The cover is generated with seed 0, and on this machine the same `source.mid` gives the same `cover.mid`: generated again from the second song's first transcription, it matched the first cover byte for byte (CPU, 2026-10-13).
 
-**The real run.** The M1 install moved instead of downloading again: the two clones with their commit files, the generator's environment and the stem splitter's weights went into `~/.cache/pianoize`, and the cover's weights into the Hugging Face snapshot of the pinned revision, where their SHA-256 sums matched `work/m1/models/tsumugi-piano-cover/SHA256SUMS`. The two environments' interpreter links pointed into M1's `work/m1/cache/uv-python`; `uv venv --python 3.12 --allow-existing` re-linked them to uv's own Python 3.12.14 and kept their packages. `pianoize setup` then found everything in place: both clones at their pins, uv's checks of both environments, the checkpoints and the weights present, nothing downloaded and the sizes unchanged, in under a second. `pianoize prepare` on the second song, from its YouTube mp3, wrote the four files: the transcription took 558 s on MPS for the 307 s song and the cover 58 s on the CPU. A second run reused all four. The runs' files are in `work/beacon-of-light/prepared/` and `redo/`, not committed.
+**The real run.** The M1 install moved instead of downloading again: the two clones with their commit files, the generator's environment and the stem splitter's weights went into `~/.cache/pianoize`, and the cover's weights into the Hugging Face snapshot of the pinned revision, where their SHA-256 sums matched `work/m1/models/tsumugi-piano-cover/SHA256SUMS`. The two environments' interpreter links pointed into M1's `work/m1/cache/uv-python`; `uv venv --python 3.12 --allow-existing` re-linked them to uv's own Python 3.12.14 and kept their packages. `pianoize setup` then found everything in place: both clones at their pins, uv's checks of both environments, the checkpoints and the weights present, nothing downloaded and the sizes unchanged, in under a second. `pianoize prepare` on the second song, from its YouTube mp3, wrote the four files: the transcription took 558 s on MPS for the 307 s song and the cover 58 s on the CPU. A second run reused all four. The runs' files are in `work/<song>/prepared/` and `redo/`, not committed.
 
-**What the second test song showed.** tsumugi-piano-cover builds its beat tokens from `source.mid`'s tempo map (`piano_cover/source.py`), so where tsumugi's beat tracking is wrong, the cover's rhythm bends with it. On the second test song the tracking ran at half speed in long stretches and squeezed bars elsewhere. The user heard the cover's tempo as strange and suggested arranging from the transcription alone: "이건 source.mid 만 보는게 나을수도 있겠다는 생각이 들었음. cover.mid 자체가 템포가 이상함." The `prepare-song` skill's hand-off cites this when it offers the [transcription-only path](#the-transcription-only-arrangement-an-experiment-2026-10-13); the cover stays the default.
+**What the second test song showed.** tsumugi-piano-cover builds its beat tokens from `source.mid`'s tempo map (`piano_cover/source.py`), so where tsumugi's beat tracking is wrong, the cover's rhythm bends with it. On the second test song the tracking ran at half speed in long stretches and squeezed bars elsewhere. The user heard the cover's tempo as strange and suggested arranging from the transcription alone: "이건 source.mid 만 보는게 나을수도 있겠다는 생각이 들었음. cover.mid 자체가 템포가 이상함." The `prepare-song` skill's hand-off cites this when it offers the [transcription-only path](#the-transcription-only-arrangement-an-experiment-2026-10-13); the cover stays the default. What `prepare` does about it is in [the steady tempo grid](#steady-tempo-grid-and-instrumentals-2026-10-14).
+
+## Steady tempo grid and instrumentals (2026-10-14)
+
+**Why.** The second test song's transcription had tsumugi's beat tracker at half speed in long stretches and squeezed bars elsewhere ([above](#song-preparation-the-models-move-out-of-work-2026-10-13)), and the cover model builds its beat rows from `source.mid`'s tempo map, so the cover's rhythm bent with it. `regrid` repairs only short hiccups in the finished cover. Gridding the transcription before the cover is made fixes the cause. And the first instrumental stopped `prepare` at the melody step, which failed on a transcription with no `melody` track.
+
+**The user's choices.**
+
+- **Where the grid runs:** inside `prepare`, automatically, before the cover, chosen over a separate command or both.
+- **The instrumental's melody:** none by default, with `--melody-track NAME` to name an instrument, chosen over "no melody only" and over only making `prepare` finish.
+- **`prepare` doesn't quantize notes.** Every note keeps its seconds.
+- **One steady tempo or none.** A fit that is not good leaves tsumugi's map as it is.
+- **Existing directories are not migrated,** and **`regrid` stays** for the covers made before the grid; both chosen over rewriting what already works.
+
+**Decisions.** Each was checked on the two real transcriptions with a scratch probe.
+
+- **The raw transcription is `transcription.mid`; `source.mid` is the gridded one.** `source.mid` keeps its name because it is the generator's `--source` and the arranging commands' `--source`. `transcription.mid` is read only when `source.mid` has to be made, so an old directory (a raw `source.mid`, no `transcription.mid`) is reused as it is and runs no tool.
+- **The drums count as attacks.** They are the best beat evidence; leaving out the vocal changed the second song's coverage by 1.4 points, not worth a rule.
+- **The fit is a brute-force search,** with no coarse-to-fine stage. It takes about 1 s on a 5-minute song and 0.3 s on the instrumental, after the distances were computed with numpy without the modulo (about ten times faster).
+- **The octave comes from tsumugi,** since some anchor is needed and tsumugi is right over most of both songs.
+- **The thresholds, the window and the downbeat vote** were set from probes on random attacks and on the two songs; the rules and their numbers are in [the tempo grid](preparing.md#the-tempo-grid). tsumugi's chord markers agree with its bar lines but are not used.
+- **The pickup bar is bar 1 at its own tempo,** then the steady tempo from bar 2. It is the only way to keep tick 0 at 0 s, every event's seconds, and the bar lines on the downbeats with one meter. A first downbeat within the window of a bar line gets no pickup.
+- **The meter is tsumugi's,** read through `bars.meter`, which refuses a changing meter; that is one more reason to keep tsumugi's map.
+- **Nothing in `regrid.repair` is reused or changed.** It keeps a map except inside its spans, while the grid replaces the whole map.
+
+**The two songs.**
+
+| | fitted tempo | tsumugi's dominant | first downbeat | on the grid | downbeat vote |
+| --- | --- | --- | --- | --- | --- |
+| the second test song | 170.00 bpm | 170.01 | 0.706 s | 89% | unanimous |
+| an instrumental | 171.96 bpm | 172.07 | 0.799 s | 77% | unanimous |
+
+The second song's first downbeat matched the song's own bars.
+
+**The limits** are in [the tempo grid](preparing.md#the-tempo-grid). Directories made before this are not migrated ([reusing outputs](preparing.md#reusing-outputs)).
