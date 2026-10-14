@@ -1,6 +1,6 @@
 # Arranging
 
-How pianoize turns an arrangement an agent writes into a two-hand MIDI. An agent session reads a tsumugi-piano-cover MIDI, tsumugi's melody (an instrumental has none) and, where there is one, tsumugi's transcription of the whole band, and writes a per-bar score for two hands into `work/`. pianoize builds the score into MIDI on the cover's tempo grid, every note at one velocity, and checks that it is playable and fits its own chords. The CLI never calls an LLM: the same score and cover give byte-identical MIDI. Without a cover, [`build-grid`](#building-the-grid-from-a-transcription) builds one from tsumugi's transcription alone. The reasons are in [docs/decisions.md](decisions.md#m3-an-agent-writes-the-arrangement-2026-10-11).
+How pianoize turns an arrangement an agent writes into a two-hand MIDI. An agent session reads a tsumugi-piano-cover MIDI, tsumugi's melody (an instrumental has none) and, where there is one, tsumugi's transcription of the whole band, and writes a per-bar score for two hands into `work/`. pianoize builds the score into MIDI on the cover's tempo grid, every note at one velocity, and checks that it is playable and fits its own chords. The CLI never calls an LLM: the same score and cover give byte-identical MIDI. Without a cover, [`build-grid`](#building-the-grid-from-a-transcription) builds one from tsumugi's transcription alone. The reasons are in [docs/decisions.md](decisions.md#an-agent-writes-the-arrangement).
 
 ## Workflow
 
@@ -276,4 +276,17 @@ The `arrange-cover` skill in `skills/arrange-cover/` runs the [workflow](#workfl
 
 The inputs come from `pianoize prepare` ([docs/preparing.md](preparing.md)). On an instrumental, which has no `melody.mid` unless `prepare` was given `--melody-track`, `dump-bars` and `check-arrangement` run without `--melody`, and the dump's `V` lines are all empty.
 
-The experimental `arrange-transcription` skill, in `skills/arrange-transcription/`, arranges from tsumugi's transcription alone. It uses `pianoize build-grid` in place of the cover and `dump-bars --drums` in the dump, under a clean-room rule: it reads no cover. `arrange-cover` stays the default; see [the decision](decisions.md#the-transcription-only-arrangement-an-experiment-2026-10-13).
+The experimental `arrange-transcription` skill, in `skills/arrange-transcription/`, arranges from tsumugi's transcription alone. It uses `pianoize build-grid` in place of the cover and `dump-bars --drums` in the dump, under a clean-room rule: it reads no cover. `arrange-cover` stays the default; see [the decision](decisions.md#the-transcription-only-arrangement-an-experiment).
+
+### Known gaps
+
+The agent sessions that ran `arrange-cover` reported these, and they are not fixed:
+
+- An override replaces a whole bar; there is no override per hand line. So an override that changes only the accompaniment restates the melody, and a later change to the source bar no longer reaches it. A note sung in only one statement of a repeat likewise needs an override.
+- `regrid` reports its spans in the cover's old numbering, and nothing helps carry a score written before the regrid onto the new numbering.
+- `--melody` keeps the higher of two vocal notes sung together, so where the lead is the lower of a harmony pair, the higher note is listed as missing. Nor is there guidance for two vocal notes at one onset.
+- Reading the `I` lines needs judgment the skill doesn't fully give: no single instrument carries a whole instrumental, transcribed lines jump octaves inside a phrase, and nothing says when to take a sustained line or the stabs above it.
+- Whole runs of onsets at the half-sixteenth rounding tie, notes played a little early, read loosely; `reading-the-dump.md` covers a lone `.5`, not bars of them.
+- A figure played slightly early prints its first note at the end of the previous bar.
+- Nothing tells the band changing between repeats apart from the cover model varying its own.
+- The dump runs past the song's last bar while the cover's last chord rings, so where the score ends is a judgment call.

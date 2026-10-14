@@ -5,7 +5,7 @@ Project-specific instructions for pianoize. The global ~/.claude/CLAUDE.md still
 ## Documentation map
 
 - [README.md](README.md): direction, the rules, layout, dev commands
-- [docs/decisions.md](docs/decisions.md): design decisions and their reasons
+- [docs/decisions.md](docs/decisions.md): the design decisions in force, the reason for each, and the license records
 - [docs/evaluation.md](docs/evaluation.md): the evaluation tooling and the checkpoint file format
 - [docs/polishing.md](docs/polishing.md): the polishing commands, the candidate and correction-spec formats, the refined-timeline rules
 - [docs/preparing.md](docs/preparing.md): `pianoize setup` and `prepare`, and what they install and write
@@ -22,6 +22,7 @@ The [rules in the README](README.md#rules) apply. The reasons for those and for 
 - **No analysis is the answer key.** chordotomy's timeline, web chord charts and tsumugi's transcription are evidence to weigh, not truth. Where they disagree, check the notes before calling anything a mistake.
 - **No GPL/AGPL code in the repo or its dependencies.** That covers vendored code and anything imported or bundled, Python or npm; Neothesia and YourMT3+ are out. LGPL is allowed. A tool the user installs separately and pianoize runs as a subprocess is allowed whatever its license.
 - **Check the license before adding a dependency, model or sample library.** Weights included. Record the date and the source in docs/decisions.md. Weights with non-commercial terms are allowed. They are installed once into the user's cache (`~/.cache/pianoize`, with Hugging Face weights in `~/.cache/huggingface`), never into `work/` or the repository, with their terms shown.
+- **docs/decisions.md holds the decisions in force, each with its reason.** When a decision changes, edit its entry in place rather than adding a dated section; git keeps the history. Run logs, results tables and measurements don't go there, beyond the one line a decision's reason may need.
 - **The CLI never calls an LLM.** An agent session writes the correction spec or the score into `work/`. Code validates it and applies it to the cover, or builds it into MIDI, deterministically: the same inputs give byte-identical output.
 - **Arrangements are playable.** From M3 the arrangement is written for two hands, and `pianoize check-arrangement` verifies notes per hand, hand span, jumps and no crossed hands; a score or a correction must keep it passing.
 - **Models with conflicting dependencies run in their own environments**, not in the core package.

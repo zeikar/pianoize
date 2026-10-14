@@ -1,6 +1,6 @@
 # Polishing
 
-How pianoize refines a song's harmony timeline and polishes a tsumugi-piano-cover MIDI against it. An agent session writes two small JSON files into `work/`, the chord edits and the correction spec; pianoize validates them and writes the refined timeline and the polished cover. The CLI never calls an LLM. The reasons are in [docs/decisions.md](decisions.md#an-agent-writes-the-correction-spec-code-applies-it).
+How pianoize refines a song's harmony timeline and polishes a tsumugi-piano-cover MIDI against it. An agent session writes two small JSON files into `work/`, the chord edits and the correction spec; pianoize validates them and writes the refined timeline and the polished cover. The CLI never calls an LLM. The reasons are in [docs/decisions.md](decisions.md#polishing-the-cover).
 
 ## Workflow
 
@@ -10,7 +10,7 @@ The [`polish-cover` skill](#running-the-skill) runs the four commands in two pha
 2. **The polished cover.** [`find-candidates`](#candidates) lists the candidates against the refined timeline. The agent gives each a verdict and writes the [correction spec](#correction-spec); `find-candidates` with `--spec` [checks it](#checking-a-spec), run after run, until every candidate is judged and every fix is gone. [`apply-corrections`](#applying) writes the polished cover, and `harmony-evidence` run on it checks its notes against the refined harmony.
 3. **Listening.** The agent cannot hear the result, so the user is the last gate. Both covers are rendered with `pianoize render` ([docs/evaluation.md](evaluation.md#rendering-a-midi-file)); the user listens A/B and approves, or names places to revert. A revert drops the edits there and turns the verdicts they answered into `keep`, and the second phase runs again from the `--spec` check.
 
-Since M3 (2026-10-11) this path is kept but is no longer the main one: at its listening gate an arrangement an agent wrote from the cover and the melody sounded better than the polished cover ([decision](decisions.md#m3-an-agent-writes-the-arrangement-2026-10-11)). The refined timeline and the evidence table stay as evidence for that arrangement.
+Since M3 (2026-10-11) this path is kept but is no longer the main one: at its listening gate an arrangement an agent wrote from the cover and the melody sounded better than the polished cover ([decision](decisions.md#an-agent-writes-the-arrangement)). The refined timeline and the evidence table stay as evidence for that arrangement.
 
 ## Candidates
 
@@ -283,3 +283,16 @@ Pitch classes are spelled with sharps: B♭ reads `A#`. Of two pitch classes sou
 ## Running the skill
 
 The repository is a Claude Code plugin: `.claude-plugin/plugin.json` and `marketplace.json` at its root, and four skills, each with its `SKILL.md` and the judgment it draws on in `references/`. `polish-cover`, in `skills/polish-cover/`, runs the [workflow](#workflow) above; `arrange-cover`, in `skills/arrange-cover/`, writes an arrangement ([docs/arranging.md](arranging.md)); the experimental `arrange-transcription`, in `skills/arrange-transcription/`, writes one from the transcription alone; `prepare-song`, in `skills/prepare-song/`, makes the arranging skills' inputs from a recording ([docs/preparing.md](preparing.md)). In Claude Code, install the plugin with `/plugin marketplace add zeikar/pianoize` and `/plugin install pianoize@pianoize`; the plugin then runs its own copy of pianoize through `uv run --project`. In a checkout, `.claude/settings.json` registers the checkout as a plugin marketplace and enables the plugin, so all four skills run from the working tree once the first session's trust prompt is accepted; `claude plugin marketplace add .` does the same by hand.
+
+### Known gaps
+
+The agent sessions that ran `polish-cover` reported these, and they are not fixed:
+
+- The evidence table shows only the transcription's bass track; some decisions need its other instruments, read outside the table.
+- The transcribed bass's share is measured over the bass track's own sounding time in the segment, so a bass that plays for a moment of it can still show a full share.
+- Where there is no vocal, the cover's lead line is not matched to the melody and counts as accompaniment, which skews the `velocity` medians and the coverage.
+- Nothing tells texture from error on `harmony:missing`.
+- A candidate's `context` lines carry no beat or segment marks.
+- `off_grid_ms` also sets the passing-tone, segment-bass and `bass-late` tolerances, so tuning it for `off-grid` moves those too.
+- SKILL.md's step 6 asks for coverage of at least 0.6 where a chord was fixed, and leaves unclear what applies to a coverage candidate that was kept.
+- `references/reconcile-harmony.md` says a reading already in chordotomy's `candidates` is the likeliest answer; that misleads where every candidate shares a wrong root.

@@ -46,7 +46,7 @@ Since 2026-10-13 the tsumugi install lives outside `work/m1` ([docs/preparing.md
 ## Rules the scripts follow
 
 - Idempotent. An existing clone, environment, completed download or output is reused. Downloads and `.part` files: see `fetch` in `env.sh`.
-- Every upstream program runs as a subprocess: its own environment's interpreter, on its own entry point, from its own checkout. Nothing here imports an upstream package. Licenses: [docs/decisions.md](../../docs/decisions.md#m1-license-check-2026-10-08).
+- Every upstream program runs as a subprocess: its own environment's interpreter, on its own entry point, from its own checkout. Nothing here imports an upstream package. Licenses: [docs/decisions.md](../../docs/decisions.md#licenses).
 - `pianoize` and `chordotomy` are called by their venv binaries, never through `uv run`.
 
 ## Removal
