@@ -4,6 +4,7 @@ rest of the CLI."""
 
 from __future__ import annotations
 
+import shutil
 import tempfile
 import time
 from pathlib import Path
@@ -13,7 +14,7 @@ import mido
 import soundfile
 import typer
 
-from . import files, grid, tsumugi
+from . import files, grid, steady, tsumugi
 from .cli import _fail, _read_midi, _refuse_input, _stop_on_signals, app
 
 
@@ -55,16 +56,34 @@ def _decode(audio: Path, wav: Path) -> None:
         raise _fail(f"decode: cannot write {wav}: {_reason(exc)}") from exc
 
 
-def _transcribe(install: tsumugi.Install, wav: Path, source: Path, scratch: Path) -> None:
-    log = source.with_name("transcribe.log")
+def _transcribe(install: tsumugi.Install, wav: Path, transcription: Path, scratch: Path) -> None:
+    log = transcription.with_name("transcribe.log")
     typer.echo(
         "transcribing with tsumugi, about twice the song's length on an Apple-silicon Mac; "
         f"log: {log}"
     )
     start = time.monotonic()
-    tsumugi.transcribe(install, wav, scratch / "source.mid", log)
-    (scratch / "source.mid").replace(source)
+    tsumugi.transcribe(install, wav, scratch / "transcription.mid", log)
+    (scratch / "transcription.mid").replace(transcription)
     typer.echo(f"transcribe: {time.monotonic() - start:.0f} s")
+
+
+def _grid(transcription: Path, source: Path) -> None:
+    """The transcription on its steady tempo grid, or as it is when the fit finds none."""
+    midi = _read_midi(transcription)
+    try:
+        found = steady.fit(midi)
+    except steady.SteadyError as exc:
+        typer.echo(f"tempo grid: keeping tsumugi's tempo map: {exc}")
+        # A byte copy, not a save through mido, so source.mid is tsumugi's file as it wrote it.
+        files.write_all({source: lambda path: shutil.copyfile(transcription, path)})
+        return
+    typer.echo(
+        f"tempo grid: {found.bpm:.2f} bpm, first downbeat at {found.downbeat:.3f} s, "
+        f"{found.coverage:.0%} of {found.attacks} attacks within a quarter sixteenth "
+        f"({found.window * 1000:.0f} ms)"
+    )
+    files.write_all({source: steady.apply(midi, found).save})
 
 
 def _melody(source: Path, melody: Path) -> None:
@@ -122,11 +141,14 @@ def prepare(
     out_dir: Annotated[
         Path,
         typer.Option(
-            "-o", "--out-dir", help="Where song.wav, source.mid, melody.mid and cover.mid go."
+            "-o",
+            "--out-dir",
+            help="Where song.wav, transcription.mid, source.mid, melody.mid and cover.mid go.",
         ),
     ],
 ) -> None:
-    """Decode a song, transcribe it with tsumugi, take its melody and generate its cover.
+    """Decode a song, transcribe it with tsumugi, fit its steady tempo grid, take its melody and
+    generate its cover.
 
     A file already in OUT_DIR is reused, so a stopped run picks up where it stopped.
     """
@@ -138,8 +160,9 @@ def prepare(
         out_dir.mkdir(parents=True, exist_ok=True)
     except OSError as exc:
         raise _fail(str(exc)) from exc
-    wav, source, melody, cover = (
-        out_dir / name for name in ("song.wav", "source.mid", "melody.mid", "cover.mid")
+    wav, transcription, source, melody, cover = (
+        out_dir / name
+        for name in ("song.wav", "transcription.mid", "source.mid", "melody.mid", "cover.mid")
     )
     _refuse_input(wav, [audio], "--out-dir")
     install = tsumugi.Install.from_env()
@@ -154,8 +177,12 @@ def prepare(
             scratch = Path(tmp)
             if not _reusing(wav):
                 _decode(audio, wav)
+            # A source.mid already made never looks for its transcription, so a directory from
+            # before the grid, with no transcription.mid, runs no tool.
             if not _reusing(source):
-                _transcribe(install, wav, source, scratch)
+                if not _reusing(transcription):
+                    _transcribe(install, wav, transcription, scratch)
+                _grid(transcription, source)
             if not _reusing(melody):
                 _melody(source, melody)
             if not _reusing(cover):

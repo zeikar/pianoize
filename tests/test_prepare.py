@@ -7,11 +7,15 @@ import numpy as np
 import pytest
 import soundfile
 from conftest import SAMPLE_RATE
+from test_steady import bent_transcription, random_transcription
 from typer.testing import CliRunner
 
+from pianoize import notes
 from pianoize.cli import app
 
-OUTPUTS = ("song.wav", "source.mid", "melody.mid", "cover.mid")
+OUTPUTS = ("song.wav", "transcription.mid", "source.mid", "melody.mid", "cover.mid")
+# What a run reuses with every output there: a source.mid already made needs no transcription.mid.
+REUSED = ("song.wav", "source.mid", "melody.mid", "cover.mid")
 # Not stem_splitter's 44.1 kHz, so a resample would show.
 RATE = 48000
 
@@ -38,7 +42,7 @@ def option(argv: list[str], name: str) -> str:
     return argv[argv.index(name) + 1]
 
 
-def test_prepare_writes_the_four_files_and_a_summary(fake_install, flac, tmp_path):
+def test_prepare_writes_the_five_files_and_a_summary(fake_install, flac, tmp_path):
     out = tmp_path / "out"
 
     result = prepare(flac, "-o", out)
@@ -65,6 +69,9 @@ def test_prepare_writes_the_four_files_and_a_summary(fake_install, flac, tmp_pat
         )
     assert any(re.fullmatch(r"transcribe: \d+ s", line) for line in lines)
     assert any(re.fullmatch(r"generate: \d+ s", line) for line in lines)
+    # The fake's transcription strikes its three notes at once.
+    assert "tempo grid: keeping tsumugi's tempo map: 1 distinct attacks, fewer than 300" in lines
+    assert (out / "source.mid").read_bytes() == (out / "transcription.mid").read_bytes()
     assert lines[-4:] == [
         "song.wav: 0.9 s",
         "source.mid: 6 tracks: Predicted Tempo Map 0, Predicted Chords 0, (unnamed) 0, piano 1, "
@@ -96,7 +103,7 @@ def test_a_second_run_reuses_every_file(fake_install, flac, tmp_path):
     assert result.exit_code == 0, result.output
     assert len(fake_install.records()) == calls
     reused = [line for line in result.output.splitlines() if line.startswith("reusing ")]
-    assert reused == [f"reusing {out / name}" for name in OUTPUTS]
+    assert reused == [f"reusing {out / name}" for name in REUSED]
 
 
 def test_prepare_publishes_no_source_when_a_transcription_stage_failed(
@@ -130,7 +137,7 @@ def test_a_run_with_the_transcription_kept_decodes_and_generates_again(
 ):
     out = tmp_path / "out"
     assert prepare(flac, "-o", out).exit_code == 0
-    for name in ("song.wav", "melody.mid", "cover.mid"):
+    for name in ("song.wav", "source.mid", "melody.mid", "cover.mid"):
         (out / name).unlink()
     calls = len(fake_install.calls())
 
@@ -138,9 +145,74 @@ def test_a_run_with_the_transcription_kept_decodes_and_generates_again(
 
     assert result.exit_code == 0, result.output
     assert [call[1:3] for call in fake_install.calls()[calls:]] == [["-m", "piano_cover.generate"]]
-    assert result.output.splitlines()[0] == f"reusing {out / 'source.mid'}"
+    lines = result.output.splitlines()
+    assert lines[0] == f"reusing {out / 'transcription.mid'}"
+    assert any(line.startswith("tempo grid: ") for line in lines)
     assert soundfile.info(out / "song.wav").samplerate == RATE
     assert listing(out) == sorted([*OUTPUTS, "transcribe.log", "generate.log"])
+
+
+def test_a_directory_from_before_the_grid_is_reused_as_it_is(fake_install, flac, tmp_path):
+    out = tmp_path / "out"
+    assert prepare(flac, "-o", out).exit_code == 0
+    (out / "transcription.mid").unlink()
+    calls = len(fake_install.records())
+
+    result = prepare(flac, "-o", out)
+
+    assert result.exit_code == 0, result.output
+    assert len(fake_install.records()) == calls
+    reused = [line for line in result.output.splitlines() if line.startswith("reusing ")]
+    assert reused == [f"reusing {out / name}" for name in REUSED]
+    assert "transcription.mid" not in listing(out)
+
+
+def test_a_steady_transcription_is_gridded(fake_install, flac, tmp_path):
+    fixture = fake_install.log.with_name("transcription.mid")
+    bent_transcription().save(fixture)
+    out = tmp_path / "out"
+
+    result = prepare(flac, "-o", out)
+
+    assert result.exit_code == 0, result.output
+    assert (out / "transcription.mid").read_bytes() == fixture.read_bytes()
+    segments = notes.tempo_map(mido.MidiFile(out / "source.mid"))
+    assert len(segments) == 2
+    assert segments[1][1] == pytest.approx(0.5)
+    # The melody is taken from the gridded file, not from tsumugi's.
+    assert notes.tempo_map(mido.MidiFile(out / "melody.mid")) == segments
+    assert "tempo grid: 120.00 bpm, first downbeat at 0.500 s, " in result.output
+    _, generator = (r["argv"] for r in fake_install.records())
+    assert option(generator, "--source") == str(out / "source.mid")
+
+
+def test_a_transcription_with_no_steady_tempo_keeps_its_map(fake_install, flac, tmp_path):
+    midi = random_transcription()
+    # The fixture's one track is the piano; prepare takes the melody from a track of that name.
+    midi.tracks.append(mido.MidiTrack([mido.MetaMessage("track_name", name="melody")]))
+    midi.save(fake_install.log.with_name("transcription.mid"))
+    out = tmp_path / "out"
+
+    result = prepare(flac, "-o", out)
+
+    assert result.exit_code == 0, result.output
+    assert (out / "cover.mid").is_file()
+    assert (out / "source.mid").read_bytes() == (out / "transcription.mid").read_bytes()
+    assert "tempo grid: keeping tsumugi's tempo map: best fit " in result.output
+
+
+def test_the_same_transcription_grids_to_the_same_bytes(fake_install, flac, tmp_path):
+    bent_transcription().save(fake_install.log.with_name("transcription.mid"))
+    out = tmp_path / "out"
+    assert prepare(flac, "-o", out).exit_code == 0
+    first = (out / "source.mid").read_bytes()
+    for name in ("source.mid", "melody.mid", "cover.mid"):
+        (out / name).unlink()
+
+    result = prepare(flac, "-o", out)
+
+    assert result.exit_code == 0, result.output
+    assert (out / "source.mid").read_bytes() == first
 
 
 def test_prepare_refuses_to_overwrite_its_input(fake_install, synth, tmp_path):
@@ -235,4 +307,4 @@ def test_prepare_needs_a_melody_track(fake_install, flac, tmp_path):
 
     assert result.exit_code == 1
     assert "error: melody: no track named 'melody'; tracks named: " in result.output
-    assert listing(out) == ["song.wav", "source.mid", "transcribe.log"]
+    assert listing(out) == ["song.wav", "source.mid", "transcribe.log", "transcription.mid"]

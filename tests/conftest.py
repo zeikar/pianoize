@@ -239,7 +239,8 @@ def fake_python(tmp_path, monkeypatch) -> FakePython:
     prints "RuntimeError: boom" and exits 1 instead, with a file `hang` there it first prints
     "started" and sleeps 10 s, with a file `warns` there it prints tsumugi's
     velocity-failure warning and still writes the MIDI, with a file `no-output`
-    there it exits 0 without writing it, and with a file
+    there it exits 0 without writing it, with a file `transcription.mid` there it copies that
+    file to --out instead, and with a file
     `no-melody` there it leaves out the melody track.
     As `-m piano_cover.generate` it checks the checkpoint holds the cover model and writes a
     one-track cover to OUT_DIR/SOURCE_STEM_ch0_0.mid."""
@@ -304,6 +305,9 @@ elif any(Path(arg).name == "tsumugi_worker.py" for arg in args):
         sys.exit(0)
     if (here / "warns").exists():
         print("Warning: Velocity prediction skipped due to error: boom")
+    if (here / "transcription.mid").exists():
+        shutil.copyfile(here / "transcription.mid", option("--out"))
+        sys.exit(0)
     midi = mido.MidiFile(type=1)
     midi.tracks += [
         track(
