@@ -85,6 +85,12 @@ def _grid(transcription: Path, source: Path) -> None:
         f"{found.coverage:.0%} of {found.attacks} attacks within a quarter sixteenth "
         f"({found.window * 1000:.0f} ms)"
     )
+    if found.other_octave_share:
+        typer.echo(
+            f"tempo grid: tsumugi also ran {found.other_octave_share:.0%} of its seconds at "
+            f"{found.other_octave:.2f} bpm; the grid takes {found.bpm:.2f}, the octave it held "
+            "longer; check the bars by ear"
+        )
     files.write_all({source: steady.apply(midi, found).save})
 
 

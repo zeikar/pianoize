@@ -142,6 +142,30 @@ def random_transcription(count: int = 400, seconds: float = 60, bpm: float = 120
     return _transcription([(0, round(60e6 / bpm))], markers, [("piano", 0, played)])
 
 
+def strikes_transcription(
+    runs: list[tuple[int, float]],
+    per_bar: int = 8,
+    map_runs: list[tuple[int, float]] | None = None,
+) -> mido.MidiFile:
+    """A transcription of `per_bar` even drum strikes a 2/2 bar over runs of (bars, bpm). The tempo
+    map follows the runs, or with `map_runs`, its own (map bars, bpm) runs."""
+    tempos, played, start, tick = [], [], 0.0, 0
+    for bars_, bpm in runs:
+        tempos.append((tick, round(60e6 / bpm)))
+        bar = 240 / bpm
+        played += [
+            (start + i * bar / per_bar, start + (i + 0.4) * bar / per_bar, 36)
+            for i in range(per_bar * bars_)
+        ]
+        start, tick = start + bars_ * bar, tick + bars_ * BAR
+    if map_runs is not None:
+        tempos, tick = [], 0
+        for bars_, bpm in map_runs:
+            tempos.append((tick, round(60e6 / bpm)))
+            tick += bars_ * BAR
+    return _transcription(tempos, [0.0], [("drums", 9, played)])
+
+
 @pytest.fixture(scope="module")
 def bent() -> tuple[mido.MidiFile, steady.Fit]:
     """The default bent transcription and its fit; tests must not change the file."""
@@ -249,6 +273,82 @@ def test_a_map_a_little_off_the_fit_drifts_through_every_sixteenth():
     )
     with pytest.raises(steady.SteadyError, match=expected):
         steady.fit(bent_transcription(map_bpm=123))
+
+
+def test_a_map_split_between_octaves_takes_the_longer_one_and_reports_the_other():
+    # 16 s at 120 bpm, 80 s tracked at 60, then 32 s at 120: the eighths fit 60 and 120 alike, so
+    # the grid takes 60, the octave tsumugi held for 63% of the song.
+    midi = strikes_transcription([(64, 120)], map_runs=[(8, 120), (20, 60), (16, 120)])
+    found = steady.fit(midi)
+    assert found.bpm == pytest.approx(60, abs=0.01)
+    assert found.other_octave == pytest.approx(120, abs=0.01)
+    assert found.other_octave_share == pytest.approx(0.375, abs=0.01)
+
+
+def test_a_few_seconds_at_the_other_octave_are_still_reported():
+    # 192 s at 60 bpm and 8 s at the real 120.
+    midi = strikes_transcription([(100, 120)], map_runs=[(48, 60), (4, 120)])
+    found = steady.fit(midi)
+    assert found.bpm == pytest.approx(60, abs=0.01)
+    assert 0 < found.other_octave_share < 0.05
+
+
+def test_a_map_at_one_octave_reports_no_other():
+    assert steady.fit(bent_transcription(map_bpm=120)).other_octave_share == 0
+
+
+@pytest.mark.parametrize("per_bar", [8, 4])
+@pytest.mark.parametrize("first", [40, 20])
+def test_a_tempo_change_tsumugi_tracked_is_kept(per_bar, first):
+    # 120 bpm for `first` bars (2 s each), then 150 for 60 bars. The 150 bpm grid fits the
+    # eighths of the first run 50%, and its quarters, which land five sixteenths apart, 100% but
+    # on every place in the beat alike.
+    midi = strikes_transcription([(first, 120), (60, 150)], per_bar)
+    with pytest.raises(steady.SteadyError, match=r"^150\.00 bpm does not hold through the song: "):
+        steady.fit(midi)
+
+
+def test_a_tempo_change_by_three_halves_is_kept():
+    # Quarters at 120 bpm for 80 s, then 180 for 96 s: 120 is two thirds of the fit.
+    midi = strikes_transcription([(40, 120), (72, 180)], 4)
+    with pytest.raises(steady.SteadyError, match=r"^180\.00 bpm does not hold through the song: "):
+        steady.fit(midi)
+
+
+@pytest.mark.parametrize("per_bar", [8, 16])
+def test_a_distorted_map_under_a_steady_tempo_is_regridded(per_bar):
+    # A steady 120 bpm song of eighths or sixteenths whose map runs 30 bars at 120, 45 at 180,
+    # then 40 at 120: the attacks decide, not how long the distortion lasts, and uniform
+    # subdivisions fill every beat.
+    midi = strikes_transcription([(100, 120)], per_bar, map_runs=[(30, 120), (45, 180), (40, 120)])
+    found = steady.fit(midi)
+    assert found.bpm == pytest.approx(120, abs=0.005)
+    assert found.other_octave_share == 0
+
+
+def test_a_tempo_change_tsumugi_missed_is_kept():
+    # The same eighths on a flat map at 150 bpm: no stretch of the map is off, but the first run's
+    # spans fall half off the grid.
+    midi = strikes_transcription([(40, 120), (60, 150)], map_runs=[(1, 150)])
+    with pytest.raises(steady.SteadyError, match=r"^150\.00 bpm does not hold through the song: "):
+        steady.fit(midi)
+
+
+def test_a_song_tracked_at_the_wrong_octave_for_most_of_its_length_grids_there():
+    # The limit: 160 of 200 s at 60 bpm, 40 s at the real 120. Eighths fit 60 and 120 alike, so
+    # the grid takes the octave held longer, reports the other, and the note seconds stay.
+    midi = strikes_transcription([(100, 120)], map_runs=[(40, 60), (20, 120)])
+    found = steady.fit(midi)
+    assert found.bpm == pytest.approx(60, abs=0.01)
+    assert found.coverage == 1.0
+    assert found.other_octave == pytest.approx(120, abs=0.01)
+    assert found.other_octave_share == pytest.approx(0.2, abs=0.01)
+    fixed = steady.apply(midi, found)
+    half_tick = mido.tick2second(0.5, TICKS, 1000000) + 1e-9
+    before = steady._attacks(midi, notes.tempo_map(midi))
+    after = steady._attacks(fixed, notes.tempo_map(fixed))
+    assert len(after) == len(before) == 800
+    assert after == pytest.approx(before, abs=half_tick)
 
 
 def test_a_change_of_meter_fits_nothing():

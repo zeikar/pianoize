@@ -35,6 +35,32 @@ _STEP = 0.01
 # about 1.4 ms at 170 bpm, near the millisecond the attacks are rounded to, so a finer one has
 # little left to find.
 _PHASES = 32
+# The attacks cannot tell the octave for eighth-note music (a nearest-sixteenth grid fits double at
+# least as well, and eighths fit half as well as sixteenths), so the grid takes the octave tsumugi
+# held longer, and any seconds the map spent at the other octave are reported.
+# The grid is checked over spans of this many seconds. A span with at least _SPAN_ATTACKS attacks
+# misses when under _SPAN_GOOD of them are on the grid: attacks placed at random are on it half the
+# time, and 100 of them stay under 0.6 about 3% of the time. It has changed tempo when another
+# tempo holds the beats better: a tempo's beat occupancy is the share of the span's quarter-note
+# beats, at the span's best phase, that carry an attack. Uniform subdivisions, eighths or
+# sixteenths, fill every beat of the fit's tempo (and of half and double it, which are never
+# tried), so no other tempo can beat the fit, while a section at another tempo fills its own
+# beats and, under the fit's, only the few that line up (a quarter-note section at 120 bpm fills
+# 1.0 of its beats and about 0.2 at 150). An alternative has to reach _OCCUPIED and beat the
+# fit's by _GAIN; tempos within _SIMILAR of the fit, half and double share beats with it and
+# are not tried. _SPAN_RUN spans in a row that miss or changed are a stretch the steady tempo
+# does not fit; a short intro or coda is not. At four alignments of the spans, neither test
+# song has a changed span, and the longest run of misses is 2.
+_SPAN = 10.0
+_SPAN_ATTACKS = 20
+_SPAN_GOOD = 0.6
+_OCCUPIED = 0.8
+_GAIN = 0.3
+_SIMILAR = 0.05
+_RATIOS = (1 / 2, 1, 2)
+_ALTERNATIVES = 0.5 * 1.003 ** np.arange(round(np.log(4) / np.log(1.003)) + 1)  # 0.5x to 2x
+_BEAT_PHASES = 16
+_SPAN_RUN = 3
 # A tsumugi bar line votes for the downbeat where its tempo is this near the fit, as in regrid.
 _AGREE = 0.05
 
@@ -49,6 +75,10 @@ class Fit:
     downbeat: float  # seconds of the first downbeat, in [-window, bar - window)
     coverage: float  # the share of the attacks on the grid
     attacks: int  # distinct attacks
+    other_octave: float = 0.0  # bpm of the other octave tsumugi's map ran at, half or double
+    other_octave_share: float = (
+        0.0  # its share of the map's seconds; 0 when the map spent none there
+    )
 
     @property
     def window(self) -> float:
@@ -60,14 +90,10 @@ def _sixteenth(bpm: float) -> float:
     return 15 / bpm  # a tempo counts quarter notes
 
 
-def attacks(midi: mido.MidiFile) -> np.ndarray:
-    """The seconds of every struck note on every track and channel, to the millisecond, distinct
-    and sorted, so a chord counts once. Drums included: they mark the beat best."""
-    return _attacks(midi, notes.tempo_map(midi))
-
-
 def _attacks(midi: mido.MidiFile, segments: list[tuple[int, float, int]]) -> np.ndarray:
-    """As attacks, on `segments`, the file's tempo map."""
+    """The seconds of every struck note on every track and channel, to the millisecond, on
+    `segments`, the file's tempo map; distinct and sorted, so a chord counts once. Drums included:
+    they mark the beat best."""
     ticks = {
         tick
         for track in midi.tracks
@@ -78,17 +104,38 @@ def _attacks(midi: mido.MidiFile, segments: list[tuple[int, float, int]]) -> np.
     return np.array(sorted(found))
 
 
+def _weighted(
+    segments: list[tuple[int, float, int]], end_seconds: float
+) -> list[tuple[float, float]]:
+    """(bpm, seconds) of each of tsumugi's tempo segments, up to the next one or to the end."""
+    ends = [seconds for _, seconds, _ in segments[1:]] + [end_seconds]
+    return [
+        (mido.tempo2bpm(tempo), end - start)
+        for (_, start, tempo), end in zip(segments, ends, strict=True)
+    ]
+
+
 def _dominant(segments: list[tuple[int, float, int]], end_seconds: float) -> float:
     """tsumugi's tempo over most of the song: the median bpm of its tempo segments, each weighted
     by its seconds up to the next one or to the end."""
-    ends = [seconds for _, seconds, _ in segments[1:]] + [end_seconds]
-    weighted = sorted(
-        (mido.tempo2bpm(tempo), end - start)
-        for (_, start, tempo), end in zip(segments, ends, strict=True)
-    )
+    weighted = sorted(_weighted(segments, end_seconds))
     half = sum(seconds for _, seconds in weighted) / 2
     reached = itertools.accumulate(seconds for _, seconds in weighted)
     return next(bpm for (bpm, _), total in zip(weighted, reached, strict=True) if total >= half)
+
+
+def _other_octave(
+    segments: list[tuple[int, float, int]], end_seconds: float, bpm: float
+) -> tuple[float, float]:
+    """The bpm, half or double `bpm`, that holds the larger share of tsumugi's map seconds within
+    _BAND, and that share; (0, 0) when the map spent none there."""
+    weighted = _weighted(segments, end_seconds)
+    total = sum(seconds for _, seconds in weighted)
+    share, other = max(
+        (sum(s for tempo, s in weighted if abs(tempo / o - 1) <= _BAND) / total, o)
+        for o in (bpm / 2, bpm * 2)
+    )
+    return (other, share) if share > 0 else (0.0, 0.0)
 
 
 def _distances(onsets: np.ndarray, bpm: float, phases: np.ndarray) -> np.ndarray:
@@ -117,6 +164,75 @@ def _search(onsets: np.ndarray, dominant: float) -> tuple[float, float, int]:
             best_cost, best_bpm, best_phase = costs[j], bpm, float(phases[j])
     on_grid = _distances(onsets, best_bpm, np.array([best_phase]))[0] <= ON_GRID
     return best_bpm, best_phase * _sixteenth(best_bpm), int(on_grid.sum())
+
+
+def _occupancy(attacks: np.ndarray, start: float, length: float, bpms: np.ndarray) -> np.ndarray:
+    """Each of `bpms`' beat occupancy over the span of `length` seconds from `start`: the share of
+    its quarter-note beats with an attack within ON_GRID of a sixteenth, at the best of
+    _BEAT_PHASES phases of the beat."""
+    beats = bpms / 60  # a second
+    width = ON_GRID / 4  # of a beat
+    u = (attacks - start) * beats[:, np.newaxis]  # a row a tempo, in beats
+    best = np.zeros(len(bpms))
+    rows = np.arange(len(bpms))[:, np.newaxis]
+    # Beat n of row r is cell r * size + n; the attacks of a beat share a cell.
+    size = int(length * beats.max()) + 2
+    for phase in np.arange(_BEAT_PHASES) / _BEAT_PHASES:
+        v = u - phase
+        n = np.rint(v)
+        cell = (rows * size + n).astype(int)
+        keep = (np.abs(v - n) <= width) & (n >= 0) & (n < size)
+        filled = np.bincount(cell[keep], minlength=len(bpms) * size).reshape(len(bpms), size) > 0
+        best = np.maximum(best, filled.sum(axis=1) / (length * beats))
+    return np.minimum(best, 1.0)
+
+
+def _check_spans(onsets: np.ndarray, bpm: float, phase: float) -> None:
+    """Raise SteadyError when the grid at `bpm` and `phase` seconds misses a sustained stretch:
+    _SPAN_RUN spans of _SPAN seconds in a row that miss it or have changed tempo."""
+    v = onsets * (bpm / 15) - phase / _sixteenth(bpm)
+    on_grid = np.abs(v - np.rint(v)) <= ON_GRID
+    span = (onsets // _SPAN).astype(int)
+    counts = np.bincount(span)
+    hits = np.bincount(span, weights=on_grid)
+    near = [bpm * ratio for ratio in _RATIOS]
+    tried = _ALTERNATIVES * bpm
+    tried = tried[[all(abs(t / n - 1) > _SIMILAR for n in near) for t in tried]]
+    run = []  # per span of the run, the tempo that holds its beats, or None for a miss
+    longest: list[float | None] = []
+    for index, (count, hit) in enumerate(zip(counts, hits, strict=True)):
+        if count < _SPAN_ATTACKS:
+            run = []
+            continue
+        start = index * _SPAN
+        found = onsets[span == index]
+        length = min(_SPAN, found[-1] - start)
+        changed = None
+        if hit >= _SPAN_GOOD * count:
+            own = _occupancy(found, start, length, np.array([bpm]))[0]
+            # The fit needs no alternative where nothing could beat it by _GAIN.
+            if own <= 1 - _GAIN:
+                other = _occupancy(found, start, length, tried)
+                best = int(np.argmax(other))
+                if other[best] >= max(_OCCUPIED, own + _GAIN):
+                    changed = float(tried[best])
+            if changed is None:
+                run = []
+                continue
+        run.append(changed)
+        if len(run) > len(longest):
+            longest = list(run)
+    if len(longest) >= _SPAN_RUN:
+        named = next((t for t in longest if t is not None), None)
+        why = (
+            f"; their beats sit nearer {named:.0f} bpm"
+            if named is not None
+            else f", under {_SPAN_GOOD:.0%} of their attacks on the grid"
+        )
+        raise SteadyError(
+            f"{bpm:.2f} bpm does not hold through the song: {len(longest)} spans of {_SPAN:g} s "
+            f"in a row miss it{why}"
+        )
 
 
 def _downbeat(
@@ -161,8 +277,9 @@ def _downbeat(
 
 def fit(midi: mido.MidiFile) -> Fit:
     """The steady tempo and the first downbeat of a transcription. Raises SteadyError when it has
-    fewer than MIN_ATTACKS distinct attacks, or bars.meter refuses its meter, or it puts under
-    GOOD of its attacks on the best grid, or its bars don't say where the downbeats are."""
+    fewer than MIN_ATTACKS distinct attacks, or bars.meter refuses its meter, or
+    it puts under GOOD of its attacks on the best grid, or the grid misses a sustained stretch, or
+    its bars don't say where the downbeats are. The octave is the dominant tempo's."""
     segments = notes.tempo_map(midi)
     onsets = _attacks(midi, segments)
     if len(onsets) < MIN_ATTACKS:
@@ -182,8 +299,10 @@ def fit(midi: mido.MidiFile) -> Fit:
             f"best fit {bpm:.2f} bpm puts {100 * on_grid // len(onsets)}% of {len(onsets)} attacks "
             f"within a quarter sixteenth, under {GOOD:.0%}"
         )
+    _check_spans(onsets, bpm, phase)
     downbeat = _downbeat(meter, segments, last, bpm, phase)
-    return Fit(bpm, downbeat, coverage, len(onsets))
+    other, share = _other_octave(segments, end, bpm)
+    return Fit(bpm, downbeat, coverage, len(onsets), other, share)
 
 
 def apply(midi: mido.MidiFile, fit: Fit) -> mido.MidiFile:

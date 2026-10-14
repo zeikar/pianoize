@@ -182,6 +182,11 @@ def test_a_steady_transcription_is_gridded(fake_install, flac, tmp_path):
     # The melody is taken from the gridded file, not from tsumugi's.
     assert notes.tempo_map(mido.MidiFile(out / "melody.mid")) == segments
     assert "tempo grid: 120.00 bpm, first downbeat at 0.500 s, " in result.output
+    # The bent map runs 8 of its 48 bars at half speed.
+    assert (
+        "tempo grid: tsumugi also ran 17% of its seconds at 60.00 bpm; the grid takes 120.00, "
+        "the octave it held longer; check the bars by ear"
+    ) in result.output
     _, generator = (r["argv"] for r in fake_install.records())
     assert option(generator, "--source") == str(out / "source.mid")
 
