@@ -178,6 +178,7 @@ def test_the_prepare_skill_sets_up_and_prepares_into_a_directory():
     lines = list(_command_lines(_text(ROOT / "skills" / "prepare-song" / "SKILL.md")))
     assert "setup" in {name for name, _ in lines}
     assert any(name == "prepare" and "-o" in flags for name, flags in lines)
+    assert any(name == "prepare" and "--melody-track" in flags for name, flags in lines)
 
 
 @pytest.mark.parametrize("skill", SKILLS)

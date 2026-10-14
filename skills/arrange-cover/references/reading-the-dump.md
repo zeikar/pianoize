@@ -67,6 +67,7 @@ Velocity only helps you find these moments. The arrangement has a single velocit
 
 - **Skip the strays.** A `(0)` sliver, like bar 3's `8:C5(0)` before `8:C5(7)`, a quick re-strike of the pitch just sung, and a blip far from the line around it are transcription noise.
 - **Note the octave.** Compare `V` with the cover's top notes at the same positions. The cover often plays the melody an octave up, as in bars 1 to 3 (`V 0:A4(4)` against `A5(4,90)` in `C`). Write it where the cover plays it, which keeps the right hand above the accompaniment.
+- **A dump without a melody** (an instrumental, dumped without `--melody`) has every `V` line empty: it is "Where `V` is silent" in every bar, and each bar has its `I` lines. Record the instrument that carries the tune per section.
 - **Where `V` is silent**, an instrument usually carries the tune: find it in the `I` lines ("The instrument lines" below), or, without a source, in the cover's top line. Where all of them are silent and the song surely isn't, record the gap in `notes.md`.
 - **Where `V` and the cover disagree on a pitch,** prefer the one that fits the chord and the phrase's repeats, and record the choice.
 
@@ -78,7 +79,7 @@ Where no one sings, in an intro, an interlude, a bridge or an ending, the tune m
 - **Chords and the bass:** `strings`, `piano` and a strummed guitar mostly play chords, so their top line is the top of a voicing, not a tune. `electric_bass` is the bass line: check your chord's root against it.
 - **A backing vocal**, `vocal_harmony`, can sound where the lead is silent; take it as a tune only where it is one.
 - **They are transcriptions too.** A line can drop notes, split a held note, add a stray or jump an octave. Read it against the section's repeats and the cover, as you read `V`.
-- **Under the voice.** A sung bar hides its `I` lines, yet the band often plays something there worth keeping: a fill between two vocal phrases, a riff under the singing, a countermelody. To find them, dump a sung section again with the lines in every bar, one section at a time to keep it short: `pianoize dump-bars '<cover>' --melody '<melody>' --source '<source>' --every-bar --bars 21-36`. A fill where `V` rests can go on top of the right hand; under a sung note, the melody stays on top.
+- **Under the voice.** A sung bar hides its `I` lines, yet the band often plays something there worth keeping: a fill between two vocal phrases, a riff under the singing, a countermelody. To find them, dump a sung section again with the lines in every bar, one section at a time to keep it short: `pianoize dump-bars '<cover>' --melody '<melody>' --source '<source>' --every-bar --bars 21-36`, leaving out `--melody '<melody>'` without a melody. A fill where `V` rests can go on top of the right hand; under a sung note, the melody stays on top.
 - **Where the singing starts or stops inside a bar,** that bar has a `V` note and so no `I` lines in the plain dump: read its instruments with `--every-bar`, as above.
 
 ## Reading a long dump
@@ -87,5 +88,5 @@ A full song is 150 to 200 bars, three lines each, and more where instruments pri
 
 1. **The headers.** Skim the bar times and the markers for the section boundaries: where a chord pattern starts again, where the texture changes, where the melody enters after a gap.
 2. **The sections.** Most sections span 4, 8 or 16 bars. Name each with its bars in `notes.md`, and mark which later ones repeat which: the same markers, the same bass, the same melody.
-3. **One section at a time.** Read each closely, as `pianoize dump-bars '<cover>' --melody '<melody>' --source '<source>' --bars 21-36` prints it (leaving out `--source '<source>'` without a source), and write its chords, hits, stops and melody entries into `notes.md` before scoring it.
+3. **One section at a time.** Read each closely, as `pianoize dump-bars '<cover>' --melody '<melody>' --source '<source>' --bars 21-36` prints it (leaving out `--source '<source>'` without a source, and `--melody '<melody>'` without a melody), and write its chords, hits, stops and melody entries into `notes.md` before scoring it.
 4. **The repeats.** Compare each repeat with its first appearance bar by bar. A changed melody line, an added hit, a different last bar or a dropped bar is an override, or a sign the repeat is not one.

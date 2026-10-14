@@ -5,7 +5,7 @@ description: This experimental skill should be used only when the user asks for 
 
 # Arrange a song for two hands from its band transcription (experimental)
 
-pianoize arranges a song for a falling-notes video (Synthesia style). This experimental path starts from two inputs: tsumugi's transcription of the whole band, `source.mid`, with a track per instrument, a tempo map and chord markers; and tsumugi's transcription of the sung melody. You read the band bar by bar, decide the chords and arrange the band for two hands in a score; pianoize builds the score into MIDI on a tempo grid it makes from the transcription, and checks that it is playable and fits your chords.
+pianoize arranges a song for a falling-notes video (Synthesia style). This experimental path starts from tsumugi's transcription of the whole band, `source.mid`, with a track per instrument, a tempo map and chord markers, and from tsumugi's transcription of the sung melody where the song has one. You read the band bar by bar, decide the chords and arrange the band for two hands in a score; pianoize builds the score into MIDI on a tempo grid it makes from the transcription, and checks that it is playable and fits your chords.
 
 The path exists for its terms. tsumugi-piano-cover's weights are CC BY-NC 4.0, so its cover and anything made from it are treated as non-commercial. The transcriber's code and weights are MIT, so an arrangement that never touches the cover carries no such terms. `arrange-cover` stays the default: this path's first trial left the left hand unsettled ("Density" in `references/band-to-piano.md`), and the skill is kept to be run again with a newer model or a tuned prompt.
 
@@ -30,10 +30,10 @@ pianoize's commands are deterministic and never call an LLM. You write two text 
 
 ## Inputs
 
-Ask the user for any input that is missing and stop until you have it. The `prepare-song` skill (`../prepare-song/SKILL.md`) makes them, `pianoize prepare` writing `source.mid` and `melody.mid` into the song's directory; when they are missing, offer that skill and stop.
+Ask the user for any input that is missing and stop until you have it. The `prepare-song` skill (`../prepare-song/SKILL.md`) makes them, `pianoize prepare` writing `source.mid` and `melody.mid` (where the song has one) into the song's directory; when they are missing, offer that skill and stop.
 
 - `<source>`: tsumugi's transcription of the whole band, `source.mid`: a track per instrument, the drums among them, a tempo map and chord markers.
-- `<melody>`: tsumugi's melody MIDI, the transcriber's lead vocal track.
+- `<melody>`, optional: tsumugi's melody MIDI, the transcriber's lead vocal track. An instrumental has none, unless `prepare --melody-track` named an instrument's track. Without one, leave `--melody '<melody>'` out of steps 3 and 7.
 - `<out>`: an output directory under `work/` of its own, named by the user (`work/<song>-transcription/`). Create it with `mkdir -p`.
 - For the render at the end: FluidSynth on `PATH` and a piano SoundFont (`--soundfont`, or `$PIANOIZE_SOUNDFONT`).
 
@@ -53,7 +53,7 @@ This skill is written for score format version 1: the first line of every score 
 
 1. **Grid:** `pianoize build-grid '<source>' -o '<out>/grid.mid'`. It writes the grid that stands in for a cover: the transcription's tempo map and chord markers, with its `piano` and `electric_bass` tracks ("Building the grid from a transcription" in the docs). If it refuses a track the source lacks, its error lists the tracks the source names: choose the ones that carry the band's chords and its bass, and run it again with a `--track` for each, `pianoize build-grid '<source>' -o '<out>/grid.mid' --track '<chords>' --track '<bass>'`. Record the tracks the grid holds under "Grid tracks" in `notes.md`.
 2. **Regrid:** `pianoize regrid '<out>/grid.mid' -o '<out>/grid.regrid.mid'`. It writes a copy of the grid with its tempo hiccups regridded ("Regridding" in the docs). From here on, every `'<grid>'` in a command stands for that copy, `'<out>/grid.regrid.mid'`, the cover of every command. If it prints spans (`bars 40-43: … BPM -> 5 bars at 120.00`) rather than `no tempo hiccups`, record each under "Regridded spans" in `notes.md`: the user checks each by ear at step 9.
-3. **Dump:** `pianoize dump-bars '<grid>' --melody '<melody>' --source '<source>' --every-bar --drums > '<out>/bars.txt'`. Each bar gets a header with its time and the transcription's chord markers, and then these lines ("Dumping" in the docs), whose positions and durations count sixteenths:
+3. **Dump:** `pianoize dump-bars '<grid>' --melody '<melody>' --source '<source>' --every-bar --drums > '<out>/bars.txt'`, leaving out `--melody '<melody>'` without a melody. Each bar gets a header with its time and the transcription's chord markers, and then these lines ("Dumping" in the docs), whose positions and durations count sixteenths:
    - `C`: the attacks of the grid's tracks, the band's piano and bass. It is what the band plays, not a pianist's part;
    - `V`: the melody;
    - `D`: the drums' hits, grouped as `kick`, `snare`, `hihat`, `cymbal` and `other`;
@@ -77,7 +77,7 @@ This skill is written for score format version 1: the first line of every score 
 
    Not "Copy the cover where it renders a moment best", which reads a cover, nor "One velocity", whose verse texture "Density" in `references/band-to-piano.md` replaces. The score's shape is the example in step 4 of `../arrange-cover/SKILL.md`; its grammar is "The score format" in the docs. Write every bar from 1 on, a silent one as a bar with `N.C.` and no hand lines. Write a section that repeats an earlier one as a copy, `bars A-B = C-D`, with overrides, as step 5 of `../arrange-cover/SKILL.md` says, and record each in `notes.md`. After each section, run steps 6 and 7 and fix every flagged finding before writing the next.
 6. **Build:** `pianoize build-arrangement '<out>/score.txt' --cover '<grid>' -o '<out>/arranged.mid'`. It prints the notes per hand, the pedal presses and the length ("Building" in the docs). Once the score is complete, the length is about the grid's.
-7. **Check:** `pianoize check-arrangement '<out>/score.txt' --cover '<grid>' --melody '<melody>'`. Its report ends `problems: K` or `clean` ("Checking" in the docs). Fix every flagged finding as "Fixing the check" in `../arrange-cover/references/arranging-rules.md` says, then run steps 6 and 7 again, until it prints `clean` and exits 0. A span marked `(listed, not flagged)` may stay. After the report come the vocal notes the top of the right hand leaves out, `bar N pos P  melody missing  E5 (2)`. Add each on top of the right hand, on `M` in the octave you chose for its section, or record under "Melody left out" in `notes.md` why it stays out.
+7. **Check:** `pianoize check-arrangement '<out>/score.txt' --cover '<grid>' --melody '<melody>'`, leaving out `--melody '<melody>'` without a melody: the melody and vocal-notes checks are then skipped, and the check does not verify the tune. Its report ends `problems: K` or `clean` ("Checking" in the docs). Fix every flagged finding as "Fixing the check" in `../arrange-cover/references/arranging-rules.md` says, then run steps 6 and 7 again, until it prints `clean` and exits 0. A span marked `(listed, not flagged)` may stay. After the report come the vocal notes the top of the right hand leaves out, `bar N pos P  melody missing  E5 (2)`. Add each on top of the right hand, on `M` in the octave you chose for its section, or record under "Melody left out" in `notes.md` why it stays out.
 8. **Render:** `pianoize render '<out>/arranged.mid' -o '<out>/arranged.wav'`, adding `--soundfont '<sf2>'` when `$PIANOIZE_SOUNDFONT` is not set. If it warns that the peak could clip, render again with a lower `--gain`. Without FluidSynth or a SoundFont, tell the user and give them the MIDI path instead.
 9. **Ask the user to listen.** Give them `<out>/arranged.wav` and the places `notes.md` lists as inferred, filled or copied from an earlier section, each by bar and time (the dump's header gives a bar's time), and the gaps it records. Name each regridded span too: the user listens to the song there and counts its bars, since `regrid` can take a real tempo change for a hiccup. Ask them also about each section's left hand, naming its figure from `notes.md`: too sparse, too busy, or right. Ask them to approve, or to name the places to change by bar or time, and stop until they answer.
 10. **Revise** what they name. Change a section's density or figure as a whole, not bar by bar: its entry under "Left-hand figures" in `notes.md` changes first, then every `L` line of the section to match, overrides included. Its copies follow it; tell the user which repeats changed. For one bar a copy defined, write an override, so the rest of the copy stays as it is. Record each change and the user's reason in `notes.md`, then run steps 6 to 9 again, until they approve. Record the approval in `notes.md`.
@@ -87,7 +87,7 @@ This skill is written for score format version 1: the first line of every score 
 ```markdown
 # <song>: arranging notes, from the transcription alone
 ## Clean room
-- inputs: '<source>' and '<melody>' only; no cover, nothing made from one
+- inputs: '<source>' (and '<melody>' if any) only; no cover, nothing made from one
 ## Grid tracks
 - piano, electric_bass (the default)
 ## Regridded spans

@@ -51,6 +51,7 @@ This replaces the clauses of `arrange-cover`'s references that read the melody o
 
 - **The melody is `V` alone**, kept to one voice as `check-arrangement --melody` keeps it: of notes sung together the highest, each ending where the next begins. Skip its strays as "Skip the strays" in `reading-the-dump.md` says.
 - **Choose its octave to fit the hands**, not off a cover. The melody stays the top right-hand note and above the left hand, so a vocal that sits in the accompaniment's register goes up an octave. Choose one octave per section and record it under "Melody" in `notes.md`.
+- **Without a melody** every `V` line is empty. The tune is the `I` line that carries it, chosen per section from the dump's instrument lines and recorded under "Melody" in `notes.md`, with its octave.
 - **Where `V` is wrong or silent** while someone surely sings, check it against `vocal_harmony`'s `I` line, an instrument doubling the tune, and the section's repeats. `I melody` is `V`'s own track, so it can't confirm `V`. Write what the others agree on, and record the choice.
 
 ### Tunes, stabs and hits
