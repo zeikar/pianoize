@@ -121,15 +121,16 @@ def check_arrangement(
 def dump_bars(
     cover: Annotated[Path, typer.Argument(metavar="COVER.mid", exists=True, dir_okay=False)],
     melody_path: Annotated[
-        Path,
+        Path | None,
         typer.Option(
             "--melody",
             metavar="MELODY.mid",
-            help="tsumugi's melody track, placed on the cover's bars by its seconds.",
+            help="tsumugi's melody track, placed on the cover's bars by its seconds; without it, "
+            "every V line is empty, as on an instrumental.",
             exists=True,
             dir_okay=False,
         ),
-    ],
+    ] = None,
     source_path: Annotated[
         Path | None,
         typer.Option(
@@ -178,7 +179,7 @@ def dump_bars(
                 f"{bar_range!r}: bars count from 1 and A is at most B", param_hint="--bars"
             )
     midi = _read_midi(cover)
-    melody = _read_timed(melody_path)
+    melody = None if melody_path is None else _read_timed(melody_path)
     source = None if source_path is None else _read_timed(source_path)
     try:
         found = dump.lines(midi, melody, selected, source, every_bar, drums)

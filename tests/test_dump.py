@@ -107,6 +107,13 @@ def test_a_bar_range_prints_only_its_bars(tick_midi, silent, bar_range, numbers)
     assert len(found) == 3 * len(numbers)
 
 
+def test_no_melody_reads_as_a_silent_one(tick_midi, silent):
+    cover = tick_midi([(0, 1920 * 2, 48, 60)])
+    source = source_midi(tick_midi, named(tick_midi, "brass", [(0, 240, 76, 90)]))
+    assert lines(cover, None) == lines(cover, silent)
+    assert lines(cover, None, source=source) == lines(cover, silent, source=source)
+
+
 @pytest.mark.parametrize("tempo_track", [False, True])
 def test_text_and_lyrics_never_print(tick_midi, tempo_track):
     words = [(0, meta("text", text="sung text")), (0, meta("lyrics", text="sung line"))]
@@ -413,6 +420,23 @@ def test_cli_prints_the_instrument_lines_in_every_bar_on_request(dumped, tick_mi
         "V 0:C5(2)",
         "I brass  2:E5(2)",
     ]
+
+
+def test_cli_prints_every_bar_without_a_melody(dumped, tick_midi, tmp_path):
+    cover, _ = dumped
+    source = tmp_path / "source.mid"
+    source_midi(
+        tick_midi,
+        named(
+            tick_midi, "brass", [(tick, tick + 240, 76, 90) for tick in range(0, 1920 * 4, 1920)]
+        ),
+    ).save(source)
+    result = CliRunner().invoke(app, ["dump-bars", str(cover), "--source", str(source)])
+    assert result.exit_code == 0, result.output
+    found = result.stdout.splitlines()
+    assert found.count("V ") == 4
+    assert found.count("I brass  0:E5(2)") == 4
+    assert found[2:4] == ["V ", "I brass  0:E5(2)"]
 
 
 def test_cli_refuses_every_bar_without_a_source(dumped):

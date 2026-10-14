@@ -42,7 +42,7 @@ def _drum_hits(source: mido.MidiFile) -> Iterator[tuple[float, str]]:
 
 def lines(
     cover: mido.MidiFile,
-    melody: mido.MidiFile,
+    melody: mido.MidiFile | None,
     bar_range: tuple[int, int] | None = None,
     source: mido.MidiFile | None = None,
     every_bar: bool = False,
@@ -58,7 +58,8 @@ def lines(
     `D ` for a bar without hits. The melody, the markers and the source are placed by their
     seconds on the cover's tempo map. Bars run from 1 to the cover's last, or past it to the last
     any note or marker rounds into; `bar_range`, first and last inclusive, keeps the bars of it
-    that exist."""
+    that exist. Without a `melody`, as on an instrumental, every `V` line is empty and, with a
+    `source`, every bar gets its `I` lines."""
     meter = bars.meter(cover)
     per_bar = 2 * meter.sixteenths_per_bar
 
@@ -79,7 +80,7 @@ def lines(
     for note in notes.read(cover):
         on, off = halves(meter, note.on_tick), halves(meter, note.off_tick)
         struck[on // per_bar + 1][on % per_bar].append((note.pitch, (off - on) / 2, note.velocity))
-    for note in notes.read(melody):
+    for note in notes.read(melody) if melody is not None else []:
         on, off = notes.tick_at(cover, note.onset), notes.tick_at(cover, note.offset)
         bar, pos = place(on)
         sung[bar].append(
