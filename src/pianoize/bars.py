@@ -30,8 +30,9 @@ class Meter:
 
 def meter(midi: mido.MidiFile) -> Meter:
     """The one meter of the file, from the time signatures on every track. With none it is 4/4,
-    the MIDI default, which also holds before a first signature after tick 0; a change of meter
-    raises MeterError."""
+    the MIDI default, which also holds before a first signature after tick 0. A signature with the
+    first one's bar length, 8/8 after 4/4, is no change and the first stands; any other change of
+    meter raises MeterError."""
     found: list[tuple[int, int, int]] = []
     for track in midi.tracks:
         tick = 0
@@ -44,7 +45,9 @@ def meter(midi: mido.MidiFile) -> Meter:
         found.insert(0, (0, 4, 4))
     _, numerator, denominator = found[0]
     for tick, other_numerator, other_denominator in found[1:]:
-        if (other_numerator, other_denominator) != (numerator, denominator):
+        # The score counts sixteenths per bar, so only the bar's length matters: tsumugi writes
+        # 8/8 for stretches of a 4/4 song.
+        if other_numerator * denominator != numerator * other_denominator:
             raise MeterError(
                 f"the cover changes meter at tick {tick}, {numerator}/{denominator} to "
                 f"{other_numerator}/{other_denominator}; the score format needs one meter"

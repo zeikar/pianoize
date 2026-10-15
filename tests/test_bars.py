@@ -62,6 +62,14 @@ def test_equal_signatures_pass(tick_midi):
     assert meter(midi) == Meter(480, 3, 4)
 
 
+@pytest.mark.parametrize(("first", "other"), [((4, 4), (8, 8)), ((4, 4), (2, 2)), ((3, 4), (6, 8))])
+def test_signatures_with_the_same_bar_pass_as_the_first(tick_midi, first, other):
+    midi = tick_midi([(0, 240, 60, 80)], meta=[(0, signature(*first))])
+    midi.tracks.append(track_with(7680, signature(*other)))
+    midi.tracks.append(track_with(15360, signature(*first)))
+    assert meter(midi) == Meter(480, *first)
+
+
 def test_a_change_of_meter_on_any_track_raises(tick_midi):
     midi = tick_midi([(0, 240, 60, 80)], meta=[(0, signature(4, 4))])
     midi.tracks.append(track_with(7680, signature(3, 4)))

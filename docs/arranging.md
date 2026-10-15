@@ -118,7 +118,7 @@ A `bar N` line for a bar a copy defined overrides it. Written anywhere after the
 
 ### Meter
 
-The score has no meter of its own. The build, the check and the dump take it from the cover's `time_signature`: a bar holds 16 sixteenths in 4/4, and 12 in 3/4 and in 6/8. Positions count sixteenths in every meter. A cover without a time signature is 4/4, the MIDI default, which also holds before a first signature written after tick 0. A cover whose meter changes is refused, naming the tick: `the cover changes meter at tick 92160, 4/4 to 3/4; the score format needs one meter`. So is a cover whose ticks per beat don't divide by 4, or whose bar doesn't hold a whole number of sixteenths.
+The score has no meter of its own. The build, the check and the dump take it from the cover's `time_signature`: a bar holds 16 sixteenths in 4/4, and 12 in 3/4 and in 6/8. Positions count sixteenths in every meter. A cover without a time signature is 4/4, the MIDI default, which also holds before a first signature written after tick 0. A signature with the same bar length as the first, 8/8 or 2/2 after 4/4, 6/8 after 3/4, is no change of meter, and the first signature stands. A cover whose meter changes otherwise is refused, naming the tick: `the cover changes meter at tick 92160, 4/4 to 3/4; the score format needs one meter`. So is a cover whose ticks per beat don't divide by 4, or whose bar doesn't hold a whole number of sixteenths.
 
 ### Errors
 

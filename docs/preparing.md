@@ -152,7 +152,7 @@ tsumugi's tempo map comes from a beat tracker, which can run at half speed over 
 - **When it is applied,** the line is `tempo grid: B bpm, first downbeat at D s, P% of N attacks within a quarter sixteenth (W ms)`. When half or double the fit also holds any of tsumugi's seconds, one more line follows: `tempo grid: tsumugi also ran P% of its seconds at C bpm; the grid takes B, the octave it held longer; check the bars by ear`.
 - **It is not applied** when one of these holds, and `source.mid` is then a byte copy of `transcription.mid`. The line is `tempo grid: keeping tsumugi's tempo map: ` and the reason:
   - `N distinct attacks, fewer than 300`.
-  - The meter changes, or is not a whole number of sixteenths (the error is `bars.meter`'s own text).
+  - The meter changes its bar length, or is not a whole number of sixteenths (the error is `bars.meter`'s own text).
   - `best fit B bpm puts P% of N attacks within a quarter sixteenth, under 70%`.
   - `B bpm does not hold through the song: K spans of 10 s in a row miss it`, then either `; their beats sit nearer C bpm` or `, under 60% of their attacks on the grid`.
   - `none of tsumugi's bars run within 5% of B bpm, so the downbeats are unknown`.
