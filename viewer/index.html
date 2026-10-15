@@ -71,15 +71,14 @@
 </li>
 <li>
 <h3>Arrange</h3>
-<p>Ask it to arrange the song. Its <code>arrange-cover</code> skill writes a two-hand score bar by bar; pianoize builds it into MIDI, checks that it is playable and renders <code>arranged.wav</code> for you to listen to.</p>
+<p>Ask it to arrange the song. Its <code>arrange-cover</code> skill writes a two-hand score bar by bar; pianoize builds it into MIDI, checks that it is playable, renders <code>arranged.wav</code> for you to listen to and exports <code>arranged.json</code> for this page.</p>
 <pre><code>arrange this song for two hands</code></pre>
 </li>
 <li>
 <h3>Play</h3>
-<p>Export the notes as JSON from a checkout of pianoize, then drop <code>arranged.json</code> and <code>arranged.wav</code> on the keyboard above. The same MIDI renders to an MP4 with <code>render-video</code> and a <a href="https://github.com/zeikar/pianoize/blob/main/docs/rendering.md#the-cards-file">cards file</a>.</p>
-<pre><code>git clone https://github.com/zeikar/pianoize
-cd pianoize
-uv run pianoize export-arrangement arranged.mid -o arranged.json</code></pre>
+<p>Drop the two files from the song's folder on the keyboard above. The same MIDI renders to an MP4 with <code>render-video</code> and a <a href="https://github.com/zeikar/pianoize/blob/main/docs/rendering.md#the-cards-file">cards file</a>.</p>
+<pre><code>work/&lt;song&gt;/arranged.json
+work/&lt;song&gt;/arranged.wav</code></pre>
 </li>
 </ol>
 </section>

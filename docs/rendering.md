@@ -166,7 +166,7 @@ The Python tests are `tests/test_roll.py`, `tests/test_video.py` and `tests/test
 
 The page is at <https://zeikar.dev/pianoize/>; `zeikar.github.io/pianoize/` redirects there. It is the project's home page: what pianoize does, the stage with an empty keyboard and the file picker on it, the player, and the steps that make an arrangement. It asks for two files, chosen with its button or dropped anywhere on the page:
 
-- **The arrangement JSON**, from `pianoize export-arrangement`. A file that isn't JSON, has another `format_version`, has no `notes` array or has a pitch off the 88 keys is refused with its error. A MIDI is refused with a pointer to `export-arrangement`.
+- **The arrangement JSON**, from `pianoize export-arrangement`, which the arranging skills run beside the render. A file that isn't JSON, has another `format_version`, has no `notes` array or has a pitch off the 88 keys is refused with its error. A MIDI is refused with a pointer to `export-arrangement`.
 - **Its audio**, such as the WAV `pianoize render` writes from the same MIDI. Any audio the browser plays will do; its metadata is read in a scratch element first, and audio the browser can't play is refused. It is required: the `<audio>` element is the page's clock.
 
 A refused file replaces nothing, so what plays keeps playing. The error shows in the picker while a file is missing, and under the player once both play.

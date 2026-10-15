@@ -12,8 +12,8 @@ The [`arrange-cover` skill](#running-the-skills) runs it in these steps. The com
 4. **Write, section by section.** The agent writes the [score](#the-score-format) one section at a time, reusing a repeated section with a [copy](#copies-and-overrides).
 5. **Build.** [`build-arrangement`](#building) turns the score into a two-hand MIDI on the cover's tempo map.
 6. **Check and fix.** [`check-arrangement`](#checking) checks that each hand can play the score and that the accompaniment fits the score's own chords. The agent fixes every flagged finding, after each section and at the end, until the check prints `clean`. Given tsumugi's melody, the check also lists the vocal notes the top of the right hand leaves out; the agent adds each one or records why it stays out.
-7. **Render.** `pianoize render` ([docs/evaluation.md](evaluation.md#rendering-a-midi-file)) turns the MIDI into a WAV.
-8. **Listen.** The agent cannot hear the result, so the user is the last gate. They approve it, or name places; the agent revises those bars, overriding a copied bar where the copy is the cause, and builds, checks and renders again.
+7. **Render and export.** `pianoize render` ([docs/evaluation.md](evaluation.md#rendering-a-midi-file)) turns the MIDI into a WAV, and `pianoize export-arrangement` ([docs/rendering.md](rendering.md#the-arrangement-json)) into the JSON the falling-notes viewer plays with it, on the [home page](rendering.md#on-github-pages) as well.
+8. **Listen.** The agent cannot hear the result, so the user is the last gate. They approve it, or name places; the agent revises those bars, overriding a copied bar where the copy is the cause, and builds, checks, renders and exports again.
 
 ## Regridding
 

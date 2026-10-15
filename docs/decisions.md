@@ -198,6 +198,7 @@ The SoundFont is Salamander Grand Piano V3, for evaluation and for video audio. 
 The viewer also runs on GitHub Pages, playing an arrangement the user picks ([docs/rendering.md](rendering.md#on-github-pages)).
 
 - **The input is the arrangement JSON and an audio file,** chosen over the arranged MIDI, which would need a MIDI reader in JavaScript beside `roll.export`, and over a saved preview run, which would need a new CLI option.
+- **The arranging skills export the JSON** beside `arranged.wav` and point the user to the home page, so the plugin alone gets an arrangement there, with no checkout to run `export-arrangement` from. The user asked for it once the home page's steps showed that gap.
 - **The audio is required:** the `<audio>` element stays the clock, chosen over a silent mode with a clock of its own.
 - **One page.** `main.js` fetches `run/manifest.json` by a relative path, and a 404 makes it the home page. The capture's frames stay byte-identical, and the page works below `/pianoize/`.
 - **It is the project's home page,** the user's "main entry point": a short introduction, the stage with the picker on its empty keyboard, the player, and the steps that make an arrangement. The user chose an empty keyboard over a silent demo loop, and the introduction above the stage over a full-width stage first. On a short window the stage narrows so that it and the player fit one screen, and a pick scrolls them into view with the focus on Play: a usability pass found the player below the fold on a laptop, with nothing on screen to press.
