@@ -4,19 +4,89 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>pianoize</title>
+<meta name="description" content="Song recordings, arranged for two hands and played as falling notes. Play an arrangement JSON and its audio in your browser.">
 <link rel="icon" href="data:,">
 <link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="controls.css">
 <script type="module" src="main.js"></script>
 </head>
 <body>
-<form id="files" hidden>
-<p>Pick an arrangement JSON from <code>pianoize export-arrangement</code> and its audio, such as
-<code>pianoize render</code>'s WAV. They are read in this browser and sent nowhere.</p>
-<label>Arrangement JSON <input type="file" name="arrangement" accept=".json,application/json"></label>
-<label>Audio <input type="file" name="audio" accept="audio/*"></label>
-<p id="error" role="alert"></p>
-</form>
-<audio id="audio" controls></audio>
+<header class="home bar">
+<a class="wordmark" href="./">pianoize</a>
+<a href="https://github.com/zeikar/pianoize">GitHub</a>
+</header>
+
+<main>
+<div class="home intro">
+<h1>Song recordings, arranged for two hands and played as falling notes.</h1>
+<p>pianoize transcribes a song, has Claude Code write a two-hand piano arrangement that is checked to be playable, and renders it as a falling-notes video. Play yours here.</p>
+</div>
+
+<div class="stage">
 <canvas id="screen"></canvas>
+<form class="drop" id="files" hidden>
+<div class="card">
+<h2>Play your arrangement</h2>
+<p>Choose an arrangement JSON and its audio, or drop them here. They stay in this browser; nothing is uploaded.</p>
+<dl class="needs">
+<div data-need="arrangement"><dt>Arrangement JSON</dt><dd>Not chosen yet</dd></div>
+<div data-need="audio"><dt>Audio</dt><dd>Not chosen yet</dd></div>
+</dl>
+<button type="button" class="primary choose">Choose files</button>
+<input type="file" name="files" multiple accept=".json,application/json,audio/*" hidden>
+<p class="error" role="alert"></p>
+</div>
+</form>
+</div>
+
+<div class="transport" id="transport">
+<button type="button" class="play" aria-label="Play" disabled>
+<svg class="icon-play" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.5v11l9.5-5.5z"/></svg>
+<svg class="icon-pause" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 2.5h3v11h-3zM9.5 2.5h3v11h-3z"/></svg>
+</button>
+<span class="time">0:00 / 0:00</span>
+<input type="range" class="seek" aria-label="Seek" min="0" max="0" step="any" value="0" disabled>
+<span class="legend"><i class="right"></i>Right hand <i class="left"></i>Left hand</span>
+</div>
+<div class="home loaded" id="loaded" hidden>
+<p aria-live="polite"><span class="names"></span> <button type="button" class="quiet choose">Choose other files</button></p>
+<p class="error" role="alert"></p>
+</div>
+<audio id="audio"></audio>
+
+<section class="home how">
+<h2>How an arrangement is made</h2>
+<p>Every step runs on your own machine. The pianoize plugin for Claude Code runs its own copy of pianoize, which needs uv and git; preparing a song also needs FFmpeg, and rendering needs FluidSynth and a piano SoundFont.</p>
+<ol>
+<li>
+<h3>Install</h3>
+<p>Add the plugin to Claude Code.</p>
+<pre><code>/plugin marketplace add zeikar/pianoize
+/plugin install pianoize@pianoize</code></pre>
+</li>
+<li>
+<h3>Prepare</h3>
+<p>Ask Claude Code to prepare a song from a YouTube link or an audio file. Its <code>prepare-song</code> skill installs the models once, transcribes the recording, takes the melody and generates a piano cover.</p>
+<pre><code>prepare this song: https://youtu.be/…</code></pre>
+</li>
+<li>
+<h3>Arrange</h3>
+<p>Ask it to arrange the song. Its <code>arrange-cover</code> skill writes a two-hand score bar by bar; pianoize builds it into MIDI, checks that it is playable and renders <code>arranged.wav</code> for you to listen to.</p>
+<pre><code>arrange this song for two hands</code></pre>
+</li>
+<li>
+<h3>Play</h3>
+<p>Export the notes as JSON from a checkout of pianoize, then drop <code>arranged.json</code> and <code>arranged.wav</code> on the keyboard above. The same MIDI renders to an MP4 with <code>render-video</code> and a <a href="https://github.com/zeikar/pianoize/blob/main/docs/rendering.md#the-cards-file">cards file</a>.</p>
+<pre><code>git clone https://github.com/zeikar/pianoize
+cd pianoize
+uv run pianoize export-arrangement arranged.mid -o arranged.json</code></pre>
+</li>
+</ol>
+</section>
+</main>
+
+<footer class="home bar">
+<p>MIT licensed. The source and the docs are on <a href="https://github.com/zeikar/pianoize">GitHub</a>.</p>
+</footer>
 </body>
 </html>

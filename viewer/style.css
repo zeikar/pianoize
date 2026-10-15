@@ -1,64 +1,284 @@
-/* No colours or sizes here: main.js sets the background, the canvas's pixel size and the
-   picker's spacing from style.js. */
+/* The page around the frame. Its colours, font and corner radius come from style.js, which
+   main.js copies into the custom properties below; the sizes here are the page's own. The
+   frame itself is drawn on the canvas, entirely from style.js. The picker and the player are
+   in controls.css.
 
-/* Light text and dark controls on the dark background. */
+   Three modes: the home page (no body class: GitHub Pages, where the user picks the files),
+   body.run (pianoize's local preview of a run) and body.capture (the frames of the video). */
+
 :root {
+  /* Light text and dark controls on the dark background. */
   color-scheme: dark;
+  --muted: color-mix(in srgb, var(--text) 62%, var(--background));
+  --raised: color-mix(in srgb, var(--text) 6%, var(--background));
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --gutter: clamp(16px, 4vw, 32px);
+  /* Narrow enough on a short window that the stage and the player under it fit one screen. */
+  --stage-width: calc((100svh - 140px) * 16 / 9);
 }
 
 body {
   margin: 0;
-  display: flex;
-  flex-direction: column;
-  height: 100vh;
+  background: var(--background);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 1.0625rem;
+  line-height: 1.55;
 }
 
-/* The canvas's pixel size is 16:9. It takes the height the audio control leaves and scales
-   down to fit it, so the whole picture and the control are in view. */
-canvas {
-  display: block;
-  width: 100%;
-  flex: 1 1 0;
-  min-height: 0;
-  object-fit: contain;
+a {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--felt);
+  text-underline-offset: 3px;
 }
 
-audio {
-  display: block;
-  width: 100%;
+a:hover {
+  text-decoration-color: currentColor;
 }
 
-/* The file picker, shown only when the page has no run. A display here would override the
-   hidden attribute, so the rule skips a hidden form. */
-form:not([hidden]) {
-  display: flex;
-  flex-direction: column;
-  /* So a label is as wide as its text, and a click beside it doesn't open the dialog. */
-  align-items: flex-start;
+:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
 }
 
-form p {
+code {
+  font-family: var(--mono);
+  font-size: 0.875em;
+}
+
+h1,
+h2,
+h3,
+p,
+ol,
+dl,
+dd,
+pre {
   margin: 0;
 }
 
-form code {
-  white-space: nowrap;
+.bar,
+main {
+  max-width: 1120px;
+  margin-inline: auto;
+  padding-inline: var(--gutter);
 }
 
-form p:empty {
-  display: none;
+/* The header and the footer. */
+.bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 16px;
 }
 
-/* Capture screenshots the page at the canvas's pixel size, so it must not be scaled. */
-body.capture {
+header.bar {
+  padding-block: 20px 0;
+}
+
+footer.bar {
+  margin-top: 88px;
+  padding-bottom: 40px;
+  color: var(--muted);
+  font-size: 0.9375rem;
+}
+
+/* On the text, not the bar, so the rule spans the content and not the gutters. */
+footer.bar p {
+  flex: 1;
+  padding-top: 24px;
+  border-top: 1px solid var(--felt);
+}
+
+/* The left hand's colour under its half and the right hand's under the other, as the two
+   hands sit on the keys. */
+.wordmark {
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  text-decoration: none;
+  padding-bottom: 4px;
+  background: linear-gradient(to right, var(--left) 50%, var(--right) 50%) bottom / 100% 3px
+    no-repeat;
+}
+
+/* Short enough that the keyboard shows on a laptop's first screen. */
+.intro {
+  padding-block: 36px 28px;
+}
+
+.intro h1 {
+  font-size: clamp(2rem, 1.25rem + 2.5vw, 3rem);
+  font-weight: 500;
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+
+.intro p {
+  max-width: 62ch;
+  margin-top: 14px;
+  color: var(--muted);
+  font-size: 1.125rem;
+}
+
+/* The canvas is the frame, 16:9 from style.js; the stage scales it to the page's width. */
+.stage {
+  position: relative;
+  max-width: var(--stage-width);
+  scroll-margin-top: 16px;
+  border: 1px solid var(--felt);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.stage canvas {
   display: block;
+  width: 100%;
   height: auto;
 }
 
-body.capture canvas {
-  width: auto;
+/* The steps from a recording to the files the stage plays, one row each: the step, then its
+   commands. */
+.how {
+  margin-top: 88px;
 }
 
-body.capture audio {
+.how h2 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.how > p {
+  margin-top: 8px;
+  color: var(--muted);
+}
+
+.how ol {
+  margin-top: 28px;
+  padding: 0;
+  list-style: none;
+  counter-reset: step;
+}
+
+.how li {
+  display: grid;
+  grid-template-columns: 2.5rem minmax(0, 2fr) minmax(0, 3fr);
+  /* The commands' height goes under the text, not between it and its heading. */
+  grid-template-rows: auto 1fr;
+  gap: 6px 24px;
+  align-items: start;
+  padding-block: 24px;
+  border-top: 1px solid var(--felt);
+  counter-increment: step;
+}
+
+.how li::before {
+  content: counter(step);
+  grid-row: span 2;
+  color: var(--muted);
+  font-size: 1.75rem;
+  font-weight: 300;
+  line-height: 1;
+}
+
+.how h3 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.how li p {
+  grid-column: 2;
+  color: var(--muted);
+}
+
+.how pre {
+  grid-column: 3;
+  grid-row: 1 / span 2;
+  padding: 12px 14px;
+  overflow-x: auto;
+  background: var(--raised);
+  border-radius: var(--radius);
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+
+.how pre code {
+  font-size: inherit;
+}
+
+@media (max-width: 860px) {
+  .how li {
+    grid-template-columns: 2.5rem minmax(0, 1fr);
+  }
+
+  .how pre {
+    grid-column: 2;
+    grid-row: auto;
+    margin-top: 8px;
+  }
+}
+
+/* On a phone the picker goes under the stage (controls.css), so the canvas takes the frame. */
+@media (max-width: 640px) {
+  body:not(.run) .stage {
+    overflow: visible;
+    border: 0;
+  }
+
+  body:not(.run) .stage canvas {
+    border: 1px solid var(--felt);
+    border-radius: var(--radius);
+  }
+
+  /* Wrapped on screen only: a copy still gets each command on one line. */
+  .how pre {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+}
+
+/* The local preview: the stage fills the window above the player. */
+body.run .home {
   display: none;
+}
+
+body.run main {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  max-width: none;
+  padding: 0;
+}
+
+body.run .stage {
+  flex: 1 1 0;
+  min-height: 0;
+  max-width: none;
+  border: 0;
+  border-radius: 0;
+}
+
+body.run .stage canvas {
+  height: 100%;
+  object-fit: contain;
+}
+
+body.run .transport {
+  max-width: none;
+  padding-inline: var(--gutter);
+}
+
+/* Capture screenshots the page at the canvas's pixel size, so only the canvas shows, at its
+   own size, at the top left. */
+body.capture .transport {
+  display: none;
+}
+
+body.capture .stage canvas {
+  width: auto;
+  height: auto;
 }

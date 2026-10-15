@@ -1,0 +1,270 @@
+/* The controls: the file picker on the home page and the player under the stage. Their
+   colours come from the custom properties style.css describes. */
+
+/* The file picker sits in the empty roll above the keyboard. It shows while a file is dragged
+   over the page, even when hidden. */
+.drop {
+  position: absolute;
+  inset: 0 0 var(--keyboard) 0;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+}
+
+.drop[hidden] {
+  display: none;
+}
+
+.stage.over .drop[hidden] {
+  display: grid;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 14px;
+  max-width: 28rem;
+  padding: 22px 24px;
+  background: var(--background);
+  border: 1px dashed var(--felt);
+  border-radius: var(--radius);
+}
+
+.stage.over .card {
+  border-style: solid;
+  border-color: var(--text);
+}
+
+.card h2 {
+  font-size: 1.375rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.card > p {
+  color: var(--muted);
+  font-size: 0.9375rem;
+}
+
+.needs {
+  display: grid;
+  gap: 4px;
+  font-size: 0.9375rem;
+}
+
+.needs div {
+  display: flex;
+  gap: 12px;
+}
+
+.needs dt {
+  min-width: 9.5em;
+  color: var(--muted);
+}
+
+.needs dd {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.needs [data-chosen] dd {
+  color: var(--text);
+}
+
+.error {
+  color: var(--error);
+  font-size: 0.9375rem;
+  white-space: pre-line;
+}
+
+.error:empty {
+  display: none;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: default;
+}
+
+/* A white key's colour, the page's one solid control. */
+.primary {
+  padding: 9px 18px;
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--key);
+  color: var(--background);
+  font-weight: 600;
+}
+
+.primary:hover {
+  background: color-mix(in srgb, var(--key) 86%, var(--background));
+}
+
+/* Padded above and below for a finger, without moving the text. */
+.quiet {
+  padding: 8px 0;
+  margin-block: -8px;
+  border: 0;
+  background: none;
+  text-decoration: underline;
+  text-decoration-color: var(--felt);
+  text-underline-offset: 3px;
+}
+
+.quiet:hover {
+  text-decoration-color: currentColor;
+}
+
+/* The player under the stage: play, the time, the seek bar and the hands' colours. */
+.transport {
+  max-width: var(--stage-width);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  padding-block: 14px;
+}
+
+.play {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--key);
+  color: var(--background);
+}
+
+.play:disabled {
+  opacity: 0.35;
+}
+
+.play svg {
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
+}
+
+.play .icon-pause,
+.play[data-playing] .icon-play {
+  display: none;
+}
+
+.play[data-playing] .icon-pause {
+  display: block;
+}
+
+.time {
+  min-width: 6.5em;
+  color: var(--muted);
+  font-size: 0.9375rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* A 4px track in a bar tall enough to hit with a finger. */
+.seek {
+  flex: 1 1 200px;
+  height: 32px;
+  margin: 0;
+  background: transparent;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.seek:disabled {
+  opacity: 0.35;
+}
+
+.seek::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(
+    to right,
+    var(--text) var(--progress, 0%),
+    var(--felt) var(--progress, 0%)
+  );
+}
+
+.seek::-webkit-slider-thumb {
+  width: 14px;
+  height: 14px;
+  margin-top: -5px;
+  border-radius: 50%;
+  background: var(--key);
+  -webkit-appearance: none;
+}
+
+.seek::-moz-range-track {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--felt);
+}
+
+.seek::-moz-range-progress {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--text);
+}
+
+.seek::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--key);
+}
+
+.legend {
+  color: var(--muted);
+  font-size: 0.875rem;
+  white-space: nowrap;
+}
+
+.legend i {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 6px;
+  border-radius: 2px;
+  vertical-align: -1px;
+}
+
+.legend i.left {
+  margin-left: 12px;
+  background: var(--left);
+}
+
+.legend i.right {
+  background: var(--right);
+}
+
+.loaded {
+  max-width: var(--stage-width);
+  color: var(--muted);
+  font-size: 0.9375rem;
+}
+
+.loaded .names {
+  color: var(--text);
+}
+
+/* On a phone the roll is too short to hold the picker, so it goes under the stage. */
+@media (max-width: 640px) {
+  .drop {
+    position: static;
+    display: block;
+    padding: 12px 0 0;
+  }
+
+  .card {
+    max-width: none;
+  }
+}

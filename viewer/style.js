@@ -1,4 +1,5 @@
-// Everything visual lives here; no other module holds a colour or a size.
+// Every colour and every size of the frame lives here; no other module holds one. The page
+// around the frame takes its colours from here too, and keeps only its layout sizes in its CSS.
 // Timing (frame rate, title and credits length) lives in Python, not here.
 export const style = {
   width: 1920,
@@ -42,10 +43,9 @@ export const style = {
     seconds: 3,
   },
 
-  // The file picker the page shows without a run, as on GitHub Pages. Its padding is also
-  // the space between its lines; its text is in the cards' font.
-  picker: {
-    padding: 16,
+  // The page around the frame takes its other colours, its font and its corner radius from
+  // the frame's (main.js's theme()); this one is its own.
+  page: {
     error: "#ff8a80",
   },
 
