@@ -176,15 +176,15 @@ length: 8.5 s
 
 ## Checking
 
-`pianoize check-arrangement SCORE.txt --cover COVER.mid [--melody MELODY.mid]` checks the notes the build plays: the score read on the cover's meter, with restrikes cut as the build cuts them. It writes no file. The pedal and the tail are left out, so a note lasts from its onset to its end as written. Jumps are timed in seconds on the cover's tempo map. The limits are for an intermediate-to-advanced player ([decision](decisions.md#playable-arrangements)).
+`pianoize check-arrangement SCORE.txt --cover COVER.mid [--melody MELODY.mid]` checks the notes the build plays: the score read on the cover's meter, with restrikes cut as the build cuts them. It writes no file. The pedal and the tail are left out, so a note lasts from its onset to its end as written. Jumps are timed in seconds on the cover's tempo map. The limits are for an advanced player ([decision](decisions.md#playable-arrangements)).
 
 A hand's attack is a tick where it strikes a note. A note is held at an attack when it was struck at or before it and is not yet released; a note released at that tick is not held. A key is a pitch, however many notes sound on it.
 
 | rule | flagged | detail |
 | --- | --- | --- |
-| `notes` | at an attack of one hand, more than 5 keys held in it; or one pitch struck twice in one hand at one tick, such as an `M` note doubled on `R` | `6 held: C4 D4 E4 F4 G4 A4`, `C5 struck twice` |
-| `span` | at an attack of one hand, its held keys spanning more than 16 semitones, a major tenth. 15 or 16, wider than a major ninth, is listed, not flagged | `17 semitones, C3 to F4` |
-| `jump` | the centre of a hand's attack, halfway between its lowest and highest struck notes, moving from the hand's previous attack by 15 semitones or more in under 0.2 s, by 22 or more in under 0.36 s, or by more than 26 at any speed | `15 semitones in 100 ms` |
+| `notes` | at an attack of one hand, more than 7 keys held in it; or one pitch struck twice in one hand at one tick, such as an `M` note doubled on `R` | `8 held: C4 D4 E4 F4 G4 A4 B4 C5`, `C5 struck twice` |
+| `span` | at an attack of one hand, its held keys spanning more than 19 semitones, a perfect twelfth. 17 to 19, wider than a major tenth, is listed, not flagged | `20 semitones, C3 to G#4` |
+| `jump` | the centre of a hand's attack, halfway between its lowest and highest struck notes, moving from the hand's previous attack by 19 semitones or more in under 0.2 s, by 26 or more in under 0.36 s, or by more than 36 at any speed | `19 semitones in 100 ms` |
 | `crossing` | at any attack, the left hand's highest held note at or above the right hand's lowest | `top C4 at or above RH bottom C4` |
 | `melody` | an `M` note below the highest right-hand note held at any attack while it sounds, another `M` note included | `E4 under G4` |
 | `harmony` | an `R` or `L` note not marked `~` whose pitch class is not among its [chord](#chords)'s tones at its onset. `M` notes are never checked, and nothing under `N.C.` | `L F3 over C` |
@@ -193,7 +193,7 @@ The report groups the findings by rule, in the table's order, each group headed 
 
 ```
 span: 1 (0 flagged)
-  bar 1 pos 0  LH  span  15 semitones, C3 to D#4 (listed, not flagged)
+  bar 1 pos 0  LH  span  19 semitones, C3 to G4 (listed, not flagged)
 melody: 1 (1 flagged)
   bar 2 pos 4.5  RH  melody  E5 under G5
 harmony: 1 (1 flagged)

@@ -34,16 +34,16 @@ def summary(findings):
     return sorted((f.rule, f.tick, f.hand, f.flagged) for f in findings)
 
 
-def test_six_notes_held_in_one_hand_are_flagged(checked):
-    # A4, struck at 0, is still held when the five come at 4.
-    findings = checked("bar 1 | N.C.", "  M 0:A4:8", "  R 4:C4+D4+E4+F4+G4:4")
+def test_eight_notes_held_in_one_hand_are_flagged(checked):
+    # C5, struck at 0, is still held when the seven come at 4.
+    findings = checked("bar 1 | N.C.", "  M 0:C5:8", "  R 4:C4+D4+E4+F4+G4+A4+B4:4")
     assert summary(findings) == [("notes", 480, "RH", True)]
-    assert findings[0].detail == "6 held: C4 D4 E4 F4 G4 A4"
+    assert findings[0].detail == "8 held: C4 D4 E4 F4 G4 A4 B4 C5"
 
 
-def test_five_notes_held_in_one_hand_are_clean(checked):
-    # A4 is released at the tick the five are struck, and the left hand counts on its own.
-    assert checked("bar 1 | N.C.", "  M 0:A4:4", "  R 4:C4+D4+E4+F4+G4:4", "  L 4:C3:4") == []
+def test_seven_notes_held_in_one_hand_are_clean(checked):
+    # C5 is released at the tick the seven are struck, and the left hand counts on its own.
+    assert checked("bar 1 | N.C.", "  M 0:C5:4", "  R 4:C4+D4+E4+F4+G4+A4+B4:4", "  L 4:C3:4") == []
 
 
 def test_a_pitch_struck_twice_in_one_hand_at_one_tick_is_flagged(checked):
@@ -64,22 +64,22 @@ def test_the_check_sees_a_restruck_note_cut_as_the_build_cuts_it(checked):
 @pytest.mark.parametrize(
     ("left", "found"),
     [
-        ("0:C3+F4:4", [("span", 0, "LH", True)]),  # 17 semitones
-        ("0:C3:8 4:F4:4", [("span", 480, "LH", True)]),  # 17, with C3 still held
-        ("0:C3+F4~:4", [("span", 0, "LH", True)]),  # a passing tone is still a key
-        ("0:C3+E4:4", [("span", 0, "LH", False)]),  # 16: listed, not flagged
-        ("0:C3+D#4:4", [("span", 0, "LH", False)]),  # 15
-        ("0:C3+D4:4", []),  # 14
+        ("0:C3+G#4:4", [("span", 0, "LH", True)]),  # 20 semitones
+        ("0:C3:8 4:G#4:4", [("span", 480, "LH", True)]),  # 20, with C3 still held
+        ("0:C3+G#4~:4", [("span", 0, "LH", True)]),  # a passing tone is still a key
+        ("0:C3+G4:4", [("span", 0, "LH", False)]),  # 19: listed, not flagged
+        ("0:C3+F4:4", [("span", 0, "LH", False)]),  # 17
+        ("0:C3+E4:4", []),  # 16
     ],
 )
-def test_a_span_over_sixteen_is_flagged_and_over_fourteen_listed(checked, left, found):
+def test_a_span_over_nineteen_is_flagged_and_over_sixteen_listed(checked, left, found):
     assert summary(checked("bar 1 | N.C.", f"  L {left}")) == found
 
 
 def test_a_listed_span_alone_prints_its_line_then_clean(checked):
-    assert report(checked("bar 1 | N.C.", "  L 0:C3+D#4:4"), METER) == (
+    assert report(checked("bar 1 | N.C.", "  L 0:C3+F4:4"), METER) == (
         "span: 1 (0 flagged)\n"
-        "  bar 1 pos 0  LH  span  15 semitones, C3 to D#4 (listed, not flagged)\n"
+        "  bar 1 pos 0  LH  span  17 semitones, C3 to F4 (listed, not flagged)\n"
         "clean"
     )
 
@@ -87,21 +87,21 @@ def test_a_listed_span_alone_prints_its_line_then_clean(checked):
 @pytest.mark.parametrize(
     ("lines", "found"),
     [
-        # 15 semitones a sixteenth apart at 150 bpm: 100 ms.
-        (("bar 1 | N.C.", "  L 0:C2:1 1:D#3:1"), [("jump", 120, "LH", True)]),
-        # The centre of a chord: C2+C3 to D#3 is 9 semitones.
-        (("bar 1 | N.C.", "  L 0:C2+C3:1 1:D#3:1"), []),
-        # 15 semitones, 60 ticks either side of the change: 50 ms and 250 ms.
-        (("bar 1 | N.C.", "  L 15.5:C2:0.5", "bar 2 | N.C.", "  L 0.5:D#3:1"), []),
-        # 23 semitones, 120 ticks before the change and 48 after: 100 ms and 200 ms.
+        # 19 semitones a sixteenth apart at 150 bpm: 100 ms.
+        (("bar 1 | N.C.", "  L 0:C2:1 1:G3:1"), [("jump", 120, "LH", True)]),
+        # The centre of a chord: C2+C3 to G3 is 13 semitones.
+        (("bar 1 | N.C.", "  L 0:C2+C3:1 1:G3:1"), []),
+        # 19 semitones, 60 ticks either side of the change: 50 ms and 250 ms.
+        (("bar 1 | N.C.", "  L 15.5:C2:0.5", "bar 2 | N.C.", "  L 0.5:G3:1"), []),
+        # 27 semitones, 120 ticks before the change and 48 after: 100 ms and 200 ms.
         (
-            ("bar 1 | N.C.", "  L 15:C2:1", "bar 2 | N.C.", "  L 0.4:B3:1"),
+            ("bar 1 | N.C.", "  L 15:C2:1", "bar 2 | N.C.", "  L 0.4:D#4:1"),
             [("jump", 1968, "LH", True)],
         ),
-        # 27 semitones two sixteenths apart at 30 bpm: 1 s.
-        (("bar 1 | N.C.", "bar 2 | N.C.", "  L 0:C2:2 2:D#4:2"), [("jump", 2160, "LH", True)]),
-        # 26, the same 1 s apart.
-        (("bar 1 | N.C.", "bar 2 | N.C.", "  L 0:C2:2 2:D4:2"), []),
+        # 37 semitones two sixteenths apart at 30 bpm: 1 s.
+        (("bar 1 | N.C.", "bar 2 | N.C.", "  L 0:C2:2 2:C#5:2"), [("jump", 2160, "LH", True)]),
+        # 36, the same 1 s apart.
+        (("bar 1 | N.C.", "bar 2 | N.C.", "  L 0:C2:2 2:C5:2"), []),
     ],
 )
 def test_a_jump_is_timed_through_the_tempo_map(checked, lines, found):
@@ -109,13 +109,13 @@ def test_a_jump_is_timed_through_the_tempo_map(checked, lines, found):
 
 
 def test_a_jump_exactly_at_its_time_limit_is_clean(checked):
-    # 22 semitones three sixteenths apart at 125 bpm: 360 ms exactly.
-    assert checked("bar 1 | N.C.", "  L 0:C2:3 3:A#3:3", tempos=[(0, 125)]) == []
+    # 26 semitones three sixteenths apart at 125 bpm: 360 ms exactly.
+    assert checked("bar 1 | N.C.", "  L 0:C2:3 3:D4:3", tempos=[(0, 125)]) == []
 
 
 def test_a_jump_names_its_shift_and_gap(checked):
-    [finding] = checked("bar 1 | N.C.", "  L 0:C2:1 1:D#3:1", tempos=JUMP_TEMPOS)
-    assert finding.detail == "15 semitones in 100 ms"
+    [finding] = checked("bar 1 | N.C.", "  L 0:C2:1 1:G3:1", tempos=JUMP_TEMPOS)
+    assert finding.detail == "19 semitones in 100 ms"
 
 
 @pytest.mark.parametrize(
@@ -196,7 +196,7 @@ def test_each_note_is_checked_against_its_own_chord(checked):
 def test_the_report_groups_by_rule_and_names_bar_position_and_hand(checked):
     findings = checked(
         "bar 1 | Cm",
-        "  L 0:C3+D#4:16",
+        "  L 0:C3+G4:16",
         "bar 2 | C",
         "  M 4.5:E5:2",
         "  R 4.5:G5:2",
@@ -205,7 +205,7 @@ def test_the_report_groups_by_rule_and_names_bar_position_and_hand(checked):
     assert report(findings, METER) == "\n".join(
         [
             "span: 1 (0 flagged)",
-            "  bar 1 pos 0  LH  span  15 semitones, C3 to D#4 (listed, not flagged)",
+            "  bar 1 pos 0  LH  span  19 semitones, C3 to G4 (listed, not flagged)",
             "melody: 1 (1 flagged)",
             "  bar 2 pos 4.5  RH  melody  E5 under G5",
             "harmony: 1 (1 flagged)",
@@ -351,10 +351,10 @@ def _check_cli(score, cover, *options):
             "problems: 2\n",
         ),
         (
-            ("bar 1 | N.C.", "  L 0:C3+D#4:4"),
+            ("bar 1 | N.C.", "  L 0:C3+F4:4"),
             0,
             "span: 1 (0 flagged)\n"
-            "  bar 1 pos 0  LH  span  15 semitones, C3 to D#4 (listed, not flagged)\n"
+            "  bar 1 pos 0  LH  span  17 semitones, C3 to F4 (listed, not flagged)\n"
             "clean\n",
         ),
         (("bar 1 | C", "  M 0:E5:4 4:G5:4", "  R 0:G4+C5:8", "  L 0:C3:8 8:G2:8"), 0, "clean\n"),

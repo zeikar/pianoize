@@ -23,11 +23,11 @@ from .bars import Meter, halves, nearest, where
 from .melody import pitch_name
 from .notes import seconds_at, tick_in
 
-NOTES_PER_HAND = 5
-SPAN_MAX = 16  # semitones, a tenth: a wider span is flagged
-SPAN_WIDE = 14  # a ninth: a wider span is listed, not flagged
-JUMPS = ((15, 0.2), (22, 0.36))  # (semitones, seconds): a shift this wide in less time is flagged
-JUMP_MAX = 26  # a wider shift is flagged at any speed
+NOTES_PER_HAND = 7
+SPAN_MAX = 19  # semitones, a twelfth: a wider span is flagged
+SPAN_WIDE = 16  # a tenth: a wider span is listed, not flagged
+JUMPS = ((19, 0.2), (26, 0.36))  # (semitones, seconds): a shift this wide in less time is flagged
+JUMP_MAX = 36  # three octaves: a wider shift is flagged at any speed
 SUNG_MIN = 0.080  # seconds: a shorter vocal note is a sliver of the transcription, never listed
 SUNG_NEAR = 0.070  # seconds: a top right-hand note of its pitch class starting this near plays it
 

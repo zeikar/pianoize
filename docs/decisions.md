@@ -157,9 +157,10 @@ At M2's listening gate the user compared one excerpt arranged several ways. The 
 
 ### Playable arrangements
 
-A falling-notes video reads as a piece someone could play, so an arrangement is written for two hands at an intermediate-to-advanced level, and `pianoize check-arrangement` verifies that each hand can play it. The agent assigns the hands as it writes, rather than pianoize splitting the cover's one piano part as first planned. Every arrangement, and every correction, must keep the check passing.
+A falling-notes video reads as a piece someone could play, so an arrangement is written for two hands at an advanced level, and `pianoize check-arrangement` verifies that each hand can play it. The agent assigns the hands as it writes, rather than pianoize splitting the cover's one piano part as first planned. Every arrangement, and every correction, must keep the check passing.
 
-- **The limits** ([docs/arranging.md](arranging.md#checking)) are the ones the first agent-written arrangement was checked with: at most 5 keys held in one hand, a span of at most a major tenth, no fast wide jump of a hand, no crossed hands, the melody on top of the right hand, and no key struck twice at once. A span of 15 or 16 semitones, wider than a ninth, is listed but not flagged, so it can stay where the music needs it.
+- **The limits** ([docs/arranging.md](arranging.md#checking)): at most 7 keys held in one hand, a span of at most a twelfth, no jump of a hand of 19 semitones in under 0.2 s, 26 in under 0.36 s or more than 36 at all, no crossed hands, the melody on top of the right hand, and no key struck twice at once. A span of 17 to 19 semitones, wider than a tenth, is listed but not flagged, so it can stay where the music needs it.
+- **They were widened on 2026-10-15** from the first agent-written arrangement's (5 keys, a tenth, jumps of 15 semitones in 0.2 s, 22 in 0.36 s and 26 at all). On an instrumental with a full band, every note of the transcription on piano sounded better to the user than any reduction to those limits; the user chose wider numbers over a pedal-aware span count or an unplayable exception for the song.
 - **The harmony is checked too:** an accompaniment note outside the score's chord at its onset is flagged unless marked as a passing tone.
 - **Every note gets one velocity, 88,** the M3 prototype's loudness-matched value. Most piano covers barely vary their dynamics, so pianoize writes none; loudness is `render --gain`'s.
 

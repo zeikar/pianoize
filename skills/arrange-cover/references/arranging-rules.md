@@ -2,7 +2,7 @@
 
 How to write the score: what to keep of the song, what to copy from the cover, how to voice the hands, and how to answer each finding of `pianoize check-arrangement`. SKILL.md gives the commands and the files; this file gives the judgment. The score format and the check's limits are in pianoize's `docs/arranging.md`, under "The score format" and "Checking".
 
-The goal is a piano arrangement for a falling-notes video, written for two hands at an intermediate-to-advanced level from the cover, the melody and, where there is one, the band's transcription. A listener should know the song at once and feel its groove, and a viewer should be able to read every note as it falls.
+The goal is a piano arrangement for a falling-notes video, written for two hands at an advanced level from the cover, the melody and, where there is one, the band's transcription. A listener should know the song at once and feel its groove, and a viewer should be able to read every note as it falls.
 
 ## Keep the feel
 
@@ -35,7 +35,7 @@ The cover's own notes are often the best rendering of a hit, a fill or an accomp
 - **slivers**, `(0)` and other very short quiet notes beside a real one;
 - **doubled strikes**, one pitch struck twice in one attack (`G5(0,38),G5(4,86)`): keep one;
 - **notes outside the chord** that no line explains: drop them, or mark a real passing tone `~`;
-- **too many notes for a hand**, more than five or wider than a ninth: thin the inner voices.
+- **too many notes for a hand**, more than seven or wider than a tenth: thin the inner voices.
 
 Then split the copied notes between the hands: the low notes to `L`, the rest to `R`, and the tune on top to `M`. Record each copied place in `notes.md`.
 
@@ -66,9 +66,9 @@ pianoize plays every note at one velocity, with no dynamics, so weight comes fro
 - **The melody is the top right-hand note.** One `M` note at a time, and nothing on `R` above it while it sounds. Write it an octave up where the cover plays it there.
 - **Doubling the melody:** its octave goes under it on `R` (`M 0:E5:4` with `R 0:E4:4`). Never the melody's own pitch on `R` at its tick: that strikes one key twice.
 - **The right hand's inner voices** sit under the melody, chord tones within about an octave below it.
-- **The left hand stays inside a ninth**: a bass with its fifth, octave or tenth above, in the register below middle C. The check flags a span wider than a tenth and lists one wider than a ninth.
+- **The left hand stays close**: a bass with its fifth, octave or tenth above, in the register below middle C. The check flags a span wider than a twelfth and lists one wider than a tenth.
 - **The hands stay apart:** the left hand's top below the right hand's bottom at every moment.
-- **Jumps take time.** A hand moving 15 semitones or more in under 0.2 s, 22 or more in under 0.36 s, or more than 26 at any speed is flagged; keep a figure compact, or give the hand a rest to move in.
+- **Jumps take time.** A hand moving 19 semitones or more in under 0.2 s, 26 or more in under 0.36 s, or more than 36 at any speed is flagged; keep a figure compact, or give the hand a rest to move in.
 
 ## Pedal
 
@@ -89,9 +89,9 @@ pianoize plays every note at one velocity, with no dynamics, so weight comes fro
 
 Each finding names its bar, position, hand and rule. Fix every flagged one; never quiet the check by marking notes `~` that aren't passing tones or by moving the melody off `M`.
 
-- **`notes`, `N held`:** more than five keys in one hand at an attack, notes still held from earlier attacks included. End the held notes before the attack, or drop doubled and inner notes.
+- **`notes`, `N held`:** more than seven keys in one hand at an attack, notes still held from earlier attacks included. End the held notes before the attack, or drop doubled and inner notes.
 - **`notes`, `struck twice`:** one pitch struck twice in one hand at one tick, mostly `M` doubled on `R`. Drop the `R` note, or move it an octave down.
-- **`span`:** a hand's held keys wider than a tenth (flagged) or a ninth (listed). Move the outer note an octave in, drop it, or end a held note sooner. A listed span may stay where the music needs it, now and then.
+- **`span`:** a hand's held keys wider than a twelfth (flagged) or a tenth (listed). Move the outer note an octave in, drop it, or end a held note sooner. A listed span may stay where the music needs it, now and then.
 - **`jump`:** a hand's attack moving too far too fast from its previous one, measured between the middles of the two attacks. Voice the chord near the one before, keep the figure compact, or drop the note that stretches the leap.
 - **`crossing`:** the left hand's top at or above the right hand's bottom. Move the left-hand note an octave down or the `R` note up, or end the earlier note before the other hand's attack.
 - **`melody`:** an `M` note under another right-hand note: an `R` note above the melody, struck with it or while it is held, an `R` note still held above a new `M` note, or two `M` notes at once. Voice `R` under the melody, end the held note before the `M` attack, or keep one `M` note and move the other to `R` under it.
