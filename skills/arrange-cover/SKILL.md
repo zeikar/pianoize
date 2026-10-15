@@ -1,22 +1,19 @@
 ---
 name: arrange-cover
-description: This skill should be used when the user wants a two-hand piano arrangement of a song written with pianoize from a tsumugi-piano-cover MIDI and, where the song has one, tsumugi's melody MIDI, e.g. "arrange this song for two hands", "write the piano arrangement from the cover and the melody", "make a Synthesia arrangement of this cover", "build and check my score", "revise bars 30 to 34 of the arrangement". Dumps the cover and the melody (if any) bar by bar, writes a per-bar two-hand score that keeps the original's groove and its signature hits, has the local pianoize CLI build it into MIDI and check that it is playable, renders it, and leaves the final listening to the user. Not for making a cover, a transcription or a melody from audio, for polishing the cover note by note (that is polish-cover), or for rendering the falling-notes video.
+description: This skill should be used when the user wants a two-hand piano arrangement of a song written with pianoize from a tsumugi-piano-cover MIDI and, where the song has one, tsumugi's melody MIDI and its transcription of the band, e.g. "arrange this song for two hands", "write the piano arrangement from the cover and the melody", "make a Synthesia arrangement of this cover", "build and check my score", "revise bars 30 to 34 of the arrangement". Gathers the inputs and dispatches pianoize's arranger subagent, which dumps the cover, the melody and the band bar by bar, writes a per-bar two-hand score that keeps the original's groove, its signature hits and the band parts the cover leaves out, has the local pianoize CLI build it into MIDI and check that it is playable, and renders it; relays its report, and the user's answers back to it, and leaves the final listening to the user. Not for making a cover, a transcription or a melody from audio, for polishing the cover note by note (that is polish-cover), or for rendering the falling-notes video.
 ---
 
 # Arrange a song for two hands from its piano cover and melody
 
-pianoize arranges a song for a falling-notes video (Synthesia style) from the piano cover tsumugi-piano-cover made of it, and tsumugi's transcription of its sung melody, where the song has one. A third, tsumugi's transcription of the whole band with a track per instrument, is optional: it gives the instruments' lines where no one sings. You read them bar by bar, decide the chords and write a score for two hands; pianoize builds the score into MIDI on the cover's tempo grid and checks that it is playable and fits your chords.
+pianoize arranges a song for a falling-notes video (Synthesia style) from the piano cover tsumugi-piano-cover made of it, and tsumugi's transcription of its sung melody, where the song has one. tsumugi's transcription of the whole band, with a track per instrument, is read under the cover in every bar where there is one: its bass, its drums, a backing vocal and the parts the cover leaves out make the arrangement richer and keep its chords and stops honest. A score for two hands is written bar by bar; pianoize builds it into MIDI on the cover's tempo grid and checks that it is playable and fits the score's chords.
 
-pianoize's commands are deterministic and never call an LLM. You write two text files, `notes.md` and `score.txt`; pianoize builds the MIDI from the score. Never write a MIDI file any other way. You cannot hear the result, so the user's listening at the end is the final gate.
+**The arranging runs in a subagent, `pianoize:arranger`.** It reads the long dump, writes the score and loops the build and the check in its own context, following **`references/workflow.md`**. You, the main session, gather the inputs, dispatch it, relay its report to the user and the user's answers back to it. Don't read the dump or write the score yourself: that is what keeps your context free for the user.
 
 ## Rules
 
-- **No input is the answer key.** The cover, its chord markers, the melody and the band's transcription are models' transcriptions, and each is wrong in places. Weigh them against each other and against the song's own repeats before writing a note.
-- **Inputs are read-only.** Never modify, move or overwrite the cover, the melody or the source MIDI.
-- **Write only into `<out>`.** Never change pianoize's own files.
-- **Never paste song content into the repository.** A song's chords, notes, markers, lyrics and times stay in `<out>` under `work/`, which is never committed: none of it goes into docs, tests, code, commit messages or issues.
-- **You write the score and the notes; pianoize builds and checks.** Never write or edit a MIDI file yourself.
-- **You cannot hear it.** Never claim the arrangement sounds right. The user's listening decides.
+- **The arranger arranges.** Changes to the score, the notes or the MIDI go through it, revisions included.
+- **Never paste song content into the repository.** A song's chords, notes, markers, lyrics and times stay in `work/`, which is never committed: none of it goes into docs, tests, code, commit messages or issues.
+- **Nobody can hear it but the user.** Never claim the arrangement sounds right. The user's listening decides.
 - **Audio never leaves the machine.** Upload nothing.
 
 ## Inputs
@@ -24,106 +21,57 @@ pianoize's commands are deterministic and never call an LLM. You write two text 
 Ask the user for any input that is missing and stop until you have it. The `prepare-song` skill (`../prepare-song/SKILL.md`) makes them, `pianoize prepare` writing `cover.mid`, `melody.mid` (where the song has one) and `source.mid` into the song's directory; when they are missing, offer that skill and stop.
 
 - `<cover>`: the cover MIDI made by tsumugi-piano-cover.
-- `<melody>`, optional: tsumugi's melody MIDI, its lead vocal track. An instrumental has none, unless `prepare --melody-track` named an instrument's track. Without one, the tune is found in the `I` lines (offer `<source>` if you don't have it) or in the cover's top line.
-- `<source>`, optional: tsumugi's transcription of the whole band, `source.mid`, a track per instrument. Ask for it once; without it, the dump has no instrument lines, and the sections without vocal are written from the cover alone.
-- `<out>`: an output directory under `work/`, named by the user (`work/<song>/`). Create it with `mkdir -p`.
-- For the render at the end: FluidSynth on `PATH` and a piano SoundFont (`--soundfont`, or `$PIANOIZE_SOUNDFONT`).
+- `<melody>`, optional: tsumugi's melody MIDI, its lead vocal track. An instrumental has none, unless `prepare --melody-track` named an instrument's track. Without one, the tune is found in the band's instrument lines (offer `<source>` if you don't have it) or in the cover's top line.
+- `<source>`, optional but asked for: tsumugi's transcription of the whole band, `source.mid`, a track per instrument. Ask for it once; without it, the arrangement is written from the cover and the melody alone.
+- `<out>`: an output directory under `work/`, named by the user (`work/<song>/`).
+- For the render at the end: FluidSynth on `PATH` and a piano SoundFont, `<sf2>`, unless `$PIANOIZE_SOUNDFONT` names one. Without either, the arranger exports anyway and gives the MIDI in place of the WAV.
 
-Single-quote every path in a command, writing a `'` inside it as `'\''`: song file names carry spaces, brackets and other characters the shell would read.
+## The command line
 
-## Running pianoize
-
-- **Plugin root:** `${CLAUDE_PLUGIN_ROOT}`. If that is a directory with a `pyproject.toml` in it, this skill runs from the pianoize Claude Code plugin, and that directory is the plugin's own copy of pianoize: run `uv run --project "<plugin root>" pianoize <command> …` from the current directory. Its first run builds the environment, so allow a few minutes. Otherwise (empty, still a `${…}` placeholder, or no `pyproject.toml` there) there is no plugin root: in a pianoize checkout, run `uv run pianoize <command> …` there; anywhere else, tell the user to install the pianoize plugin, and stop.
-- Without `uv` on `PATH`, tell the user to install it (https://docs.astral.sh/uv/) and stop.
-- Below, `pianoize <command> …` stands for that command line.
-- **The docs:** `<plugin root>/docs/arranging.md`, or `docs/arranging.md` in the checkout, documents the score format and the arranging commands with their rules, limits and output; `render` is in `docs/evaluation.md` beside it, and `export-arrangement` in `docs/rendering.md`. `pianoize <command> --help` lists a command's options. Read the section a step names whenever its rules matter.
-- **Errors.** A failing command prints `error: …` naming the item at fault (`bar 3: token '4:H4:2': bad note 'H4'`). Fix that item and run the same command again. Exit 2 is a usage error: show its message. An error naming the cover, the melody or the source (a type 2 file, a meter change, ticks per beat that don't divide by 4) can't be fixed, since the inputs are read-only: tell the user, and stop. `check-arrangement` also exits 1 while its report flags a finding: that is work for step 7, not an error.
-
-This skill is written for score format version 1: the first line of every score is `format 1`. If pianoize refuses that line and expects another version, the skill and pianoize are out of step: tell the user, and stop.
+- **Plugin root:** `${CLAUDE_PLUGIN_ROOT}`. If that is a directory with a `pyproject.toml` in it, this skill runs from the pianoize Claude Code plugin, and that directory is the plugin's own copy of pianoize: the command line is `uv run --project '<plugin root>'` followed by pianoize and its command, run from the current directory, and the docs are in `<plugin root>/docs/`. Otherwise (empty, still a `${…}` placeholder, or no `pyproject.toml` there) there is no plugin root: in a pianoize checkout, it is `uv run` followed by pianoize, run there, with the docs in its `docs/`; anywhere else, tell the user to install the pianoize plugin, and stop.
+- Below, `<root>` is the plugin root, or without one, the checkout's root.
+- Without `uv` on `PATH` (`command -v uv`), tell the user to install it (https://docs.astral.sh/uv/) and stop.
+- The arranger writes score format version 1. If it reports that pianoize expects another version, the skill and pianoize are out of step: tell the user, and stop.
 
 ## Workflow
 
-1. **Regrid:** `pianoize regrid '<cover>' -o '<out>/cover.regrid.mid'`. It writes a copy of the cover with the tempo hiccups of its beat tracking regridded, so the song's bars fall on the grid's ("Regridding" in the docs). From here on, every `'<cover>'` in a command stands for that copy, `'<out>/cover.regrid.mid'`. `no tempo hiccups` is the usual answer, since `prepare` puts the transcription on a steady grid where its fit was applied. If it prints spans (`bars 40-43: … BPM -> 5 bars at 120.00`) instead, record each under "Regridded spans" in `notes.md`: the user checks each by ear at step 9.
-2. **Dump:** `pianoize dump-bars '<cover>' --melody '<melody>' --source '<source>' > '<out>/bars.txt'`. Leave out `--melody` or `--source` when you have none. Each bar gets three lines: a header with its time and the cover's chord markers, a `C` line of the cover's attacks and a `V` line of the melody, positions and durations in sixteenths. A bar whose `V` line is empty (every bar, without a melody) also gets an `I` line per instrument of the source that plays in it, its top line ("Dumping" in the docs). Bar N of the dump is bar N of the score. When you look for band fills between vocal phrases in a sung section, or a riff or countermelody under the voice, dump that section again with the instrument lines in every bar: `pianoize dump-bars '<cover>' --melody '<melody>' --source '<source>' --every-bar --bars A-B`, A and B its first and last bars. It prints to the screen and leaves `bars.txt` as it is.
-3. **Read `<out>/bars.txt` whole**, following **`references/reading-the-dump.md`**, and write `<out>/notes.md`:
-   - the sections with their bars, and which later sections repeat which;
-   - a chord per bar, with its position where it changes inside the bar. The cover's notes and markers are evidence, not truth: decide from the bass, the long notes and the repeats;
-   - the melody's entries, its pickups and the octave the cover plays it in;
-   - in each section without vocal, the instrument line that carries the tune; without a melody, in every section ("The melody" in `references/reading-the-dump.md`);
-   - the hits, stop-times and syncopations, by bar and position;
-   - every place where the transcription is wrong or silent, and what you infer there.
-4. **Write `<out>/score.txt` one section at a time**, in bar order, following **`references/arranging-rules.md`** ("The score format" in the docs). Write every bar from 1 on, a silent one as a bar with `N.C.` and no hand lines. A chord quality the table lacks doesn't stop you: write the nearest one, mark any extra chord tone `~`, and record the place under "Gaps" in `notes.md` ("Chords and passing tones" in `references/arranging-rules.md`). After each section, run steps 6 and 7 and fix every flagged finding before writing the next. A score looks like this:
+1. **Inputs and tools.** Gather the inputs, check for `uv`, settle the command line, and create `<out>` with `mkdir -p`, single-quoting the path.
+2. **Dispatch the arranger** with the Agent tool: `subagent_type` `pianoize:arranger`, a `name` such as `arranger-<song>` so you can reach it again, and the prompt below. If no `pianoize:arranger` type is available, dispatch a general-purpose agent with the same prompt, its first line `First read <root>/agents/arranger.md and act as it says.` That agent has every tool, so the definition's limit to the shell and the files rests on its instructions there. Tell the user in one line that the arrangement has started and that a full song takes a while, then wait for the arranger to finish: don't poll its files.
    ```
-   format 1
-   # Made-up bars: the shape of a score, not a song.
-   == intro | pedal=chord
-   bar 1 | N.C.
-   bar 2 | 0:C 12:G/B
-     M 0:E5:6 6:D5:2 8:C5:4 12:D5:4
-     R 0:G4:8 8:E4+G4:4 12:D4+G4:4
-     L 0:C3:12 12:B2:4
-   == verse
-   bar 3 | Am
-     M 0:C5:8 8:B4:4 12:A4:4
-     R 0:E4:16
-     L 0:A2+E3:12 12:G2~:4
-   bars 4-5 = 2-3
-   bar 5 | 0:F 8:G
-     M 0:A4:8 8:B4:8
-     R 0:C4+F4:8 8:D4+G4:8
-     L 0:F2:8 8:G2:8
+   Skill: arrange-cover
+   Workflow: <root>/skills/arrange-cover/references/workflow.md
+   Command line: <the command line>
+   Docs: <the docs directory>
+   Cover: '<cover>'
+   Melody: '<melody>' (or: none)
+   Source: '<source>' (or: none)
+   Out: '<out>'
+   SoundFont: '<sf2>' (or: $PIANOIZE_SOUNDFONT, or: none)
+   Task: arrange
    ```
-   `M` is the melody, `R` the rest of the right hand under it, `L` the left hand. A token is `position:notes:duration` in sixteenths, `+` joins notes struck together, and `~` marks a passing tone.
-5. **Repeats:** write a section that repeats an earlier one as `bars A-B = C-D`. Where the melody or the band differs in a copied bar, override that bar: a `bar N | …` block after the copy, which replaces the copied bar whole, so give it every hand line the bar needs. Record each copy and override in `notes.md`. Editing a bar that a copy was taken from changes every copy of it. To keep a repeat as it was, override that copied bar with the old lines, and tell the user which repeats changed.
-6. **Build:** `pianoize build-arrangement '<out>/score.txt' --cover '<cover>' -o '<out>/arranged.mid'`. It prints the notes per hand, the pedal presses and the length ("Building" in the docs). Once the score is complete, the length is about the cover's.
-7. **Check:** `pianoize check-arrangement '<out>/score.txt' --cover '<cover>' --melody '<melody>'`, leaving out `--melody` without a melody: the vocal-notes report is then skipped, and the check does not verify the tune. The `melody` rule stays: it still flags an `M` note under another right-hand note. It lists the findings by rule, `notes`, `span`, `jump`, `crossing`, `melody` and `harmony`, each line naming its bar, position and hand; the report's last line is `problems: K` or `clean` ("Checking" in the docs). Fix every flagged finding as "Fixing the check" in `references/arranging-rules.md` says, then run steps 6 and 7 again, until it prints `clean` and exits 0. A span marked `(listed, not flagged)` may stay. After the report come the vocal notes the top of the right hand leaves out, `bar N pos P  melody missing  E5 (2)`, and their count: an inner voice under the top doesn't play one. They never stop `clean`, but each is your choice: add it on top of the right hand, usually on `M` in the octave the melody is in there, or record under "Melody left out" in `notes.md` why it stays out.
-8. **Render and export:** `pianoize render '<out>/arranged.mid' -o '<out>/arranged.wav'`, adding `--soundfont '<sf2>'` when `$PIANOIZE_SOUNDFONT` is not set. If it warns that the peak could clip, render again with a lower `--gain`. Then `pianoize export-arrangement '<out>/arranged.mid' -o '<out>/arranged.json'`, the notes the falling-notes viewer plays with the WAV. Without FluidSynth or a SoundFont, export anyway, tell the user, and give them the MIDI path in place of the WAV.
-9. **Ask the user to listen.** Give them `<out>/arranged.wav`, and tell them they can watch it fall too: dropping `arranged.json` and `arranged.wav` on https://zeikar.dev/pianoize/ plays them there, read in the browser and uploaded nowhere. Give them the places `notes.md` lists as inferred, filled, copied from the cover or copied from an earlier section, each by bar and time (the dump's header gives a bar's time), and the gaps it records. Name each regridded span too: the user listens to the song there and counts its bars, since `regrid` can take a real tempo change for a hiccup. Ask them to approve, or to name the places to change by bar or time, and stop until they answer.
-10. **Revise** the bars they name. For a bar a copy defined, write an override, so the rest of the copy stays as it is. Editing a copied-from bar changes its copies too (step 5). Record each change and the user's reason in `notes.md`, then run steps 6 to 9 again, until they approve. Record the approval in `notes.md`.
-
-`notes.md` is yours to shape; this outline covers what the steps above need:
-
-```markdown
-# <song>: arranging notes
-## Regridded spans
-- bars 40-43: 5 bars at 120.00; to check by ear
-## Sections
-- intro: bars 1-4
-- verse 2: bars 37-52, copies verse 1 (bars 5-20); overrides 44 and 51
-## Chords
-- bar 2: 0:C 12:G/B
-## Melody
-- bar 5, position 2: the verse enters; the cover plays it an octave up
-- intro, bars 1-4: the brass riff carries the tune
-## Melody left out
-- bar 30, position 6: E5, a grace note of the transcription the cover doesn't play
-## Hits and stops
-- bar 12: a hit at 7, then a stop to the end of the bar
-## Inferred, filled and copied
-- bar 18: the cover drops the chord; G inferred from the bass and the repeat at bar 34
-- bar 12: the hit copied from the cover, its strays cleaned
-## Gaps
-- bar 30: the song plays a sus2 chord; written as add9
-## Revisions
-- bar 44: the melody's last note held longer (the user: "it cuts off")
-```
+3. **Read its report.** If it stopped on an error it can't fix, an input it can't read or a score format pianoize doesn't take, tell the user, and stop. If it asks the user something, ask them, send the answer to the same arranger with SendMessage, and wait again.
+4. **Ask the user to listen.** Relay the report in the user's language: the WAV to listen to (or the MIDI, without a render), and that they can watch it fall too, since dropping `arranged.json` and `arranged.wav` on https://zeikar.dev/pianoize/ plays them there, read in the browser and uploaded nowhere; the places to listen first, by bar and time; the repeats a change to a copied-from bar changed; the gaps; and each regridded span, where they listen to the song and count its bars. Ask them to approve, or to name the places to change by bar or time, and stop until they answer.
+5. **Revise.** Send their words, verbatim, to the same arranger with SendMessage as `Task: revise: <their words>`, wait for its report, and go back to step 4. If the arranger can't be reached, a new conversation say, dispatch a new one with step 2's prompt and that task: `notes.md` and `score.txt` hold everything decided so far.
+6. **Approval.** Send `Task: approved: <their words>` to the arranger, which records it in `notes.md`; with no arranger to reach, dispatch a new one with step 2's prompt and that task.
 
 ## Output files
 
-All in `<out>`:
+All in `<out>`, written by the arranger and the commands it runs:
 
 | file | written by | holds |
 | --- | --- | --- |
-| `cover.regrid.mid` | `regrid` | the cover with its tempo hiccups regridded, used as `<cover>` |
-| `bars.txt` | `dump-bars` | the cover's attacks, the melody and the instrument lines, bar by bar |
-| `notes.md` | you | the sections, the chords, the melody's entries and the vocal notes left out, the hits and stops, every inferred, filled or copied place, the gaps, and the revisions |
-| `score.txt` | you | the two-hand score, format version 1 |
+| `cover.regrid.mid` | `regrid` | the cover with its tempo hiccups regridded, used as the cover |
+| `bars.txt` | `dump-bars` | the cover's attacks, the melody, and with a source the drums and the instrument lines, bar by bar |
+| `notes.md` | the arranger | the sections, the chords, the melody's entries, the band and what was taken from it, the hits and stops, every inferred, filled or copied place, the comparison with the band, the gaps, and the revisions |
+| `score.txt` | the arranger | the two-hand score, format version 1 |
 | `arranged.mid` | `build-arrangement` | the two-hand MIDI on the cover's tempo grid |
 | `arranged.wav` | `render` | the render for the user to listen to |
 | `arranged.json` | `export-arrangement` | the notes the falling-notes viewer plays with `arranged.wav` |
 
 ## Additional resources
 
-- **`references/reading-the-dump.md`:** the dump's lines, the instrument lines, the markers, finding the chords, the hits, the stops and the melody, and reading a long dump.
-- **`references/arranging-rules.md`:** keeping the feel, copying the cover, the sections where no one sings, inferring, voicing the hands, the pedal, and fixing each check rule.
-- **pianoize's `docs/arranging.md`** (see "Running pianoize"): the score format, every command, the check's limits and the output formats.
+- **`references/workflow.md`:** the arranger's rules, commands, steps, `notes.md` outline and report.
+- **`references/reading-the-dump.md`:** the dump's lines, the markers, finding the chords, the hits, the stops, the melody, the drums and the instrument lines, and reading a long dump.
+- **`references/arranging-rules.md`:** keeping the feel, copying the cover, the sections where no one sings, taking from the band, inferring, voicing the hands, the pedal, and fixing each check rule.
+- **pianoize's `agents/arranger.md`:** the subagent's definition, its tools limited to the shell and the files.
+- **pianoize's `docs/arranging.md`:** the score format, every command, the check's limits and the output formats.

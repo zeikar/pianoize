@@ -36,6 +36,7 @@ CITED_FROM_ARRANGE_COVER = [
     ("arranging-rules.md", "**The groove is the original's."),
     ("arranging-rules.md", "## Copy the cover where it renders a moment best"),
     ("arranging-rules.md", "## Where no one sings"),
+    ("arranging-rules.md", "## Take from the band"),
     ("arranging-rules.md", "**The left hand still comes from the cover:**"),
     ("arranging-rules.md", "**Without a source**"),
     ("arranging-rules.md", "## Infer and fill"),
@@ -49,8 +50,7 @@ CITED_FROM_ARRANGE_COVER = [
     ("arranging-rules.md", "## Chords and passing tones"),
     ("arranging-rules.md", "## Fixing the check"),
     ("reading-the-dump.md", "## Markers are a model's guesses"),
-    ("reading-the-dump.md", "## Hits, stops and syncopation"),
-    ("reading-the-dump.md", "**A stop**"),
+    ("reading-the-dump.md", "## The drums"),
     ("reading-the-dump.md", "## The melody"),
     ("reading-the-dump.md", "**Skip the strays.**"),
     ("reading-the-dump.md", "**Note the octave.**"),
@@ -168,10 +168,48 @@ def test_named_commands_and_their_options_exist(skill):
             assert lines, "SKILL.md names no pianoize command"
 
 
+def _workflow(skill: str) -> str:
+    return _text(ROOT / "skills" / skill / "references" / "workflow.md")
+
+
 def test_the_transcription_skill_builds_the_grid_and_dumps_the_drums():
-    lines = list(_command_lines(_text(ROOT / "skills" / "arrange-transcription" / "SKILL.md")))
+    lines = list(_command_lines(_workflow("arrange-transcription")))
     assert "build-grid" in {name for name, _ in lines}
     assert any(name == "dump-bars" and "--drums" in flags for name, flags in lines)
+
+
+def test_the_cover_workflow_steps_the_transcription_workflow_cites():
+    # arrange-transcription cites the score example in step 4 and the copies in step 5.
+    cited = _workflow("arrange-transcription")
+    assert "the example in step 4 of `../arrange-cover/references/workflow.md`" in cited
+    assert "as step 5 of `../arrange-cover/references/workflow.md` says" in cited
+    steps = _workflow("arrange-cover")
+    assert "\n4. **Write `<out>/score.txt`" in steps and "```\n   format 1\n" in steps
+    assert "\n5. **Repeats:** write a section that repeats an earlier one as" in steps
+
+
+def test_the_cover_skill_dumps_the_band_in_every_bar():
+    lines = list(_command_lines(_workflow("arrange-cover")))
+    assert any(name == "dump-bars" and {"--every-bar", "--drums"} <= flags for name, flags in lines)
+
+
+def _frontmatter(path: Path) -> dict[str, str]:
+    head = _text(path).split("---\n")[1]
+    return dict(line.split(": ", 1) for line in head.strip().splitlines())
+
+
+def test_the_arranging_skills_dispatch_the_arranger():
+    agent = ROOT / "agents" / "arranger.md"
+    front = _frontmatter(agent)
+    assert front["name"] == "arranger"
+    # The shell and the files only: no web tools, so audio and song content stay on the machine.
+    tools = {tool.strip() for tool in front["tools"].split(",")}
+    assert tools == {"Bash", "Read", "Write", "Edit", "Glob", "Grep"}
+    for skill in ARRANGING_SKILLS:
+        text = _text(ROOT / "skills" / skill / "SKILL.md")
+        assert "`pianoize:arranger`" in text, skill
+        assert f"<root>/skills/{skill}/references/workflow.md" in text, skill
+        assert "<root>/agents/arranger.md" in text, skill  # the fallback without the type
 
 
 def test_the_prepare_skill_sets_up_and_prepares_into_a_directory():
@@ -192,8 +230,8 @@ def test_named_references_exist(skill):
 
 
 def test_what_arrange_transcription_cites_of_arrange_cover_exists():
-    skill = ROOT / "skills" / "arrange-transcription"
-    citing = _text(skill / "SKILL.md") + _text(skill / "references" / "band-to-piano.md")
+    # SKILL.md and its references; the last document is docs/arranging.md.
+    citing = "".join(_text(path) for path in _documents("arrange-transcription")[:-1])
     cited = ROOT / "skills" / "arrange-cover" / "references"
     for reference, name in CITED_FROM_ARRANGE_COVER:
         assert name in _text(cited / reference), (reference, name)

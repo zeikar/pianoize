@@ -1,6 +1,6 @@
 # Arranging rules
 
-How to write the score: what to keep of the song, what to copy from the cover, how to voice the hands, and how to answer each finding of `pianoize check-arrangement`. SKILL.md gives the commands and the files; this file gives the judgment. The score format and the check's limits are in pianoize's `docs/arranging.md`, under "The score format" and "Checking".
+How to write the score: what to keep of the song, what to copy from the cover, what to take from the band, how to voice the hands, and how to answer each finding of `pianoize check-arrangement`. The workflow gives the commands and the files; this file gives the judgment. The score format and the check's limits are in pianoize's `docs/arranging.md`, under "The score format" and "Checking".
 
 The goal is a piano arrangement for a falling-notes video, written for two hands at an advanced level from the cover, the melody and, where there is one, the band's transcription. A listener should know the song at once and feel its groove, and a viewer should be able to read every note as it falls.
 
@@ -47,13 +47,25 @@ In a section without vocal, an intro, an interlude, a bridge or an ending, an in
 - **The left hand still comes from the cover:** its groove and the chords, as in the sung sections.
 - **Without a source**, or where no instrument line carries a tune, take the hook from the cover's top line.
 
+## Take from the band
+
+With a source, the dump shows the band under the cover in every bar. The cover renders the band as one pianist might and leaves parts out; take back the ones the song is known by, as long as every hand stays readable ("Readable when falling"). Record what each section takes under "The band" in `notes.md`.
+
+- **The backing vocal under the melody.** Where `vocal_harmony` sings with the lead, `R` takes its line under `M`, a third or a sixth below, in place of the melody's octave: in the lead's octave where it sits under the lead, an octave down where it sits above it. Its notes are chord tones, or passing tones marked `~`.
+- **The bass line's motion.** `L`'s lowest note follows `electric_bass` where it walks, steps to a slash bass or pushes ahead of the bar line with the kick. A walk in quarter-note triplets is written at `8`, `10.667` and `13.333`, each `2.667` long.
+- **A pulse where the cover only holds.** Where a synth or the strings pulse a chord tone in eighths and the cover holds whole-bar chords, `L` keeps the root and strikes a chord tone above it on the pulse, one figure through the section.
+- **Riffs and fills in the voice's gaps** go on top of the right hand where `V` rests, as "Where no one sings" says of a section.
+- **Stops and breakdowns follow the band, not the cover.** Where the drums and the band stop after a hit, end every accompaniment note there, even where the cover lets a chord ring. Where the drums thin to a kick on the downbeat and the band holds its chords, drop the section's running figure: hold the chords, or keep only a pulse the band plays there, as the bullet above writes it.
+- **A repeat copies only what repeats.** A copied section takes its source's texture with it: check each copied bar's `D` and `I` lines against its source bar's, and override where the band drops out, holds or changes figure.
+- **One part at a time.** The backing vocal replaces the octave doubling rather than joining it, and a pulse replaces the left hand's figure rather than adding to it.
+
 ## Infer and fill
 
 The transcriptions differ from the song in places: a chord dropped or wrong, a phrase of the melody missing or an octave off, a hit smeared over two attacks. Where the dump is wrong or silent, infer what the song plays from the same passage elsewhere in the song, the bass line, the melody's long notes and the key, and write that. Record each place in `notes.md` with what you inferred and why: the user listens there first.
 
 ## One velocity
 
-pianoize plays every note at one velocity, with no dynamics, so weight comes from register, doubling and note count. A chorus can take octaves in the left hand, a fuller right hand and the melody doubled an octave below on `R`; a verse is thinner, a single bass line and two-note chords. A hit is loud by being many notes at once, low and high. A quiet passage is few notes in the middle register.
+pianoize plays every note at one velocity, with no dynamics, so weight comes from register, doubling and note count. A chorus can take octaves in the left hand, a fuller right hand and, under the melody on `R`, the backing vocal's line or the melody's octave; a verse is thinner, a single bass line and two-note chords. A hit is loud by being many notes at once, low and high. A quiet passage is few notes in the middle register.
 
 ## Readable when falling
 

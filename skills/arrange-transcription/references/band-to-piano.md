@@ -1,22 +1,12 @@
 # Arranging the band for piano
 
-How to turn a band's transcription into a two-hand piano part: reading the rhythm section, writing the left hand as a pianist's accompaniment, choosing its density, and the right hand with the melody. SKILL.md gives the commands and the files; this file gives the judgment. It goes with `arrange-cover`'s two references, `../arrange-cover/references/reading-the-dump.md` and `../arrange-cover/references/arranging-rules.md` (paths from this skill's directory, as in SKILL.md), and replaces what they take from a cover.
+How to turn a band's transcription into a two-hand piano part: reading the rhythm section, writing the left hand as a pianist's accompaniment, choosing its density, and the right hand with the melody. The workflow (`references/workflow.md`) gives the commands and the files; this file gives the judgment. It goes with `arrange-cover`'s two references, `../arrange-cover/references/reading-the-dump.md` and `../arrange-cover/references/arranging-rules.md` (paths from this skill's directory, as in the workflow), and replaces what they take from a cover.
 
 A piano cover already has a pianistic accompaniment, and `arrange-cover` keeps its feel. A band transcription has none: a bass line, a drum kit, strummed guitars and a keyboard part, each written for its own player. So you arrange the band for piano: you decide what each hand plays from what the band plays, rather than copying any one part.
 
 ## Reading the rhythm section
 
-- **The `D` line** groups the drums' hits: `kick`, `snare`, `hihat`, `cymbal` and `other`, each with its positions in sixteenths, as in `D kick 0 6 10  snare 4 12  hihat 0 2 4 6 8 10 12 14  cymbal 0`. A group that doesn't play in the bar is left out; a bar without drums prints `D ` alone.
-- **The kick is where the bass is struck.** Bass and kick lock together, so the kick's positions are where the left hand's bass falls.
-- **The snare is the backbeat**, mostly `4` and `12` in 4/4.
-- **The hi-hat's rate is the pulse**, eighths or sixteenths. It sets how fast the section moves, not what the left hand strikes.
-- **A crash**, in `cymbal`, marks a hit or the start of a section.
-- **`other`**, the toms among it, is mostly fills, at the end of a phrase or into the next section.
-- **A change of pattern is a change of section.** A new kick pattern, or half-time, where the snare moves from `4 12` to `8` alone, starts a section, even where the chords go on as before.
-- **Bars without drums are a change of texture**, an intro or a breakdown, not a stop. The accompaniment there comes from the strums, the band piano's figure in `C`, or the bass. A stop is only where `C` and the `I` lines show no attack and no note held through it, as "A stop" in `reading-the-dump.md`'s "Hits, stops and syncopation" reads the durations.
-- **The strums** are the guitars' `I` lines: their positions are the strum pattern, and their top note is the top of a voicing, not a tune.
-- **The bass line** is `electric_bass`'s `I` line: its notes are the roots and the steps between them. Check your chords against it.
-- **Runs of `.5`.** Where a whole track prints half a sixteenth early, bar after bar, at `3.5`, `7.5` and `11.5` while the drums play `4`, `8` and `12`, that is the transcription's offset for the track, not the band pushing. Write it on the sixteenth where the drums are. Its downbeat notes then print at `15.5` of the bar before, and belong to `0` of the next. A real push is the band together ahead of the beat, the kick or a crash with it, and comes back in the section's repeats.
+Read the `D` line, the strums, the bass line and runs of `.5` as "The drums" in `../arrange-cover/references/reading-the-dump.md` says: the kick is where the bass is struck, the snare the backbeat, the hi-hat the pulse, a crash a hit or a section's start, a new pattern a new section. Here there is no cover, so a bar without drums, an intro or a breakdown, takes its accompaniment from the strums, the band piano's figure in `C`, or the bass, and the bass line is `electric_bass`'s `I` line: check your chords against it.
 
 ## The left hand is a pianist's accompaniment
 
@@ -30,7 +20,7 @@ A piano cover already has a pianistic accompaniment, and `arrange-cover` keeps i
 Choose each section's left-hand figure from its drum and strum pattern, name it under "Left-hand figures" in `notes.md`, and keep it through the section ("One pattern per section" in `arranging-rules.md`). Vary it only where the band does: a fill, a hit, the last bar into the next section. A few generic figures:
 
 - **The bass on the kick, a chord on the backbeat**, for a steady beat.
-- **A root-fifth-octave roll** where there are no drums: an intro, a breakdown, a ballad's verse.
+- **A root-fifth-octave roll** where there are no drums: an intro, a ballad's verse. In a breakdown where the band holds its chords, hold them, or keep only the pulse the band plays there.
 - **Octaves on the beat** for a driving section.
 - **Hits and silence** for stop-time: the left hand strikes with the band's hits and rests between them, the pedal lifted.
 
