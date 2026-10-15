@@ -4,16 +4,20 @@ import { load } from "./roll.js";
 import { drawFrame } from "./draw.js";
 import { picker } from "./picker.js";
 import { transport } from "./transport.js";
+import { effectsPanel, tune } from "./effects.js";
 
 let ctx;
 let data;
+// The style a frame is drawn in: style.js's, or the effects panel's tuning of it. The capture
+// never tunes it.
+let look = style;
 
 // Synchronous: capture.mjs looks for window.pianoize as soon as goto returns, on the load
 // event, which fires before start()'s fetches finish.
 window.pianoize = { ready: start(), drawAt };
 
 function drawAt(t) {
-  drawFrame(ctx, t, data, style);
+  drawFrame(ctx, t, data, look);
 }
 
 async function start() {
@@ -39,7 +43,7 @@ async function start() {
     return;
   }
   const audio = document.getElementById("audio");
-  transport(document.getElementById("transport"), audio, canvas);
+  player(audio);
   follow(audio);
   // A blob seeks without range requests, which the run's server does not answer.
   audio.src = URL.createObjectURL(await (await get(`run/${manifest.audio}`)).blob());
@@ -72,6 +76,15 @@ function show(notes, { cards, timeline }) {
   };
 }
 
+// The controls under the picture: the player and the effects panel.
+function player(audio) {
+  transport(document.getElementById("transport"), audio, document.getElementById("screen"));
+  const toggle = document.querySelector(".effects-toggle");
+  effectsPanel(document.getElementById("effects"), toggle, (levels) => {
+    look = tune(style, levels);
+  });
+}
+
 // Draws the frame at the audio's time on every animation frame.
 function follow(audio) {
   const frame = () => {
@@ -86,18 +99,18 @@ function follow(audio) {
 function home() {
   const audio = document.getElementById("audio");
   const stage = document.querySelector(".stage");
-  const player = document.getElementById("transport");
+  const controls = document.getElementById("transport");
   const timeline = { music_start: 0, music_end: Infinity };
   let playing = null;
   // Brings the stage and the player into view with the focus on Play, so the next key or
   // click plays.
   const present = () => {
     const above = stage.getBoundingClientRect().top < 0;
-    if (above || player.getBoundingClientRect().bottom > innerHeight) {
+    if (above || controls.getBoundingClientRect().bottom > innerHeight) {
       const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
       stage.scrollIntoView({ block: "start", behavior: still ? "auto" : "smooth" });
     }
-    player.querySelector(".play").focus({ preventScroll: true });
+    controls.querySelector(".play").focus({ preventScroll: true });
   };
   const elements = {
     form: document.getElementById("files"),
@@ -118,7 +131,7 @@ function home() {
   audio.addEventListener("error", () => {
     files.fail(`${playing.name}: this browser can't play this audio`);
   });
-  transport(player, audio, document.getElementById("screen"));
+  player(audio);
   show([], { timeline });
   follow(audio);
 }

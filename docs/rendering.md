@@ -74,7 +74,8 @@ press Ctrl-C to stop
 It exports the notes, renders the audio with FluidSynth, pads it to the video's timeline ([below](#the-timeline)), and prints the peak, with a `warning: peak … may clip; lower --gain` on stderr at 0.99 or more. Then it serves the page and waits.
 
 - **The URL** is on 127.0.0.1 only, on a free port, so nothing off the machine can read the song.
-- **The player** is under the picture: play and pause, the time and a seek bar. A click on the picture or Space plays or pauses, and the arrow keys seek 5 s. The picture follows the hidden `<audio>` element's clock, so a seek moves the picture too. The page loads its audio whole, so the preview needs no range requests.
+- **The player** is under the picture: play and pause, the time and a seek bar. A click on the picture or Space plays or pauses, and the arrow keys seek 5 s.
+- **The effects panel**, opened with "Effects" beside the player, has a slider for each of the glow, the flare, the beam and the sparks, from 0% (off) to 200%, and a reset. It changes only what this page draws: the video draws `style.js`'s values, so a level worth keeping goes into `style.js`. The picture follows the hidden `<audio>` element's clock, so a seek moves the picture too. The page loads its audio whole, so the preview needs no range requests.
 - **Stopping.** Ctrl-C stops it, and so do `kill <pid>` and closing the terminal: SIGTERM and SIGHUP take the same path as Ctrl-C.
 - **Scratch files.** The run's files are in a `.preview-*` directory beside the MIDI, which the stop removes, so the song's files stay in `work/`.
 - **Errors.** As for `render-video` below. The preview needs no Node, Chrome or ffmpeg, only a browser.
@@ -144,19 +145,21 @@ Two renders of the same inputs with the same Chrome and ffmpeg gave identical fr
 | --- | --- |
 | `index.html`, `style.css`, `controls.css` | The page: the canvas, the player under it, and on the home page the project's introduction and the file picker. `controls.css` styles the picker and the player, `style.css` the rest. The CSS takes its colours, font and corner radius from `style.js` through custom properties that `main.js` sets; only the page's own layout sizes are in it. |
 | `style.js` | Every colour, the frame's sizes, and the fall time (`fall.seconds`). No other module holds one. Timing that is not the fall time lives in Python. |
-| `keyboard.js` | The 88 keys: their layout, the positions and sizes of the white and black keys, and drawing them, each lit by the hand pressing it. |
-| `falling.js` | Draws the falling notes. |
+| `keyboard.js` | The 88 keys: their layout, the positions and sizes of the white and black keys, and drawing them, each lit by the hand pressing it, with the felt's shadow and the black keys' bevels. |
+| `falling.js` | Draws the falling notes and their glow. |
+| `sparks.js` | The light where a note meets its key: the flare, the beam and the sparks, each a function of the time alone. |
+| `effects.js` | The effects panel under the player, and `tune()`, which scales the glow, the flare, the beam and the sparks by its levels. |
 | `roll.js` | The data: `FORMAT_VERSION`, loading the notes, the phase at a time (title, roll, credits), which keys are pressed, and the falling notes' rectangles. |
-| `draw.js` | Draws one frame at a time `t` on the canvas: the falling notes under the keyboard, or a card. |
+| `draw.js` | Draws one frame at a time `t` on the canvas: the roll's background, the falling notes under the keyboard and the light over both, or a card. |
 | `picker.js` | The file picker: takes the chosen or dropped files, checks the JSON and the audio, and shows what is missing and what went wrong. It draws nothing. |
 | `transport.js` | The player: play and pause, the time, the seek bar, and the click and keys for them, over the `<audio>` element. |
 | `main.js` | Loads the manifest and the notes, and runs the page in one of its three modes. |
-| `capture.mjs` | Loads the page in Chrome and writes a PNG per frame to stdout. |
-| `test/` | Node tests of the layout and the data. |
+| `capture.mjs` | Loads the page in Chrome and writes a PNG per frame to stdout, with Chrome's fast PNG encoder. |
+| `test/` | Node tests of the layout, the data, the sparks and the effects' tuning. |
 
 - **The manifest.** The run's directory is served at `/run/`. `/run/manifest.json` names the run's `arrangement.json` and `audio.wav`, and holds the cards' lines and the timeline's `music_start`, `music_end` and `end`.
 - **Three modes.** With a run and no query, the page is the preview: the canvas fills the window above the player, and a frame is drawn at the audio's time on every animation frame. With `?capture` only the canvas shows, at its own size, and the page draws nothing by itself; `capture.mjs` calls `window.pianoize.drawAt(t)` for frame `i` at `t = i / FPS` and screenshots it. Where `run/manifest.json` is a 404, as on GitHub Pages, it is the home page. It fetches the run's files by relative paths, so it works below a path too.
-- **The sync rule.** A key lights while `on <= tMusic < off`, where `tMusic` is the video's time minus `music_start`. A note's key lights on the first frame at or after its onset, so within one frame (1/60 s) of the sound's start. The sync test measured the key lighting on the onset's frame, while the Salamander piano's attack passes −40 dBFS (0.01) about 20 ms later.
+- **The sync rule.** A key lights while `on <= tMusic < off`, where `tMusic` is the video's time minus `music_start`. A note's key lights on the first frame at or after its onset, so within one frame (1/60 s) of the sound's start. The sync test measured the key lighting on the onset's frame, while the Salamander piano's attack passes −40 dBFS (0.01) about 20 ms later. The flare, the beam and the sparks start at the note-on too, and none reaches the keys' bottom 40 pixels, which the test reads.
 - **Tests.** `cd viewer && npm ci && npm test` runs the Node tests. They need no browser.
 - **The npm cache** is npm's default, `~/.npm`.
 

@@ -23,13 +23,11 @@ export function transport(root, audio, picture) {
   });
   document.addEventListener("keydown", (e) => {
     if (play.disabled || e.metaKey || e.ctrlKey || e.altKey) return;
-    // Space stays a button's, a link's or a text field's own, so Play's click is the toggle
-    // there; the arrows stay a text field's. The seek bar's keys are the player's.
-    const own =
-      e.key === " "
-        ? "button, a, select, textarea, input:not([type=range])"
-        : "select, textarea, input:not([type=range])";
-    if (e.target.closest(own)) return;
+    // Another field's keys stay its own, and so does Space on a button or a link, so Play's
+    // click is the toggle there. The seek bar's keys are the player's.
+    const field = e.target.closest("input, select, textarea");
+    if (field && field !== seek) return;
+    if (e.key === " " && e.target.closest("button, a")) return;
     if (e.key === " ") toggle();
     else if (e.key === "ArrowLeft") audio.currentTime -= SEEK_SECONDS;
     else if (e.key === "ArrowRight") audio.currentTime += SEEK_SECONDS;

@@ -1,6 +1,7 @@
 import { phase, pressed } from "./roll.js";
 import { drawKeyboard } from "./keyboard.js";
 import { drawNotes } from "./falling.js";
+import { drawSparks } from "./sparks.js";
 
 // The frame for video time t. data holds the notes, the key layout, the cards' lines and the
 // timeline; every colour and size comes from style.
@@ -10,11 +11,29 @@ export function drawFrame(ctx, t, data, style) {
   const now = phase(t, data.timeline, style.fall.seconds);
   if (now === "roll") {
     const tMusic = t - data.timeline.music_start;
-    // The keys go over the notes, which slide under them.
+    drawRoll(ctx, data.layout, style);
+    // The keys go over the notes, which slide under them, and the light where they meet goes
+    // over both.
     drawNotes(ctx, data.notes, tMusic, data.layout, style);
     drawKeyboard(ctx, data.layout, pressed(data.notes, tMusic), style);
+    drawSparks(ctx, data.notes, tMusic, data.layout, style);
   } else {
     drawCard(ctx, data.cards[now], style);
+  }
+}
+
+// The roll's background above the keys: its light, and a line up from each C.
+function drawRoll(ctx, layout, style) {
+  const keyboardTop = layout[0].y;
+  const g = ctx.createLinearGradient(0, 0, 0, keyboardTop);
+  g.addColorStop(0, style.roll.top);
+  g.addColorStop(1, style.roll.bottom);
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, style.width, keyboardTop);
+  ctx.fillStyle = style.roll.octaveLine;
+  const width = style.roll.octaveLineWidth;
+  for (const k of layout) {
+    if (k.pitch % 12 === 0) ctx.fillRect(Math.round(k.x - width / 2), 0, width, keyboardTop);
   }
 }
 

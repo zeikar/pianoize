@@ -47,7 +47,15 @@
 <span class="time">0:00 / 0:00</span>
 <input type="range" class="seek" aria-label="Seek" min="0" max="0" step="any" value="0" disabled>
 <span class="legend"><i class="right"></i>Right hand <i class="left"></i>Left hand</span>
+<button type="button" class="quiet effects-toggle" aria-expanded="false" aria-controls="effects">Effects</button>
 </div>
+<form class="effects" id="effects" hidden>
+<label for="effect-glow">Glow</label><input type="range" id="effect-glow" name="glow" min="0" max="200" step="5" value="100"><output for="effect-glow">100%</output>
+<label for="effect-flare">Flare</label><input type="range" id="effect-flare" name="flare" min="0" max="200" step="5" value="100"><output for="effect-flare">100%</output>
+<label for="effect-beam">Beam</label><input type="range" id="effect-beam" name="beam" min="0" max="200" step="5" value="100"><output for="effect-beam">100%</output>
+<label for="effect-sparks">Sparks</label><input type="range" id="effect-sparks" name="sparks" min="0" max="200" step="5" value="100"><output for="effect-sparks">100%</output>
+<button type="reset" class="quiet">Reset</button>
+</form>
 <div class="home loaded" id="loaded" hidden>
 <p aria-live="polite"><span class="names"></span> <button type="button" class="quiet choose">Choose other files</button></p>
 <p class="error" role="alert"></p>

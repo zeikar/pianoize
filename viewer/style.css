@@ -267,7 +267,8 @@ body.run .stage canvas {
   object-fit: contain;
 }
 
-body.run .transport {
+body.run .transport,
+body.run .effects {
   max-width: none;
   padding-inline: var(--gutter);
 }

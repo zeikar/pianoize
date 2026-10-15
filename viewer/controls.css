@@ -246,6 +246,33 @@ button:disabled {
   background: var(--right);
 }
 
+/* The effects panel: a slider an effect, for trying their strengths. */
+.effects:not([hidden]) {
+  display: grid;
+  grid-template-columns: max-content minmax(120px, 280px) 3.5em;
+  align-items: center;
+  gap: 4px 14px;
+  max-width: var(--stage-width);
+  padding-bottom: 14px;
+  color: var(--muted);
+  font-size: 0.9375rem;
+}
+
+.effects input {
+  margin: 0;
+  accent-color: var(--key);
+}
+
+.effects output {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.effects button {
+  grid-column: 1;
+  justify-self: start;
+}
+
 .loaded {
   max-width: var(--stage-width);
   color: var(--muted);
