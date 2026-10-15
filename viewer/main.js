@@ -2,6 +2,7 @@ import { style } from "./style.js";
 import { keyLayout } from "./keyboard.js";
 import { load } from "./roll.js";
 import { drawFrame } from "./draw.js";
+import { picker } from "./picker.js";
 
 let ctx;
 let data;
@@ -60,36 +61,20 @@ function follow(audio) {
   requestAnimationFrame(frame);
 }
 
-// An arrangement JSON and its audio, read in the browser and sent nowhere. The audio's 0 s is
-// the music's 0 s, and there are no cards: the roll runs from the start and never ends. Until
-// both are picked, the keyboard is empty.
+// Plays what the user picks. The audio's 0 s is the music's 0 s, and there are no cards: the
+// roll runs from the start and never ends. Until both files are picked, the keyboard is empty.
 function pickFiles() {
-  const form = document.getElementById("files");
-  const error = document.getElementById("error");
   const audio = document.getElementById("audio");
   const timeline = { music_start: 0, music_end: Infinity };
-  form.hidden = false;
-  form.style.padding = form.style.gap = `${style.picker.padding}px`;
-  form.style.fontFamily = style.cards.fontFamily;
-  error.style.color = style.picker.error;
-  audio.addEventListener("error", () => {
-    error.textContent = `${form.elements.audio.files[0]?.name}: the browser can't play this audio`;
-  });
-  form.addEventListener("change", async () => {
-    const [json] = form.elements.arrangement.files;
-    const [sound] = form.elements.audio.files;
-    if (!json || !sound) return;
-    error.textContent = "";
-    try {
-      show(load(JSON.parse(await json.text())), { timeline });
-    } catch (e) {
-      error.textContent = `${json.name}: ${e.message}`;
-      return;
-    }
+  let name;
+  const files = picker(document.getElementById("files"), style, (notes, sound) => {
+    show(notes, { timeline });
+    name = sound.name;
     const previous = audio.src;
     audio.src = URL.createObjectURL(sound);
     if (previous) URL.revokeObjectURL(previous);
   });
+  audio.addEventListener("error", () => files.fail(`${name}: the browser can't play this audio`));
   show([], { timeline });
   follow(audio);
 }

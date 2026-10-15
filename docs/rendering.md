@@ -144,9 +144,11 @@ Two renders of the same inputs with the same Chrome and ffmpeg gave identical fr
 | --- | --- |
 | `index.html`, `style.css` | The page: the file picker, an `<audio>` control and a canvas. The CSS has no colours or sizes. |
 | `style.js` | Every colour and size, and the fall time (`fall.seconds`). No other module holds one. Timing that is not the fall time lives in Python. |
-| `keyboard.js` | The 88 keys' layout: positions and sizes of the white and black keys. |
+| `keyboard.js` | The 88 keys: their layout, the positions and sizes of the white and black keys, and drawing them, each lit by the hand pressing it. |
+| `falling.js` | Draws the falling notes. |
 | `roll.js` | The data: `FORMAT_VERSION`, loading the notes, the phase at a time (title, roll, credits), which keys are pressed, and the falling notes' rectangles. |
-| `draw.js` | Draws one frame at a time `t` on the canvas. |
+| `draw.js` | Draws one frame at a time `t` on the canvas: the falling notes under the keyboard, or a card. |
+| `picker.js` | The file picker: reads and checks the picked files and shows their errors. It draws nothing. |
 | `main.js` | Loads the manifest and the notes, and runs the page in one of its three modes. |
 | `capture.mjs` | Loads the page in Chrome and writes a PNG per frame to stdout. |
 | `test/` | Node tests of the layout and the data. |

@@ -38,3 +38,26 @@ export function keyLayout(width, top, height, keyboard) {
   }
   return keys;
 }
+
+// The keys at the bottom of the frame: down maps a pitch to the hand pressing it, whose colour
+// fills the key. A strip like a piano's felt runs across their top.
+export function drawKeyboard(ctx, layout, down, style) {
+  const { gap } = style.keyboard;
+  for (const k of layout.toSorted((a, b) => a.black - b.black)) {
+    const idle = k.black ? style.keyboard.blackKey : style.keyboard.whiteKey;
+    const fill = down.has(k.pitch) ? style.hands[down.get(k.pitch)] : idle;
+    if (k.black) {
+      // A rim the width of the white keys' gap, so a lit black key stands out on a lit white
+      // one.
+      ctx.fillStyle = style.background;
+      ctx.fillRect(k.x, k.y, k.w, k.h);
+      ctx.fillStyle = fill;
+      ctx.fillRect(k.x + gap, k.y, k.w - 2 * gap, k.h - gap);
+    } else {
+      ctx.fillStyle = fill;
+      ctx.fillRect(k.x, k.y, k.w, k.h);
+    }
+  }
+  ctx.fillStyle = style.keyboard.edge;
+  ctx.fillRect(0, layout[0].y, style.width, style.keyboard.edgeHeight);
+}
