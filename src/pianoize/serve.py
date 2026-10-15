@@ -52,10 +52,17 @@ class _Handler(SimpleHTTPRequestHandler):
         pass
 
 
+class _Server(ThreadingHTTPServer):
+    # Chrome asks for the page's modules and stylesheets together, a connection each over
+    # HTTP/1.0. socketserver's queue of 5 reset some of them, and the page never started: 2
+    # loads in 40, against none in 80 with this queue.
+    request_queue_size = 64
+
+
 def start(viewer_dir: Path, run_dir: Path, port: int = 0) -> ThreadingHTTPServer:
     """Serve `viewer_dir` at / and `run_dir` at /run/ on 127.0.0.1; port 0 picks a free one."""
     handler = functools.partial(_Handler, viewer_dir=viewer_dir, run_dir=run_dir)
-    server = ThreadingHTTPServer(("127.0.0.1", port), handler)
+    server = _Server(("127.0.0.1", port), handler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     return server
 

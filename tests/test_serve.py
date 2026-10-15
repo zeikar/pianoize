@@ -36,6 +36,13 @@ def test_serves_the_viewer_and_the_run_directory(server):
     assert get(server, "/run/manifest.json")[:2] == (200, "application/json")
 
 
+def test_the_queue_takes_every_file_the_page_asks_for_at_once(server):
+    # A queue shorter than the page's files reset some of their connections, and the page never
+    # started; twice the files leaves room for the page to grow.
+    page = [*video.VIEWER.glob("*.js"), *video.VIEWER.glob("*.css"), video.VIEWER / "index.html"]
+    assert server.request_queue_size >= 2 * len(page)
+
+
 def test_sends_no_store(server):
     with urllib.request.urlopen(serve.url(server) + "run/manifest.json") as response:
         assert response.headers["Cache-Control"] == "no-store"
