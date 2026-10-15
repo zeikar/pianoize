@@ -96,9 +96,9 @@ export const style = {
   // per second, drift up at rise pixels a second like embers, and fade over at most life
   // seconds. Speeds are pixels a second; size is a spark's diameter in pixels.
   sparks: {
-    burst: 24,
+    burst: 19,
     burstSpeed: 1150,
-    rate: 32,
+    rate: 25.6,
     speed: 520,
     spread: 0.8,
     drag: 3.2,
