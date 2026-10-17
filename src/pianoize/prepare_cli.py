@@ -91,6 +91,12 @@ def _grid(transcription: Path, source: Path) -> None:
             f"{found.other_octave:.2f} bpm; the grid takes {found.bpm:.2f}, the octave it held "
             "longer; check the bars by ear"
         )
+    if found.meter_change is not None:
+        tick, first, other = found.meter_change
+        typer.echo(
+            f"tempo grid: tsumugi changes meter at tick {tick}, {first} to {other}; the grid "
+            f"keeps {first} through the song; check the bars by ear"
+        )
     files.write_all({source: steady.apply(midi, found).save})
 
 

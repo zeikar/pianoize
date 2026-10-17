@@ -1,7 +1,16 @@
 import mido
 import pytest
 
-from pianoize.bars import Meter, MeterError, bar_count, meter, position, where
+from pianoize.bars import (
+    Meter,
+    MeterError,
+    bar_count,
+    first_meter,
+    meter,
+    meter_change,
+    position,
+    where,
+)
 
 
 def signature(numerator: int, denominator: int) -> mido.MetaMessage:
@@ -68,6 +77,21 @@ def test_signatures_with_the_same_bar_pass_as_the_first(tick_midi, first, other)
     midi.tracks.append(track_with(7680, signature(*other)))
     midi.tracks.append(track_with(15360, signature(*first)))
     assert meter(midi) == Meter(480, *first)
+
+
+def test_a_change_of_bar_is_named_and_the_first_meter_stands(tick_midi):
+    midi = tick_midi([(0, 240, 60, 80)], meta=[(0, signature(2, 2))])
+    midi.tracks.append(track_with(7680, signature(1, 2)))
+    assert meter_change(midi) == (7680, "2/2", "1/2")
+    assert first_meter(midi) == Meter(480, 2, 2)
+    with pytest.raises(MeterError, match="at tick 7680, 2/2 to 1/2"):
+        meter(midi)
+
+
+def test_a_signature_with_the_same_bar_is_no_change(tick_midi):
+    midi = tick_midi([(0, 240, 60, 80)], meta=[(0, signature(4, 4))])
+    midi.tracks.append(track_with(7680, signature(8, 8)))
+    assert meter_change(midi) is None
 
 
 def test_a_change_of_meter_on_any_track_raises(tick_midi):

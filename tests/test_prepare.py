@@ -191,6 +191,26 @@ def test_a_steady_transcription_is_gridded(fake_install, flac, tmp_path):
     assert option(generator, "--source") == str(out / "source.mid")
 
 
+def test_a_change_of_meter_is_gridded_on_the_first_with_a_line(fake_install, flac, tmp_path):
+    midi = bent_transcription()
+    midi.tracks[0].insert(-1, mido.MetaMessage("time_signature", numerator=1, denominator=2))
+    at = sum(message.time for message in midi.tracks[0])
+    midi.save(fake_install.log.with_name("transcription.mid"))
+    out = tmp_path / "out"
+
+    result = prepare(flac, "-o", out)
+
+    assert result.exit_code == 0, result.output
+    assert (
+        f"tempo grid: tsumugi changes meter at tick {at}, 2/2 to 1/2; the grid keeps 2/2 "
+        "through the song; check the bars by ear"
+    ) in result.output
+    signatures = [
+        m for m in mido.MidiFile(out / "source.mid").tracks[0] if m.type == "time_signature"
+    ]
+    assert [(m.numerator, m.denominator) for m in signatures] == [(2, 2)]
+
+
 def test_a_transcription_with_no_steady_tempo_keeps_its_map(fake_install, flac, tmp_path):
     midi = random_transcription()
     # The fixture's one track is the piano; prepare takes the melody from a track of that name.

@@ -4,7 +4,7 @@ import random
 import mido
 import pytest
 
-from pianoize import notes, steady
+from pianoize import bars, notes, steady
 
 TICKS = 480
 BAR = 4 * TICKS  # ticks of a 2/2 bar: four MIDI beats
@@ -351,15 +351,34 @@ def test_a_song_tracked_at_the_wrong_octave_for_most_of_its_length_grids_there()
     assert after == pytest.approx(before, abs=half_tick)
 
 
-def test_a_change_of_meter_fits_nothing():
+def _signed(numerator: int, denominator: int) -> tuple[mido.MidiFile, int]:
+    """The bent transcription with a second signature at the end of its tempo track, and its
+    tick."""
     midi = bent_transcription()
     tempo_track = midi.tracks[0]
-    tempo_track.insert(-1, mido.MetaMessage("time_signature", numerator=3, denominator=4))
-    at = sum(message.time for message in tempo_track)
-    with pytest.raises(
-        steady.SteadyError, match=f"^the cover changes meter at tick {at}, 2/2 to 3/4"
-    ):
-        steady.fit(midi)
+    tempo_track.insert(
+        -1, mido.MetaMessage("time_signature", numerator=numerator, denominator=denominator)
+    )
+    return midi, sum(message.time for message in tempo_track)
+
+
+def test_a_change_of_meter_grids_on_the_first_and_is_reported():
+    midi, at = _signed(3, 4)
+    found = steady.fit(midi)
+    assert found.meter_change == (at, "2/2", "3/4")
+    fixed = steady.apply(midi, found)
+    signatures = [m for m in fixed.tracks[0] if m.type == "time_signature"]
+    assert [(m.numerator, m.denominator) for m in signatures] == [(2, 2)]
+    assert bars.meter(fixed) == bars.Meter(TICKS, 2, 2)
+
+
+def test_a_signature_with_the_same_bar_stays_and_is_no_change():
+    midi, _ = _signed(4, 4)
+    found = steady.fit(midi)
+    assert found.meter_change is None
+    fixed = steady.apply(midi, found)
+    signatures = [m for m in fixed.tracks[0] if m.type == "time_signature"]
+    assert [(m.numerator, m.denominator) for m in signatures] == [(2, 2), (4, 4)]
 
 
 def test_the_steady_map_is_a_pickup_bar_then_the_fitted_tempo(bent):

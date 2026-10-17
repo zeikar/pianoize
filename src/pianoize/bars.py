@@ -28,11 +28,9 @@ class Meter:
         return self.bar_ticks // self.sixteenth_ticks
 
 
-def meter(midi: mido.MidiFile) -> Meter:
-    """The one meter of the file, from the time signatures on every track. With none it is 4/4,
-    the MIDI default, which also holds before a first signature after tick 0. A signature with the
-    first one's bar length, 8/8 after 4/4, is no change and the first stands; any other change of
-    meter raises MeterError."""
+def _signatures(midi: mido.MidiFile) -> list[tuple[int, int, int]]:
+    """(tick, numerator, denominator) of every time signature on every track, by tick, with the
+    MIDI default 4/4 at tick 0 when no signature is there."""
     found: list[tuple[int, int, int]] = []
     for track in midi.tracks:
         tick = 0
@@ -43,15 +41,28 @@ def meter(midi: mido.MidiFile) -> Meter:
     found.sort(key=lambda f: f[0])  # stable: same-tick signatures keep track order
     if not found or found[0][0] > 0:
         found.insert(0, (0, 4, 4))
+    return found
+
+
+def meter_change(midi: mido.MidiFile) -> tuple[int, str, str] | None:
+    """The first signature whose bar is not the first one's length, as its tick, the first meter
+    and its own (`n/d`), or None. A signature with the first one's bar length, 8/8 after 4/4, is
+    no change."""
+    found = _signatures(midi)
     _, numerator, denominator = found[0]
     for tick, other_numerator, other_denominator in found[1:]:
         # The score counts sixteenths per bar, so only the bar's length matters: tsumugi writes
         # 8/8 for stretches of a 4/4 song.
         if other_numerator * denominator != numerator * other_denominator:
-            raise MeterError(
-                f"the cover changes meter at tick {tick}, {numerator}/{denominator} to "
-                f"{other_numerator}/{other_denominator}; the score format needs one meter"
-            )
+            return tick, f"{numerator}/{denominator}", f"{other_numerator}/{other_denominator}"
+    return None
+
+
+def first_meter(midi: mido.MidiFile) -> Meter:
+    """The file's first meter, whatever follows it. With no signature it is 4/4, the MIDI
+    default, which also holds before a first signature after tick 0. A meter that doesn't hold a
+    whole number of sixteenths raises MeterError."""
+    _, numerator, denominator = _signatures(midi)[0]
     # Notes land at a rounded sixteenth count times sixteenth_ticks, so a fractional sixteenth
     # would misplace every note.
     if midi.ticks_per_beat % 4:
@@ -65,6 +76,19 @@ def meter(midi: mido.MidiFile) -> Meter:
             "hold a whole number of them"
         )
     return Meter(midi.ticks_per_beat, numerator, denominator)
+
+
+def meter(midi: mido.MidiFile) -> Meter:
+    """The one meter of the file, from the time signatures on every track, as first_meter reads
+    it. A change of meter (meter_change) raises MeterError."""
+    change = meter_change(midi)
+    if change is not None:
+        tick, first, other = change
+        raise MeterError(
+            f"the cover changes meter at tick {tick}, {first} to {other}; the score format needs "
+            "one meter"
+        )
+    return first_meter(midi)
 
 
 def bar_count(midi: mido.MidiFile, meter: Meter) -> int:

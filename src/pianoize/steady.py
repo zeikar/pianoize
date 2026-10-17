@@ -79,6 +79,8 @@ class Fit:
     other_octave_share: float = (
         0.0  # its share of the map's seconds; 0 when the map spent none there
     )
+    # bars.meter_change of the transcription: the grid keeps the first meter through the song
+    meter_change: tuple[int, str, str] | None = None
 
     @property
     def window(self) -> float:
@@ -276,8 +278,9 @@ def _downbeat(
 
 
 def fit(midi: mido.MidiFile) -> Fit:
-    """The steady tempo and the first downbeat of a transcription. Raises SteadyError when it has
-    fewer than MIN_ATTACKS distinct attacks, or bars.meter refuses its meter, or
+    """The steady tempo and the first downbeat of a transcription, on its first meter, and the
+    change of meter that the grid flattens, if any. Raises SteadyError when it has fewer than
+    MIN_ATTACKS distinct attacks, or bars.first_meter refuses its meter, or
     it puts under GOOD of its attacks on the best grid, or the grid misses a sustained stretch, or
     its bars don't say where the downbeats are. The octave is the dominant tempo's."""
     segments = notes.tempo_map(midi)
@@ -285,7 +288,7 @@ def fit(midi: mido.MidiFile) -> Fit:
     if len(onsets) < MIN_ATTACKS:
         raise SteadyError(f"{len(onsets)} distinct attacks, fewer than {MIN_ATTACKS}")
     try:
-        meter = bars.meter(midi)
+        meter = bars.first_meter(midi)
     except bars.MeterError as exc:
         raise SteadyError(str(exc)) from exc
     last = max(_final_tick(track) for track in midi.tracks)
@@ -302,7 +305,7 @@ def fit(midi: mido.MidiFile) -> Fit:
     _check_spans(onsets, bpm, phase)
     downbeat = _downbeat(meter, segments, last, bpm, phase)
     other, share = _other_octave(segments, end, bpm)
-    return Fit(bpm, downbeat, coverage, len(onsets), other, share)
+    return Fit(bpm, downbeat, coverage, len(onsets), other, share, bars.meter_change(midi))
 
 
 def apply(midi: mido.MidiFile, fit: Fit) -> mido.MidiFile:
@@ -311,10 +314,22 @@ def apply(midi: mido.MidiFile, fit: Fit) -> mido.MidiFile:
     that fits it into the seconds before that downbeat, and the steady tempo starts at bar 2. That
     keeps tick 0 at 0 s, one meter, and the bar lines on the downbeats. Every event but the old
     tempos, each track's end included, moves to the tick nearest the seconds it had, so it keeps
-    them within half a tick. Type, resolution, charset, track order and every other message stay
-    as they were; the new tempos go on the track that carried the first old one."""
+    them within half a tick. A time signature whose bar is not the first one's length is dropped:
+    the steady map replaces the one tsumugi's beat tracking wrote it with, as when it flips to the
+    other octave, and the score format needs one meter. Type, resolution, charset, track order
+    and every other message stay as they were; the new tempos go on the track that carried the
+    first old one."""
     ticks_per_beat = midi.ticks_per_beat
-    bar_ticks = bars.meter(midi).bar_ticks
+    first = bars.first_meter(midi)
+    bar_ticks = first.bar_ticks
+
+    def kept(message: mido.Message) -> bool:
+        if message.type in ("set_tempo", "end_of_track"):
+            return False
+        if message.type != "time_signature":
+            return True
+        return message.numerator * first.denominator == first.numerator * message.denominator
+
     steady = round(60e6 / fit.bpm)
     new = [(0, 0.0, steady)]
     if fit.downbeat > fit.window:
@@ -338,11 +353,7 @@ def apply(midi: mido.MidiFile, fit: Fit) -> mido.MidiFile:
     )
     fixed = mido.MidiFile(type=midi.type, ticks_per_beat=ticks_per_beat, charset=midi.charset)
     for index, track in enumerate(midi.tracks):
-        events = [
-            (moved(tick), message)
-            for tick, message in _ticks(track)
-            if message.type not in ("set_tempo", "end_of_track")
-        ]
+        events = [(moved(tick), message) for tick, message in _ticks(track) if kept(message)]
         end = moved(_final_tick(track))
         if index == carrier:
             tempos = [(tick, mido.MetaMessage("set_tempo", tempo=t)) for tick, _, t in new]
