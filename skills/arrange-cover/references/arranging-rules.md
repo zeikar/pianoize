@@ -2,7 +2,7 @@
 
 How to write the score: what to keep of the song, what to copy from the cover, what to take from the band, how to voice the hands, and how to answer each finding of `pianoize check-arrangement`. The workflow gives the commands and the files; this file gives the judgment. The score format and the check's limits are in pianoize's `docs/arranging.md`, under "The score format" and "Checking".
 
-The goal is a piano arrangement for a falling-notes video, written for two hands at an advanced level from the cover, the melody and, where there is one, the band's transcription. A listener should know the song at once and feel its groove, and a viewer should be able to read every note as it falls.
+The goal is a piano arrangement for a falling-notes video, written for two hands at an advanced level from the cover, the melody and, where there is one, the band's transcription; or in full mode, for listening, with no limits on the hands ("A full arrangement"). A listener should know the song at once and feel its groove, and a viewer should be able to read every note as it falls.
 
 ## Keep the feel
 
@@ -96,6 +96,46 @@ pianoize plays every note at one velocity, with no dynamics, so weight comes fro
 - **Use the qualities the docs' table lists**, and tensions in parentheses where the accompaniment plays them (`Am7(9)`).
 - **A quality the table lacks**, such as a plain diminished triad, `sus2` or `7#9`, doesn't stop the run. Write the nearest quality whose tones you play (a diminished triad as `dim7` or `m7b5`, `sus2` as `add9`), mark any chord tone outside it `~` (the `#9` over a `7`), and record the place under "Gaps" in `notes.md`, naming the quality the song needs. The table can gain it later.
 - **Mark a passing tone `~`** on `R` or `L`: a note off the chord on purpose, such as a step in a walking bass or a neighbour note. A note that clashes for a whole beat is no passing tone: it is a wrong chord or a wrong note.
+
+## A full arrangement
+
+When your prompt's mode is `full`, the arrangement is for listening, not for playing. The hands may hold any number of keys, stretch, leap and cross, and `check-arrangement --full` doesn't flag any of it. It takes every band part the score can hold clearly, so the arrangement sounds as full as the band. What decides is how it sounds, not what two hands reach.
+
+- **Take every band part, in its own register:** the bass, each instrument's line, its inner voices and held chords, the counterlines and the fills, with their rhythm and notes. The dump's `--every-note` shows what each part plays under its top line.
+- **Leave out the transcription's errors:**
+  - slivers and one-sixteenth blips no other part confirms;
+  - a very fast run rounded onto the grid into a false line;
+  - a note off the chord against the other parts;
+  - a note held on past the band's next chord.
+- **Leave out what muddies the parts together.** On a piano every part sounds in one timbre, and what the band's instruments kept apart blurs:
+  - **One key once.** Where two parts double each other in the same register, keep one.
+  - **No seconds.** Leave out a note a second from another part's note in the same octave while both sound, such as a held chord tone beside an arpeggio's step.
+  - **An open low register.** Below C3, no two notes closer than a fifth.
+  - **Nothing above the tune.** Every other part sits under `M`: one above it goes down an octave, or stays out.
+  - **A part that fills another's register,** such as a pad over a guitar's arpeggio, goes up an octave, or stays out.
+- **One figure per layer, per section.** The transcription's note lengths and voicings vary from bar to bar where the band's don't. So for each section, settle each layer's figure:
+  - the bass, held through the bar or struck short;
+  - the top voice, one note held or two struck;
+  - each inner part's rhythm.
+
+  Write each figure the same in every bar of the section and its repeats. Vary it only where the band clearly changes: a new chord rhythm, a stop, a fill, the section's last bar. Record each section's figures under "Figures" in `notes.md`.
+- **The hands:** `R` takes the tune and the parts above about middle C, `L` the bass and the parts below it.
+- **The cover, in `arrange-cover`,** is evidence, not the texture. The band's parts take the place of its accompaniment wherever the band plays. Its notes still help decide the chords and a hit's timing, and are copied only where the band's transcription is silent or wrong. Where they say otherwise, "Take the positions from the `C` lines", "Copy the cover where it renders a moment best" and "The left hand still comes from the cover" give way to the band.
+- **What no longer applies,** since it thins the band for two hands:
+  - the limits under "The hands": a close left hand, hands apart, jumps that take time;
+  - the `N held`, `span`, `jump` and `crossing` fixes under "Fixing the check";
+  - "too many notes for a hand" among the cover's strays;
+  - "as long as every hand stays readable" and "One part at a time" under "Take from the band";
+  - "One velocity"'s thinner verse;
+  - "Fewer, better notes".
+- **What still holds:**
+  - the melody on top, on `M`, above every note of either hand;
+  - no key struck twice at once, in one hand or in both;
+  - the chords and passing tones;
+  - every note at pianoize's one velocity;
+  - the pedal;
+  - no slivers;
+  - no low key struck on every eighth.
 
 ## Fixing the check
 

@@ -2,9 +2,9 @@
 
 What the arranger subagent does when `arrange-transcription` dispatches it: the steps, the rules and the report. SKILL.md is the main session's side: it gathers the inputs, dispatches you and talks to the user. Paths here, `references/…` and `../<skill>/…`, are from this skill's directory.
 
-You arrange a song for a falling-notes video (Synthesia style) from tsumugi's transcription of the whole band, `source.mid`, with a track per instrument, a tempo map and chord markers, and from tsumugi's transcription of the sung melody where the song has one. You read the band bar by bar, decide the chords and arrange the band for two hands in a score; pianoize builds the score into MIDI on a tempo grid it makes from the transcription, and checks that it is playable and fits your chords.
+You arrange a song for a falling-notes video (Synthesia style) from tsumugi's transcription of the whole band, `source.mid`, with a track per instrument, a tempo map and chord markers, and from tsumugi's transcription of the sung melody where the song has one. You read the band bar by bar, decide the chords and arrange the band for two hands in a score; pianoize builds the score into MIDI on a tempo grid it makes from the transcription, and checks that it fits your chords and, in playable mode, that each hand can play it.
 
-The path exists for its terms: tsumugi-piano-cover's weights are CC BY-NC 4.0, while the transcriber's code and weights are MIT, so an arrangement that never touches the cover carries no such terms. Its first trial left the left hand unsettled ("Density" in `references/band-to-piano.md`), so the user sets each section's left hand at the listening.
+The path exists for its terms: tsumugi-piano-cover's weights are CC BY-NC 4.0, while the transcriber's code and weights are MIT, so an arrangement that never touches the cover carries no such terms. Your prompt's mode is `full`, this path's default, or `playable`. A full arrangement is for listening: it takes the band's parts layer by layer, with no limits on the hands, as "A full arrangement" in `../arrange-cover/references/arranging-rules.md` says, and is dumped with `--every-note` and checked with `--full`. A playable one arranges the band as a pianist's accompaniment, as `references/band-to-piano.md` says. Its first trial left the left hand unsettled ("Density" there), so in playable mode the user sets each section's left hand at the listening.
 
 pianoize's commands are deterministic and never call an LLM. You write two text files, `notes.md` and `score.txt`; pianoize builds the MIDI from the score. Never write a MIDI file any other way. You cannot hear the result, so the user's listening at the end is the final gate.
 
@@ -39,42 +39,44 @@ pianoize's commands are deterministic and never call an LLM. You write two text 
 
 1. **Grid:** `pianoize build-grid '<source>' -o '<out>/grid.mid'`. It writes the grid that stands in for a cover: the transcription's tempo map and chord markers, with its `piano` and `electric_bass` tracks ("Building the grid from a transcription" in the docs). If it refuses a track the source lacks, its error lists the tracks the source names: choose the ones that carry the band's chords and its bass, and run it again with a `--track` for each, `pianoize build-grid '<source>' -o '<out>/grid.mid' --track '<chords>' --track '<bass>'`. Record the tracks the grid holds under "Grid tracks" in `notes.md`.
 2. **Regrid:** `pianoize regrid '<out>/grid.mid' -o '<out>/grid.regrid.mid'`. It writes a copy of the grid with its tempo hiccups regridded ("Regridding" in the docs). From here on, every `'<grid>'` in a command stands for that copy, `'<out>/grid.regrid.mid'`, the cover of every command. If it prints spans (`bars 40-43: … BPM -> 5 bars at 120.00`) rather than `no tempo hiccups`, record each under "Regridded spans" in `notes.md`: the user checks each by ear.
-3. **Dump:** `pianoize dump-bars '<grid>' --melody '<melody>' --source '<source>' --every-bar --drums > '<out>/bars.txt'`, leaving out `--melody '<melody>'` without a melody. Each bar gets a header with its time and the transcription's chord markers, and then these lines ("Dumping" in the docs), whose positions and durations count sixteenths:
+3. **Dump:** `pianoize dump-bars '<grid>' --melody '<melody>' --source '<source>' --every-bar --drums > '<out>/bars.txt'`, leaving out `--melody '<melody>'` without a melody, and adding `--every-note` in full mode: `pianoize dump-bars '<grid>' --melody '<melody>' --source '<source>' --every-bar --every-note --drums > '<out>/bars.txt'`. Each bar gets a header with its time and the transcription's chord markers, and then these lines ("Dumping" in the docs), whose positions and durations count sixteenths:
    - `C`: the attacks of the grid's tracks, the band's piano and bass. It is what the band plays, not a pianist's part;
    - `V`: the melody;
    - `D`: the drums' hits, grouped as `kick`, `snare`, `hihat`, `cymbal` and `other`;
-   - `I`: a line per instrument of the source that plays in the bar, its top line, in every bar, sung bars included.
+   - `I`: a line per instrument of the source that plays in the bar, its top line, or with `--every-note` its every note, in every bar, sung bars included.
 
    Bar N of the dump is bar N of the score. To read a section closely, run the same dump with `--bars A-B`, its first and last bars, and without the redirect: it prints to the screen and leaves `bars.txt` as it is.
 4. **Read `<out>/bars.txt` whole**, following **`../arrange-cover/references/reading-the-dump.md`** for the lines, the markers, the chords, the drums and the instrument lines, and **`references/band-to-piano.md`** for the left hand and the melody. There is no cover here. What `arrange-cover`'s references say of the cover's notes is `C`, the band's piano and bass; their `'<cover>'` is `'<grid>'`; and where they run `dump-bars`, run step 3's dump with `--bars A-B` instead. `C`'s notes and the markers come from different models of the transcriber, so where they agree, that is two readings, not the one "Markers are a model's guesses" counts. In `reading-the-dump.md`'s "The melody", the bullets that compare `V` with the cover's top notes, write the melody where the cover plays it, or take the hook from the cover's top line are replaced by "The melody" in `references/band-to-piano.md`. Then write `<out>/notes.md`:
    - the sections with their bars, and which later sections repeat which;
    - a chord per bar, with its position where it changes inside the bar, decided from the bass, the long notes and the repeats;
    - the melody's entries and pickups, and the octave you choose for it in each section;
-   - each section's rhythm section, its drums, strums and bass line, and the left-hand figure you choose for it;
+   - each section's rhythm section, its drums, strums and bass line, and the figures you choose for it: in full mode each layer's ("One figure per layer, per section" in `arranging-rules.md`), in playable mode the left hand's;
    - the hits, stops and syncopations, by bar and position;
    - every place where the transcription is wrong or silent, what you infer there, and the gaps.
 5. **Write `<out>/score.txt` one section at a time**, in bar order, following **`references/band-to-piano.md`** and these sections of **`../arrange-cover/references/arranging-rules.md`**:
    - "Keep the feel", except its first bullet, "The groove is the original's", whose place "Reading the rhythm section" in `references/band-to-piano.md` takes;
    - "Where no one sings", as `references/band-to-piano.md` adjusts it;
-   - "Take from the band", reading its cover as `C`, the band's piano: the backing vocal under the melody, the bass's motion, the stops and breakdowns and the repeats, with a pulse as one of the figures "One figure per section" in `references/band-to-piano.md` chooses from;
+   - "Take from the band", reading its cover as `C`, the band's piano: the backing vocal under the melody, the bass's motion, the stops and breakdowns and the repeats, with a pulse, in playable mode, as one of the figures "One figure per section" in `references/band-to-piano.md` chooses from;
    - "Infer and fill";
    - "Readable when falling";
    - "The hands", except its "Write it an octave up where the cover plays it there", which "The melody" in `references/band-to-piano.md` replaces;
    - "Pedal", "Chords and passing tones" and "Fixing the check".
 
+   In full mode, follow "A full arrangement" in `arranging-rules.md` too: it replaces "The left hand is a pianist's accompaniment", "One figure per section" and "Density" in `references/band-to-piano.md`, and its "What no longer applies" overrides the sections above.
+
    Not "Copy the cover where it renders a moment best", which reads a cover, nor "One velocity", whose verse texture "Density" in `references/band-to-piano.md` replaces. The score's shape is the example in step 4 of `../arrange-cover/references/workflow.md`; its grammar is "The score format" in the docs. Write every bar from 1 on, a silent one as a bar with `N.C.` and no hand lines. Write a section that repeats an earlier one as a copy, `bars A-B = C-D`, with overrides, as step 5 of `../arrange-cover/references/workflow.md` says, and record each in `notes.md`. After each section, run steps 6 and 7 and fix every flagged finding before writing the next.
 6. **Build:** `pianoize build-arrangement '<out>/score.txt' --cover '<grid>' -o '<out>/arranged.mid'`. It prints the notes per hand, the pedal presses and the length ("Building" in the docs). Once the score is complete, the length is about the grid's.
-7. **Check:** `pianoize check-arrangement '<out>/score.txt' --cover '<grid>' --melody '<melody>'`, leaving out `--melody '<melody>'` without a melody: the vocal-notes report is then skipped, and the check does not verify the tune. The `melody` rule stays: it still flags an `M` note under another right-hand note. Its report ends `problems: K` or `clean` ("Checking" in the docs). Fix every flagged finding as "Fixing the check" in `../arrange-cover/references/arranging-rules.md` says, then run steps 6 and 7 again, until it prints `clean` and exits 0. A span marked `(listed, not flagged)` may stay. After the report come the vocal notes the top of the right hand leaves out, `bar N pos P  melody missing  E5 (2)`. Add each on top of the right hand, on `M` in the octave you chose for its section, or record under "Melody left out" in `notes.md` why it stays out.
+7. **Check:** `pianoize check-arrangement '<out>/score.txt' --cover '<grid>' --melody '<melody>'`, adding `--full` in full mode and leaving out `--melody '<melody>'` without a melody: the vocal-notes report is then skipped, and the check does not verify the tune. The `melody` rule stays: it still flags an `M` note under another right-hand note. Its report ends `problems: K` or `clean` ("Checking" in the docs). Fix every flagged finding as "Fixing the check" in `../arrange-cover/references/arranging-rules.md` says, then run steps 6 and 7 again, until it prints `clean` and exits 0. A span marked `(listed, not flagged)` may stay. After the report come the vocal notes the top of the right hand leaves out, `bar N pos P  melody missing  E5 (2)`. Add each on top of the right hand, on `M` in the octave you chose for its section, or record under "Melody left out" in `notes.md` why it stays out.
 8. **Render and export:** `pianoize render '<out>/arranged.mid' -o '<out>/arranged.wav'`, adding `--soundfont '<sf2>'` when your prompt names one. If it warns that the peak could clip, render again with a lower `--gain`. Then `pianoize export-arrangement '<out>/arranged.mid' -o '<out>/arranged.json'`, the notes the falling-notes viewer plays with the WAV. Without FluidSynth or a SoundFont, export anyway, and say so in the report.
 9. **Report** to the main session, which relays it to the user:
    - the files: `<out>/arranged.wav` (or, without a render, `<out>/arranged.mid`) and `<out>/arranged.json`;
    - the check's last line and the count of vocal notes left out;
    - the places `notes.md` lists as inferred, filled or copied from an earlier section, each by bar and time (the dump's header gives a bar's time), and the gaps it records;
    - each regridded span: the user listens to the song there and counts its bars, since `regrid` can take a real tempo change for a hiccup;
-   - each section's left-hand figure, named from `notes.md`, for the user to call too sparse, too busy or right;
+   - each section's figures, named from `notes.md`: in full mode each layer's, in playable mode the left hand's, for the user to call too sparse, too busy or right;
    - the repeats a change to a copied-from bar or a section's figure changed;
    - any question for the user, first.
-10. **Revise**, when your task is `revise: <the user's words>`. Change a section's density or figure as a whole, not bar by bar: its entry under "Left-hand figures" in `notes.md` changes first, then every `L` line of the section to match, overrides included. Its copies follow it; say in your report which repeats changed. For one bar a copy defined, write an override, so the rest of the copy stays as it is. Record each change and the user's reason in `notes.md`, then run steps 6 to 9 again. When your task is `approved: <the user's words>`, record the approval under "Revisions" in `notes.md` and report that you did.
+10. **Revise**, when your task is `revise: <the user's words>`. Change a section's density or figure as a whole, not bar by bar: its entry under "Left-hand figures", or in full mode "Figures", in `notes.md` changes first, then every line of the section it names to match, overrides included. Its copies follow it; say in your report which repeats changed. For one bar a copy defined, write an override, so the rest of the copy stays as it is. Record each change and the user's reason in `notes.md`, then run steps 6 to 9 again. When your task is `approved: <the user's words>`, record the approval under "Revisions" in `notes.md` and report that you did.
 
 `notes.md` is yours to shape; this outline covers what the steps above need:
 
@@ -100,9 +102,11 @@ pianoize's commands are deterministic and never call an LLM. You write two text 
 - verse: kick 0 and 10, snare 4 and 12, hi-hat in eighths; the guitar strums eighths
 ## The band
 - chorus: a backing vocal a third under the lead, taken on `R`
+## Figures
+- verse, in full mode: the bass held through the bar, the top voice one note held, the guitar's sixteenths in `L`
 ## Left-hand figures
-- intro: a root-fifth-octave roll in eighths
-- verse: the bass on the kicks at 0 and 10, a two-note chord on the snare
+- intro, in playable mode: a root-fifth-octave roll in eighths
+- verse, in playable mode: the bass on the kicks at 0 and 10, a two-note chord on the snare
 ## Hits and stops
 - bar 12: a hit at 7 with a crash, then a stop to the end of the bar
 ## Inferred and filled

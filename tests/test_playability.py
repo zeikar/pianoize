@@ -20,12 +20,12 @@ def checked(tick_midi, write_score):
     """The findings for a score of `format 1` and the lines given, on an eight-bar 4/4 cover
     with the tempos given."""
 
-    def run(*lines, tempos=None):
+    def run(*lines, tempos=None, full=False):
         cover = tick_midi([(0, 1920 * 8, 60, 80)], tempos=tempos)
         found = meter(cover)
         assert found == METER
         text = write_score(*lines).read_text(encoding="utf-8")
-        return check(parse(text, found.sixteenths_per_bar), found, tempo_map(cover))
+        return check(parse(text, found.sixteenths_per_bar), found, tempo_map(cover), full=full)
 
     return run
 
@@ -236,6 +236,49 @@ def test_a_score_without_notes_raises(checked):
         checked("bar 1 | C")
 
 
+# Eight keys in the right hand over two octaves, and a left hand leaping three octaves in a
+# sixteenth to cross it: every limit on the hands, and no chord to check.
+UNPLAYABLE = ("bar 1 | N.C.", "  M 0:C6:4", "  R 0:C4+D4+E4+F4+G4+A4+B4:4", "  L 0:C2:1 1:C5:1")
+
+
+def test_a_full_arrangement_drops_the_limits_on_the_hands(checked):
+    rules = {finding.rule for finding in checked(*UNPLAYABLE) if finding.flagged}
+    assert rules == {"notes", "span", "jump", "crossing"}
+    assert checked(*UNPLAYABLE, full=True) == []
+
+
+@pytest.mark.parametrize(
+    ("lines", "found", "detail"),
+    [
+        # With no crossing rule, the left hand is held under the tune by the melody rule.
+        (("bar 1 | C", "  M 0:E4:4", "  L 0:C4+G4:4"), ("melody", 0, "RH", True), "E4 under G4"),
+        (("bar 1 | C", "  R 0:C4:4", "  L 0:C4:4"), ("notes", 0, "LH", True), "C4 in both hands"),
+        # The right hand still holds C4 when the left strikes it.
+        (("bar 1 | C", "  R 0:C4:8", "  L 4:C4:4"), ("notes", 480, "LH", True), "C4 in both hands"),
+    ],
+)
+def test_a_full_arrangement_keeps_the_tune_on_top_and_a_key_in_one_hand(
+    checked, lines, found, detail
+):
+    findings = checked(*lines, full=True)
+    assert summary(findings) == [found]
+    assert findings[0].detail == detail
+
+
+@pytest.mark.parametrize(
+    "lines",
+    [
+        ("bar 1 | C", "  M 0:C5:4", "  R 0:E4+G4+C5:4"),  # C5 struck twice
+        ("bar 1 | C", "  M 0:E5:4", "  R 0:G5:4"),  # the melody under G5
+        ("bar 1 | C", "  L 0:F3:4"),  # F3 off the chord
+    ],
+)
+def test_a_full_arrangement_still_checks_a_double_strike_the_melody_and_the_harmony(checked, lines):
+    findings = checked(*lines, full=True)
+    assert findings
+    assert summary(findings) == summary(checked(*lines))
+
+
 @pytest.fixture
 def missed(tick_midi, write_score):
     """The report of the vocal notes, (on_tick, off_tick, pitch) at 480 ticks a beat and 120 bpm,
@@ -366,6 +409,14 @@ def test_cli_prints_the_report_and_exits_1_on_a_flagged_finding(
     result = _check_cli(write_score(*lines), _cover_file(tmp_path, tick_midi))
     assert result.exit_code == code, result.output
     assert result.stdout == printed
+
+
+def test_cli_checks_a_full_arrangement_with_full(tmp_path, tick_midi, write_score):
+    score, cover = write_score(*UNPLAYABLE), _cover_file(tmp_path, tick_midi)
+    assert _check_cli(score, cover).exit_code == 1
+    result = _check_cli(score, cover, "--full")
+    assert result.exit_code == 0, result.output
+    assert result.stdout == "clean\n"
 
 
 @pytest.mark.parametrize(

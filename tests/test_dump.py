@@ -211,6 +211,8 @@ def test_a_bar_without_vocal_has_each_sounding_tracks_top_line(tick_midi):
         "I strings  0:G4(8)  8:A4(8)",
         "I lead guitar  4:C5(2)",
     ]
+    every = lines(cover, melody, source=source, every_note=True)
+    assert every[-2:] == ["I strings  0:C4(8),G4(8)  8:F4(8),A4(8)", "I lead guitar  4:C5(2)"]
 
 
 def test_drums_and_unnamed_tracks_never_print(tick_midi, silent):
@@ -443,6 +445,22 @@ def test_cli_refuses_every_bar_without_a_source(dumped):
     result = _dump_cli(*dumped, "--every-bar")
     assert result.exit_code == 2
     assert "--every-bar" in result.output
+    assert "--source" in result.output
+
+
+def test_cli_prints_every_note_of_the_instrument_lines_on_request(dumped, tick_midi, tmp_path):
+    source = tmp_path / "source.mid"
+    brass = [(3840, 4080, 72, 90), (3840, 4080, 76, 90)]
+    source_midi(tick_midi, named(tick_midi, "brass", brass)).save(source)
+    result = _dump_cli(*dumped, "--source", str(source), "--every-note", "--bars", "3-3")
+    assert result.exit_code == 0, result.output
+    assert result.stdout.splitlines()[-1] == "I brass  0:C5(2),E5(2)"
+
+
+def test_cli_refuses_every_note_without_a_source(dumped):
+    result = _dump_cli(*dumped, "--every-note")
+    assert result.exit_code == 2
+    assert "--every-note" in result.output
     assert "--source" in result.output
 
 

@@ -4,6 +4,8 @@ How to turn a band's transcription into a two-hand piano part: reading the rhyth
 
 A piano cover already has a pianistic accompaniment, and `arrange-cover` keeps its feel. A band transcription has none: a bass line, a drum kit, strummed guitars and a keyboard part, each written for its own player. So you arrange the band for piano: you decide what each hand plays from what the band plays, rather than copying any one part.
 
+How depends on the mode. A full arrangement, the default, takes the band's parts layer by layer, as "A full arrangement" in `arranging-rules.md` says, with its own "One figure per layer, per section". That replaces "The left hand is a pianist's accompaniment", "One figure per section" and "Density" below, which are for a playable arrangement, where the left hand is a pianist's accompaniment. "Reading the rhythm section" and "The right hand" hold in both.
+
 ## Reading the rhythm section
 
 Read the `D` line, the strums, the bass line and runs of `.5` as "The drums" in `../arrange-cover/references/reading-the-dump.md` says: the kick is where the bass is struck, the snare the backbeat, the hi-hat the pulse, a crash a hit or a section's start, a new pattern a new section. Here there is no cover, so a bar without drums, an intro or a breakdown, takes its accompaniment from the strums, the band piano's figure in `C`, or the bass, and the bass line is `electric_bass`'s `I` line: check your chords against it.

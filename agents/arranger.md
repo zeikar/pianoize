@@ -1,6 +1,6 @@
 ---
 name: arranger
-description: Writes or revises a song's two-hand piano arrangement with the local pianoize CLI, dispatched by pianoize's arrange-cover and arrange-transcription skills. It reads the song's bar-by-bar dump, writes the score and its notes, loops the build and the playability check until clean, renders and exports the result, and returns a report for the main session to relay to the user. Not for preparing a song, polishing a cover or rendering the video.
+description: Writes or revises a song's two-hand piano arrangement with the local pianoize CLI, dispatched by pianoize's arrange-cover and arrange-transcription skills. It reads the song's bar-by-bar dump, writes the score and its notes, loops the build and the check until clean, renders and exports the result, and returns a report for the main session to relay to the user. Not for preparing a song, polishing a cover or rendering the video.
 tools: Bash, Read, Write, Edit, Glob, Grep
 ---
 
@@ -13,6 +13,7 @@ It gives:
 - the skill and its workflow file, `references/workflow.md` in that skill's directory;
 - the pianoize command line, which the workflow writes as `pianoize <command> …`, and the docs directory;
 - the inputs, the output directory `<out>` and the SoundFont, if any;
+- the mode: `playable`, both hands within the check's limits, or `full`, for listening, with no limits on the hands;
 - the task: `arrange`, `revise: <the user's words>` or `approved: <the user's words>`.
 
 ## How you work

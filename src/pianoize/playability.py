@@ -1,6 +1,8 @@
 """Whether a score is playable by an intermediate-to-advanced pianist, hand by hand, and whether
 its accompaniment fits the score's own chords. It checks the notes the build plays, and lists the
-vocal notes the top of its right hand leaves out."""
+vocal notes the top of its right hand leaves out. A full arrangement, written for listening, has
+no limits on the hands: only a key struck twice or in both hands, the melody on top and the
+harmony are checked."""
 
 from bisect import bisect_left, bisect_right
 from collections.abc import Iterator
@@ -54,21 +56,28 @@ def _attacks(notes: list[ScoreNote]) -> Iterator[tuple[int, list[ScoreNote], lis
 
 
 def _hand(
-    played: list[ScoreNote], hand: str, tempos: list[tuple[int, float, int]], ticks_per_beat: int
+    played: list[ScoreNote],
+    hand: str,
+    tempos: list[tuple[int, float, int]],
+    ticks_per_beat: int,
+    full: bool,
 ) -> list[Finding]:
-    """The notes, span and jump findings at each of one hand's attacks."""
+    """The notes, span and jump findings at each of one hand's attacks; in a full arrangement
+    only a pitch struck twice."""
     findings = []
     previous = None  # (seconds, centre) of the hand's previous attack
     for tick, struck, held in _attacks(played):
         pitches = sorted(note.pitch for note in struck)
         # Keys, not notes: a pitch struck twice is flagged on its own below.
         keys = sorted({note.pitch for note in held})
-        if len(keys) > NOTES_PER_HAND:
+        if not full and len(keys) > NOTES_PER_HAND:
             names = " ".join(pitch_name(key) for key in keys)
             findings.append(Finding("notes", tick, hand, f"{len(keys)} held: {names}", True))
         for doubled in sorted({pitch for pitch in pitches if pitches.count(pitch) > 1}):
             detail = f"{pitch_name(doubled)} struck twice"
             findings.append(Finding("notes", tick, hand, detail, True))
+        if full:
+            continue
         span = keys[-1] - keys[0]
         if span > SPAN_WIDE:
             detail = f"{span} semitones, {pitch_name(keys[0])} to {pitch_name(keys[-1])}"
@@ -84,30 +93,41 @@ def _hand(
     return findings
 
 
-def check(score: Score, meter: Meter, tempo_map: list[tuple[int, float, int]]) -> list[Finding]:
+def check(
+    score: Score, meter: Meter, tempo_map: list[tuple[int, float, int]], full: bool = False
+) -> list[Finding]:
     """The findings on the notes the build plays, timed by the cover's tempo map
     (notes.tempo_map). A pitch struck twice in one hand at one tick is flagged: the build would
-    cut the first strike to a sliver whose note-off releases the key. A score without notes
-    raises ArrangementError, as the build does, rather than reading clean."""
+    cut the first strike to a sliver whose note-off releases the key. A full arrangement skips
+    the keys held, the span, the jumps and the crossing, and flags instead a key struck while
+    both hands hold it and the melody under a note of either hand. A score without notes raises
+    ArrangementError, as the build does, rather than reading clean."""
     built = separate_restrikes(notes_of(score, meter), meter)
     if not built:
         raise ArrangementError("the score has no notes")
     findings = []
     for hand in ("RH", "LH"):
         played = [note for note in built if note.hand == hand]
-        findings += _hand(played, hand, tempo_map, meter.ticks_per_beat)
+        findings += _hand(played, hand, tempo_map, meter.ticks_per_beat, full)
     reported = set()  # a held melody note under the same top note is reported once
     for tick, struck, held in _attacks(built):
         right = [note.pitch for note in held if note.hand == "RH"]
         left = [note.pitch for note in held if note.hand == "LH"]
-        if right and left and max(left) >= min(right):
+        if not full and right and left and max(left) >= min(right):
             detail = f"top {pitch_name(max(left))} at or above RH bottom {pitch_name(min(right))}"
             findings.append(Finding("crossing", tick, "LH", detail, True))
+        if full:
+            # Without the crossing rule, nothing else keeps a key from sounding in both hands.
+            for shared in sorted({note.pitch for note in struck} & set(right) & set(left)):
+                detail = f"{pitch_name(shared)} in both hands"
+                findings.append(Finding("notes", tick, "LH", detail, True))
+        # The tune is the top of the right hand, or of both hands where they may cross.
+        top = max(right + left if full else right, default=0)
         for note in held:
-            key = note.on_tick, note.pitch, max(right) if right else 0
-            if note.role == "M" and note.pitch < key[2] and key not in reported:
+            key = note.on_tick, note.pitch, top
+            if note.role == "M" and note.pitch < top and key not in reported:
                 reported.add(key)
-                detail = f"{pitch_name(note.pitch)} under {pitch_name(key[2])}"
+                detail = f"{pitch_name(note.pitch)} under {pitch_name(top)}"
                 findings.append(Finding("melody", tick, note.hand, detail, True))
         for note in struck:
             if note.role != "M" and not note.passing:

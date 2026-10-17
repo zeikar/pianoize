@@ -47,15 +47,17 @@ def lines(
     source: mido.MidiFile | None = None,
     every_bar: bool = False,
     drums: bool = False,
+    every_note: bool = False,
 ) -> list[str]:
     """Per bar, `=== bar N  m:ss.ss` and the markers starting in it, a `C` line of the cover's
     attacks and a `V` line of the melody, positions and durations in sixteenths. With `source`,
     tsumugi's transcription, a bar whose `V` line is empty, or with `every_bar` any bar, gets an
     `I` line per named track of the source that strikes a note in it, drums left out, in the
-    source's order: the track's name and its top line, the highest note of each attack. With
-    `drums` too, a `D` line follows every `V` line: the source's drum hits, kick, snare, hihat,
-    cymbal then other, each group a name and its positions in sixteenths, groups two spaces apart,
-    `D ` for a bar without hits. The melody, the markers and the source are placed by their
+    source's order: the track's name and its top line, the highest note of each attack, or with
+    `every_note` each attack's every note, by pitch, comma-separated. With `drums` too, a `D`
+    line follows every `V` line: the source's drum hits, kick, snare, hihat, cymbal then other,
+    each group a name and its positions in sixteenths, groups two spaces apart, `D ` for a bar
+    without hits. The melody, the markers and the source are placed by their
     seconds on the cover's tempo map. Bars run from 1 to the cover's last, or past it to the last
     any note or marker rounds into; `bar_range`, first and last inclusive, keeps the bars of it
     that exist. Without a `melody`, as on an instrumental, every `V` line is empty and, with a
@@ -103,8 +105,14 @@ def lines(
             )
             attacks[on // per_bar + 1][on % per_bar].append((note.pitch, (off - on) / 2))
         for bar, chords in attacks.items():
-            tops = [(half, *max(chord)) for half, chord in sorted(chords.items())]
-            line = [f"{half / 2:g}:{pitch_name(p)}({d:g})" for half, p, d in tops]
+            line = [
+                f"{half / 2:g}:"
+                + ",".join(
+                    f"{pitch_name(p)}({d:g})"
+                    for p, d in (sorted(chord) if every_note else [max(chord)])
+                )
+                for half, chord in sorted(chords.items())
+            ]
             instruments[bar].append("  ".join([name, *line]))
 
     # bar -> group -> half-sixteenths into it

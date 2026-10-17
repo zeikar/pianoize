@@ -95,18 +95,27 @@ def check_arrangement(
             dir_okay=False,
         ),
     ] = None,
+    full: Annotated[
+        bool,
+        typer.Option(
+            "--full",
+            help="A full arrangement, for listening: no limits on the keys a hand holds, its "
+            "span, its jumps or crossed hands. A key struck twice or in both hands, the melody "
+            "on top of both hands and the harmony are still checked.",
+        ),
+    ] = False,
 ) -> None:
-    """Check a score is playable and fits its own chords.
+    """Check a score is playable, unless --full, and fits its own chords.
 
-    The notes are checked as the build plays them: hand by hand for playability, and the
-    accompaniment against the score's chords. Exit 1 while any finding is flagged; a finding
-    listed, not flagged, leaves it clean, as do the vocal notes --melody lists.
+    The notes are checked as the build plays them: hand by hand for playability, unless --full,
+    and the accompaniment against the score's chords. Exit 1 while any finding is flagged; a
+    finding listed, not flagged, leaves it clean, as do the vocal notes --melody lists.
     """
     midi, meter, score = _load(score_path, cover)
     sung = None if melody_path is None else _read_timed(melody_path)
     tempo_map = notes.tempo_map(midi)
     try:
-        findings = playability.check(score, meter, tempo_map)
+        findings = playability.check(score, meter, tempo_map, full=full)
     except arrangement.ArrangementError as exc:
         raise _fail(f"{score_path}: {exc}") from exc
     typer.echo(playability.report(findings, meter))
@@ -149,6 +158,14 @@ def dump_bars(
             help="With --source, print the instrument lines in every bar, sung bars included.",
         ),
     ] = False,
+    every_note: Annotated[
+        bool,
+        typer.Option(
+            "--every-note",
+            help="With --source, print every note of each instrument's attacks, not only its "
+            "top line.",
+        ),
+    ] = False,
     drums: Annotated[
         bool,
         typer.Option(
@@ -168,6 +185,10 @@ def dump_bars(
         )
     if drums and source_path is None:
         raise typer.BadParameter("needs --source, whose drums it prints", param_hint="--drums")
+    if every_note and source_path is None:
+        raise typer.BadParameter(
+            "needs --source, whose instrument lines it prints", param_hint="--every-note"
+        )
     selected = None
     if bar_range is not None:
         match = _RANGE.fullmatch(bar_range)
@@ -182,7 +203,7 @@ def dump_bars(
     melody = None if melody_path is None else _read_timed(melody_path)
     source = None if source_path is None else _read_timed(source_path)
     try:
-        found = dump.lines(midi, melody, selected, source, every_bar, drums)
+        found = dump.lines(midi, melody, selected, source, every_bar, drums, every_note)
     except (bars.MeterError, evidence.EvidenceError) as exc:
         raise _fail(f"{cover}: {exc}") from exc
     for line in found:
