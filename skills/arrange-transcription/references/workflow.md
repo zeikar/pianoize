@@ -1,4 +1,4 @@
-# The arranger's workflow: from the band transcription alone (experimental)
+# The arranger's workflow: from the band transcription alone
 
 What the arranger subagent does when `arrange-transcription` dispatches it: the steps, the rules and the report. SKILL.md is the main session's side: it gathers the inputs, dispatches you and talks to the user. Paths here, `references/…` and `../<skill>/…`, are from this skill's directory.
 

@@ -283,7 +283,7 @@ Each skill writes a playable arrangement or a full one, for listening, as its di
 
 The inputs come from `pianoize prepare` ([docs/preparing.md](preparing.md)). On an instrumental, which has no `melody.mid` unless `prepare` was given `--melody-track`, `dump-bars` and `check-arrangement` run without `--melody`, and the dump's `V` lines are all empty.
 
-The experimental `arrange-transcription` skill, in `skills/arrange-transcription/`, arranges from tsumugi's transcription alone. It dispatches the same arranger with its own `references/workflow.md`, which uses `pianoize build-grid` in place of the cover and `dump-bars --drums` in the dump, under a clean-room rule: it reads no cover. `arrange-cover` stays the default; see [the decision](decisions.md#the-transcription-only-arrangement-an-experiment).
+The `arrange-transcription` skill, in `skills/arrange-transcription/`, arranges from tsumugi's transcription alone. It dispatches the same arranger with its own `references/workflow.md`, which uses `pianoize build-grid` in place of the cover and `dump-bars --drums` in the dump, under a clean-room rule: it reads no cover. It is the default for an instrumental, and `arrange-cover` for a sung song; see [the decision](decisions.md#the-transcription-only-arrangement).
 
 ### Known gaps
 
