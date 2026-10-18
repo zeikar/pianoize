@@ -1,6 +1,6 @@
 // Every colour and every size of the frame lives here; no other module holds one. The page
 // around the frame takes its colours from here too, and keeps only its layout sizes in its CSS.
-// Timing (frame rate, title and credits length) lives in Python, not here.
+// Timing (frame rate, where the music starts) lives in Python, not here.
 export const style = {
   width: 1920,
   height: 1080,

@@ -131,8 +131,8 @@ def test_preview_video_warns_on_clipping(preview, fake_fluidsynth):
     assert "may clip" in result.output
 
 
-def test_preview_video_refuses_cards_without_dashes(preview, fake_fluidsynth):
-    preview.cards.write_text("Title only\n", encoding="utf-8")
+def test_preview_video_refuses_an_empty_title_card(preview, fake_fluidsynth):
+    preview.cards.write_text("\n---\nCredits\n", encoding="utf-8")
 
     result = preview()
 

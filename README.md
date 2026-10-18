@@ -33,7 +33,7 @@ Then ask for each step in your own words:
 1. **Prepare the song.** `prepare this song: https://youtu.be/…` The [`prepare-song`](skills/prepare-song/SKILL.md) skill downloads the audio, installs the models once (about 1.6 GB of weights, into `~/.cache`), transcribes the song, takes its melody and generates its piano cover. On an Apple-silicon Mac the transcription takes about twice the song's length.
 2. **Arrange it.** `arrange this song for two hands` For a sung song the [`arrange-cover`](skills/arrange-cover/SKILL.md) skill writes from the cover and the melody; for an instrumental, such as game or film music, [`arrange-transcription`](skills/arrange-transcription/SKILL.md) writes from the band's transcription alone. Either one renders `arranged.wav` for you to listen to, then revises the bars you name until you approve.
 3. **Watch it.** Drop `arranged.json` and `arranged.wav` from the song's folder on [zeikar.dev/pianoize](https://zeikar.dev/pianoize/).
-4. **Render the video**, if you want an MP4. From a clone of this repository, with a [cards file](docs/rendering.md#the-cards-file) for the title and the credits:
+4. **Render the video**, if you want an MP4. From a clone of this repository, with a [cards file](docs/rendering.md#the-cards-file) for the title:
 
    ```sh
    git clone https://github.com/zeikar/pianoize && cd pianoize

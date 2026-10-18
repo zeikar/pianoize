@@ -34,20 +34,19 @@ real_fluidsynth = pytest.mark.skipif(
 )
 
 
-def test_cards_split_at_the_dashes_and_trim_blank_lines():
+def test_the_title_card_ends_at_the_dashes_and_trims_blank_lines():
     text = "\n\nTitle  \n\nSub\n\n---\n\nCredits\nMore\n\n\n"
 
-    assert video.cards(text) == {"title": ["Title", "", "Sub"], "credits": ["Credits", "More"]}
+    assert video.cards(text) == {"title": ["Title", "", "Sub"]}
 
 
-def test_cards_refuse_a_file_without_dashes():
-    with pytest.raises(video.VideoError, match="---"):
-        video.cards("Title\nCredits\n")
+def test_a_file_without_dashes_is_all_title():
+    assert video.cards("Title\nSub\n") == {"title": ["Title", "Sub"]}
 
 
-def test_cards_refuse_an_empty_credits_card():
-    with pytest.raises(video.VideoError, match="credits card is empty"):
-        video.cards("Title\n---\n\n")
+def test_cards_refuse_an_empty_title_card():
+    with pytest.raises(video.VideoError, match="title card is empty"):
+        video.cards("\n---\nCredits\n")
 
 
 def test_timeline_rounds_the_music_up_to_a_frame():
@@ -55,7 +54,7 @@ def test_timeline_rounds_the_music_up_to_a_frame():
 
     assert moments.music_start == 3.0
     assert moments.music_end == pytest.approx(3.0 + 78 / 60)
-    assert moments.end == pytest.approx(moments.music_end + 6.0)
+    assert moments.end == moments.music_end
     assert moments.frames == round(moments.end * 60)
 
 
@@ -86,16 +85,15 @@ def test_pad_puts_silence_around_the_clip(tmp_path, synth):
 
 def test_shortened_constants_are_read_at_call_time(monkeypatch, tmp_path, synth):
     monkeypatch.setattr(video, "INTRO_SECONDS", 0.5)
-    monkeypatch.setattr(video, "CREDITS_SECONDS", 0.5)
     wav = tmp_path / "in.wav"
     soundfile.write(wav, synth, SAMPLE_RATE)
 
     moments = video.timeline(1.0, 0.5)
     video.pad(wav, tmp_path / "out.wav", moments)
 
-    assert (moments.music_start, moments.music_end, moments.end) == (0.5, 1.5, 2.0)
-    assert moments.frames == 120
-    assert soundfile.info(tmp_path / "out.wav").frames == 2 * SAMPLE_RATE
+    assert (moments.music_start, moments.music_end, moments.end) == (0.5, 1.5, 1.5)
+    assert moments.frames == 90
+    assert soundfile.info(tmp_path / "out.wav").frames == round(1.5 * SAMPLE_RATE)
 
 
 def test_prepare_fills_the_run_directory(tmp_path, fake_fluidsynth, hands_midi):
@@ -185,8 +183,8 @@ def test_render_video_replaces_the_output(inputs, tmp_path, monkeypatch, fake_fl
     result = _render(inputs, out)
 
     assert result.exit_code == 0, result.output
-    # The one-second clip outlasts the half-second MIDI: 3 + 1 + 6 seconds at 60 frames.
-    assert "frames: 600\nlength: 10.0 s\n" in result.output
+    # The one-second clip outlasts the half-second MIDI: 3 + 1 seconds at 60 frames.
+    assert "frames: 240\nlength: 4.0 s\n" in result.output
     assert out.read_bytes() == b"encoded"
     assert len(stopped) == 1
     assert not list(tmp_path.glob(".video-*"))
@@ -341,9 +339,8 @@ def test_encode_stops_node_when_ffmpeg_cannot_start(tmp_path, monkeypatch):
 
 @pytest.fixture
 def short_cards(monkeypatch) -> None:
-    """Half-second title and credits, so a real render takes seconds."""
+    """A half-second title, so a real render takes seconds."""
     monkeypatch.setattr(video, "INTRO_SECONDS", 0.5)
-    monkeypatch.setattr(video, "CREDITS_SECONDS", 0.5)
 
 
 @pytest.fixture

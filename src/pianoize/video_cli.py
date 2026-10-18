@@ -53,7 +53,10 @@ def preview_video(
     midi_path: Annotated[Path, typer.Argument(metavar="ARRANGED.mid", exists=True, dir_okay=False)],
     cards: Annotated[
         Path,
-        typer.Option(help="The title and credits cards, split by a '---' line.", exists=True),
+        typer.Option(
+            help="The title card's lines; a '---' line and what follows are not drawn.",
+            exists=True,
+        ),
     ],
     soundfont: Annotated[
         Path | None,
@@ -86,7 +89,10 @@ def render_video(
     midi_path: Annotated[Path, typer.Argument(metavar="ARRANGED.mid", exists=True, dir_okay=False)],
     cards: Annotated[
         Path,
-        typer.Option(help="The title and credits cards, split by a '---' line.", exists=True),
+        typer.Option(
+            help="The title card's lines; a '---' line and what follows are not drawn.",
+            exists=True,
+        ),
     ],
     out: Annotated[Path, typer.Option("-o", "--out", help="The MP4 file to write.")],
     soundfont: Annotated[

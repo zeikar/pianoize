@@ -1,34 +1,31 @@
-import { phase, pressed, titleOpacity } from "./roll.js";
+import { pressed, titleOpacity } from "./roll.js";
 import { drawKeyboard } from "./keyboard.js";
 import { drawNotes } from "./falling.js";
 import { drawSparks } from "./sparks.js";
 
-// The frame for video time t. data holds the notes, the key layout, the cards' lines and the
-// timeline; every colour and size comes from style.
+// The frame for video time t. data holds the notes, the key layout, the title card's lines and
+// the timeline; every colour and size comes from style. The roll runs from 0 s, so the first notes
+// fall in while the title card lies over it.
 export function drawFrame(ctx, t, data, style) {
   ctx.fillStyle = style.background;
   ctx.fillRect(0, 0, style.width, style.height);
-  if (phase(t, data.timeline) === "roll") {
-    const tMusic = t - data.timeline.music_start;
-    drawRoll(ctx, data.layout, style);
-    // The keys go over the notes, which slide under them, and the light where they meet goes
-    // over both.
-    drawNotes(ctx, data.notes, tMusic, data.layout, style);
-    drawKeyboard(ctx, data.layout, pressed(data.notes, tMusic), style);
-    drawSparks(ctx, data.notes, tMusic, data.layout, style);
-    // The home page has no cards, and its music starts at 0 s.
-    const opacity = titleOpacity(t, data.timeline, style.cards.fadeSeconds);
-    if (opacity > 0 && data.cards) {
-      ctx.save();
-      ctx.globalAlpha = opacity;
-      // Over the falling notes, the shadow keeps the lines readable.
-      ctx.shadowColor = style.cards.shadow;
-      ctx.shadowBlur = style.cards.shadowBlur;
-      drawCard(ctx, data.cards.title, style, data.layout[0].y);
-      ctx.restore();
-    }
-  } else {
-    drawCard(ctx, data.cards.credits, style, style.height);
+  const tMusic = t - data.timeline.music_start;
+  drawRoll(ctx, data.layout, style);
+  // The keys go over the notes, which slide under them, and the light where they meet goes
+  // over both.
+  drawNotes(ctx, data.notes, tMusic, data.layout, style);
+  drawKeyboard(ctx, data.layout, pressed(data.notes, tMusic), style);
+  drawSparks(ctx, data.notes, tMusic, data.layout, style);
+  // The home page has no cards, and its music starts at 0 s.
+  const opacity = titleOpacity(t, data.timeline, style.cards.fadeSeconds);
+  if (opacity > 0 && data.cards) {
+    ctx.save();
+    ctx.globalAlpha = opacity;
+    // Over the falling notes, the shadow keeps the lines readable.
+    ctx.shadowColor = style.cards.shadow;
+    ctx.shadowBlur = style.cards.shadowBlur;
+    drawCard(ctx, data.cards.title, style, data.layout[0].y);
+    ctx.restore();
   }
 }
 

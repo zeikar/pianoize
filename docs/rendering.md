@@ -1,6 +1,6 @@
 # Rendering
 
-How pianoize turns a two-hand arrangement into a falling-notes video: the notes as JSON, the title and credits cards, a preview in a browser, and the MP4. The commands read the MIDI `build-arrangement` writes ([docs/arranging.md](arranging.md)) and render it with the SoundFont as `pianoize render` does ([docs/evaluation.md](evaluation.md#rendering-a-midi-file)). The CLI never calls an LLM, and the same inputs give the same JSON, audio and frames. The reasons are in [docs/decisions.md](decisions.md).
+How pianoize turns a two-hand arrangement into a falling-notes video: the notes as JSON, the title card, a preview in a browser, and the MP4. The commands read the MIDI `build-arrangement` writes ([docs/arranging.md](arranging.md)) and render it with the SoundFont as `pianoize render` does ([docs/evaluation.md](evaluation.md#rendering-a-midi-file)). The CLI never calls an LLM, and the same inputs give the same JSON, audio and frames. The reasons are in [docs/decisions.md](decisions.md).
 
 ```
 pianoize export-arrangement ARRANGED.mid -o ARRANGED.json
@@ -45,7 +45,7 @@ length: 2.0 s
 
 ## The cards file
 
-A cards file is a UTF-8 text file with the title card's lines, a line with only `---`, and the credits card's lines. It lives in `work/` with the song's text; the song's title and artists are not in the repository.
+A cards file is a UTF-8 text file with the title card's lines, and optionally a line with only `---` and the video description's credits, which the video doesn't draw. It lives in `work/` with the song's text; the song's title and artists are not in the repository.
 
 ```
 A Made-up Song
@@ -56,10 +56,10 @@ Arrangement: tsumugi-piano-cover, edited
 Piano sound: a made-up credit line
 ```
 
-- **Splitting.** The file splits at its first line that is `---` once stripped. Later `---` lines are credits text.
-- **Trimming.** Each line loses its trailing spaces, and each card loses its blank lines at the start and the end. A blank line inside a card stays, and takes a line's room. The first line of each card is drawn large, the rest smaller.
-- **Credits.** The credits card is where the attributions in [What goes into a video](decisions.md#what-goes-into-a-video) go, and the SoundFont's credit line from [MIDI is rendered with FluidSynth](decisions.md#midi-is-rendered-with-fluidsynth).
-- **Errors.** A file with no `---` line, or with an empty title or credits card, is refused with `error: …` and exit 1. A cards file that can't be read as UTF-8 is refused the same way.
+- **Splitting.** The title card ends at the file's first line that is `---` once stripped; without one, the whole file is the title card. Nothing after that line is drawn.
+- **Trimming.** Each line loses its trailing spaces, and the title card loses its blank lines at the start and the end. A blank line inside it stays, and takes a line's room. Its first line is drawn large, the rest smaller.
+- **Credits** go in the video's description: the attributions in [What goes into a video](decisions.md#what-goes-into-a-video) and the SoundFont's credit line from [MIDI is rendered with FluidSynth](decisions.md#midi-is-rendered-with-fluidsynth). The lines after `---` are a place to keep them beside the title.
+- **Errors.** An empty title card is refused with `error: …` and exit 1. A cards file that can't be read as UTF-8 is refused the same way.
 
 ## Previewing
 
@@ -104,8 +104,7 @@ length: 90.0 s
 | part | seconds |
 | --- | --- |
 | Title card | 0 to 3, over the roll as the first notes fall in, fading out over its last `cards.fadeSeconds` (0.5, in `viewer/style.js`) |
-| Music | from 3 (`INTRO_SECONDS`, one `fall.seconds` of `viewer/style.js`, so the first notes land as it starts) to the later of the audio's end and the MIDI's end, rounded up to a whole frame |
-| Credits card | `CREDITS_SECONDS` (6) from the music's end |
+| Music | from 3 (`INTRO_SECONDS`, one `fall.seconds` of `viewer/style.js`, so the first notes land as it starts) to the later of the audio's end and the MIDI's end, rounded up to a whole frame; the video ends there |
 
 The audio's end is FluidSynth's release tail; the MIDI's end is its last tick. The frame rate is `FPS` = 60. These constants are in `src/pianoize/video.py`.
 
@@ -148,7 +147,7 @@ Two renders of the same inputs with the same Chrome and ffmpeg gave identical fr
 | `falling.js` | Draws the falling notes and their glow. |
 | `sparks.js` | The light where a note meets its key: the flare, the beam and the sparks, each a function of the time alone. |
 | `effects.js` | The effects panel under the player, and `tune()`, which scales the glow, the flare, the beam and the sparks by its levels. |
-| `roll.js` | The data: `FORMAT_VERSION`, loading the notes, the phase at a time (title, roll, credits), which keys are pressed, and the falling notes' rectangles. |
+| `roll.js` | The data: `FORMAT_VERSION`, loading the notes, the title card's opacity at a time, which keys are pressed, and the falling notes' rectangles. |
 | `draw.js` | Draws one frame at a time `t` on the canvas: the roll's background, the falling notes under the keyboard and the light over both, or a card. |
 | `picker.js` | The file picker: takes the chosen or dropped files, checks the JSON and the audio, and shows what is missing and what went wrong. It draws nothing. |
 | `transport.js` | The player: play and pause, the time, the seek bar, and the click and keys for them, over the `<audio>` element. |

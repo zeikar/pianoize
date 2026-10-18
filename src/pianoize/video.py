@@ -19,7 +19,6 @@ FPS = 60
 # Where the music starts: one fall time (style.js's fall.seconds), so the first notes fall in
 # under the title card and land as the music starts.
 INTRO_SECONDS = 3.0
-CREDITS_SECONDS = 6.0
 # The viewer is page assets, not Python, so it stays at the checkout's top level rather than
 # inside the package; pianoize runs from a checkout.
 VIEWER = Path(__file__).resolve().parents[2] / "viewer"
@@ -30,16 +29,14 @@ class VideoError(Exception):
 
 
 def cards(text: str) -> dict[str, list[str]]:
-    """Split a cards file at its first `---` line into the title and credits cards' lines."""
+    """The title card's lines: the cards file up to its first `---` line, or all of it. What
+    follows a `---` line is the description's text, which the video doesn't draw."""
     lines = text.splitlines()
-    if "---" not in (line.strip() for line in lines):
-        raise VideoError("the cards file has no '---' line between the title and the credits")
-    at = next(i for i, line in enumerate(lines) if line.strip() == "---")
-    found = {"title": _trim(lines[:at]), "credits": _trim(lines[at + 1 :])}
-    for name, card in found.items():
-        if not card:
-            raise VideoError(f"the {name} card is empty")
-    return found
+    at = next((i for i, line in enumerate(lines) if line.strip() == "---"), len(lines))
+    title = _trim(lines[:at])
+    if not title:
+        raise VideoError("the title card is empty")
+    return {"title": title}
 
 
 def _trim(lines: list[str]) -> list[str]:
@@ -66,8 +63,8 @@ def timeline(audio_seconds: float, midi_seconds: float) -> Timeline:
     # floating-point noise in the product.
     frames = math.ceil(max(audio_seconds, midi_seconds) * FPS - 1e-9)
     music_end = INTRO_SECONDS + frames / FPS
-    end = music_end + CREDITS_SECONDS
-    return Timeline(INTRO_SECONDS, music_end, end, round(end * FPS))
+    # The video ends with the music: the credits go in its description.
+    return Timeline(INTRO_SECONDS, music_end, music_end, round(music_end * FPS))
 
 
 def pad(wav_in: Path, wav_out: Path, timeline: Timeline) -> None:

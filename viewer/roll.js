@@ -21,12 +21,6 @@ export function load(json) {
   return json.notes;
 }
 
-// t is video time. The roll runs from 0 s, so the first notes fall in while the title card
-// lies over it (titleOpacity); the credits card follows the music.
-export function phase(t, timeline) {
-  return t >= timeline.music_end ? "credits" : "roll";
-}
-
 // The title card's opacity at video time t: whole until fadeSeconds before the music starts,
 // then fading to nothing as it starts.
 export function titleOpacity(t, timeline, fadeSeconds) {
