@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>pianoize link preview</title>
+<link rel="icon" href="data:,">
+<style>
+/* 1280×640 CSS pixels, captured at 1.5x by social.mjs: the 1920×960 picture, with the canvas
+   drawn 1:1. The colours and the font come from style.js, as the page's do. */
+html, body { margin: 0; background: var(--background); }
+.frame { position: relative; width: 1280px; height: 640px; overflow: hidden; background: var(--background); }
+/* Taller than the frame, so only the top of the keys shows: the whole keyboard was the
+   brightest block in the picture at a link card's size. */
+canvas { position: absolute; left: 0; top: 0; width: 1280px; }
+/* A strip of the background under the keys, so the picture keeps its edge on a white page. */
+.rail { position: absolute; left: 0; right: 0; bottom: 0; height: 10px; background: var(--background); }
+/* Darkens the roll behind the text, so no spark sits in the letters. */
+.veil {
+  position: absolute; left: -100px; top: -40px; width: 820px; height: 460px;
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--shade) 90%, transparent),
+    color-mix(in srgb, var(--shade) 60%, transparent) 55%, transparent);
+}
+.text { position: absolute; left: 76px; top: 64px; font-family: var(--font); }
+.kicker {
+  margin: 0 0 14px; color: var(--right);
+  font-size: 24px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+}
+h1 { margin: 0; color: var(--key); font-size: 118px; font-weight: 700; letter-spacing: -0.035em; line-height: 1; }
+p.tag {
+  margin: 24px 0 0; max-width: 580px; color: color-mix(in srgb, var(--text) 70%, var(--background));
+  font-size: 34px; line-height: 1.26;
+}
+p.tag b { color: var(--text); font-weight: 500; }
+</style>
+</head>
+<body>
+<div class="frame">
+<canvas id="screen"></canvas>
+<div class="rail"></div>
+<div class="veil"></div>
+<div class="text">
+<p class="kicker">Claude Code plugin</p>
+<h1>pianoize</h1>
+<p class="tag">Turn any song into a <b>two-hand piano arrangement</b>, played as falling notes.</p>
+</div>
+</div>
+<script type="module">
+import { style as base } from "./style.js";
+import { keyLayout } from "./keyboard.js";
+import { drawFrame } from "./draw.js";
+
+// The video's width, and tall enough that the keys run past the bottom of the frame's 960
+// pixels.
+const style = { ...base, height: 1010 };
+
+// Made-up notes, since a frame of a song would be made from its recording. The frame is drawn
+// at T: the bass and a chord in each hand sound, and what is to come falls towards the keys,
+// clear of the text on the left.
+const T = 10;
+const at = (pitch, hand, on, off) => ({ pitch, hand, on: T + on, off: T + off });
+const notes = [
+  at(36, "left", -0.62, 0.75),
+  at(48, "left", -0.16, 0.3),
+  at(81, "right", -0.16, 0.45),
+  at(84, "right", -0.16, 0.45),
+  at(88, "right", -0.16, 0.45),
+  // The left hand's broken chord, close to the keys, then a dyad between the hands.
+  at(55, "left", 0.3, 0.55),
+  at(60, "left", 0.55, 0.8),
+  at(69, "left", 1.3, 1.95),
+  at(72, "left", 1.3, 1.95),
+  // The right hand: a phrase falling from G6, a chord, then the top of the next one.
+  at(91, "right", 0.5, 0.85),
+  at(89, "right", 0.85, 1.05),
+  at(88, "right", 1.05, 1.2),
+  at(86, "right", 1.2, 1.8),
+  at(84, "right", 1.95, 2.5),
+  at(88, "right", 1.95, 2.5),
+  at(93, "right", 1.95, 2.75),
+  at(96, "right", 2.5, 3.5),
+  at(100, "right", 2.5, 3.3),
+].sort((a, b) => a.on - b.on || a.pitch - b.pitch);
+
+// social.mjs waits on this.
+window.social = { ready: draw() };
+
+async function draw() {
+  const set = (name, value) => document.documentElement.style.setProperty(`--${name}`, value);
+  set("background", style.background);
+  set("text", style.cards.colour);
+  set("key", style.keyboard.whiteKey);
+  set("right", style.hands.right);
+  set("shade", style.roll.top);
+  set("font", style.cards.fontFamily);
+
+  const canvas = document.getElementById("screen");
+  canvas.width = style.width;
+  canvas.height = style.height;
+  canvas.style.height = `${style.height / 1.5}px`;
+  const { height } = style.keyboard;
+  const data = {
+    notes,
+    layout: keyLayout(style.width, style.height - height, height, style.keyboard),
+    cards: {},
+    timeline: { music_start: 0, music_end: Infinity },
+  };
+  drawFrame(canvas.getContext("2d"), T, data, style);
+  await document.fonts.ready;
+}
+</script>
+</body>
+</html>

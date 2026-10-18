@@ -118,7 +118,7 @@ uv run pianoize render-video arranged.mid --cards cards.txt -o video.mp4
 ### Layout
 
 - `src/pianoize/`: the arrangement engine, in Python
-- `viewer/`: the falling-notes page and its capture script, plain HTML, CSS and ES modules, with playwright-core installed by `npm ci` in `viewer/`; the page is also on [GitHub Pages](https://zeikar.dev/pianoize/), where it plays an arrangement JSON with its audio, both read in the browser ([docs/rendering.md](docs/rendering.md#on-github-pages))
+- `viewer/`: the falling-notes page, its capture script and the script that draws its link preview, plain HTML, CSS and ES modules, with playwright-core installed by `npm ci` in `viewer/`; the page is also on [GitHub Pages](https://zeikar.dev/pianoize/), where it plays an arrangement JSON with its audio, both read in the browser ([docs/rendering.md](docs/rendering.md#on-github-pages))
 - `experiments/`: [M1 model trial](experiments/m1/README.md) scripts; the scripts and their environments lived in `work/m1/`; the tsumugi install moved to the pianoize home
 - `docs/`: the pages listed under [Documentation](#documentation)
 - `skills/`: the Claude Code skills; [`prepare-song`](skills/prepare-song/SKILL.md) makes a song's inputs, [`polish-cover`](skills/polish-cover/SKILL.md) drives the M2 polishing commands, [`arrange-cover`](skills/arrange-cover/SKILL.md) the M3 arranging commands, and [`arrange-transcription`](skills/arrange-transcription/SKILL.md) the same from the transcription alone, the default for an instrumental
