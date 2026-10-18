@@ -53,18 +53,18 @@ def test_cards_refuse_an_empty_credits_card():
 def test_timeline_rounds_the_music_up_to_a_frame():
     moments = video.timeline(1.3, 1.0)
 
-    assert moments.music_start == 6.0
-    assert moments.music_end == pytest.approx(6.0 + 78 / 60)
+    assert moments.music_start == 3.0
+    assert moments.music_end == pytest.approx(3.0 + 78 / 60)
     assert moments.end == pytest.approx(moments.music_end + 6.0)
     assert moments.frames == round(moments.end * 60)
 
 
 def test_timeline_takes_the_midi_when_it_is_longer():
-    assert video.timeline(1.0, 2.0).music_end == pytest.approx(6.0 + 2.0)
+    assert video.timeline(1.0, 2.0).music_end == pytest.approx(3.0 + 2.0)
 
 
 def test_timeline_rounds_a_partial_frame_up():
-    assert video.timeline(1.31, 0.0).music_end == pytest.approx(6.0 + 79 / 60)
+    assert video.timeline(1.31, 0.0).music_end == pytest.approx(3.0 + 79 / 60)
 
 
 def test_pad_puts_silence_around_the_clip(tmp_path, synth):
@@ -185,8 +185,8 @@ def test_render_video_replaces_the_output(inputs, tmp_path, monkeypatch, fake_fl
     result = _render(inputs, out)
 
     assert result.exit_code == 0, result.output
-    # The one-second clip outlasts the half-second MIDI: 6 + 1 + 6 seconds at 60 frames.
-    assert "frames: 780\nlength: 13.0 s\n" in result.output
+    # The one-second clip outlasts the half-second MIDI: 3 + 1 + 6 seconds at 60 frames.
+    assert "frames: 600\nlength: 10.0 s\n" in result.output
     assert out.read_bytes() == b"encoded"
     assert len(stopped) == 1
     assert not list(tmp_path.glob(".video-*"))

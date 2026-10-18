@@ -103,9 +103,8 @@ length: 90.0 s
 
 | part | seconds |
 | --- | --- |
-| Title card | 0 to 3, which is `INTRO_SECONDS` (6) minus `fall.seconds` (3, in `viewer/style.js`) |
-| Empty keyboard | 3 to 6, so the first notes fall in |
-| Music | from 6 (`INTRO_SECONDS`) to the later of the audio's end and the MIDI's end, rounded up to a whole frame |
+| Title card | 0 to 3, over the roll as the first notes fall in, fading out over its last `cards.fadeSeconds` (0.5, in `viewer/style.js`) |
+| Music | from 3 (`INTRO_SECONDS`, one `fall.seconds` of `viewer/style.js`, so the first notes land as it starts) to the later of the audio's end and the MIDI's end, rounded up to a whole frame |
 | Credits card | `CREDITS_SECONDS` (6) from the music's end |
 
 The audio's end is FluidSynth's release tail; the MIDI's end is its last tick. The frame rate is `FPS` = 60. These constants are in `src/pianoize/video.py`.

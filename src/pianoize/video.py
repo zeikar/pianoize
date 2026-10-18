@@ -16,7 +16,9 @@ import soundfile
 from . import render, roll, serve
 
 FPS = 60
-INTRO_SECONDS = 6.0  # where the music starts
+# Where the music starts: one fall time (style.js's fall.seconds), so the first notes fall in
+# under the title card and land as the music starts.
+INTRO_SECONDS = 3.0
 CREDITS_SECONDS = 6.0
 # The viewer is page assets, not Python, so it stays at the checkout's top level rather than
 # inside the package; pianoize runs from a checkout.

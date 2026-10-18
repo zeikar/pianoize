@@ -21,12 +21,16 @@ export function load(json) {
   return json.notes;
 }
 
-// t is video time. The title card gives way one fall time before the music starts, so the
-// first notes enter at the top of an empty keyboard.
-export function phase(t, timeline, fallSeconds) {
-  if (t < timeline.music_start - fallSeconds) return "title";
-  if (t >= timeline.music_end) return "credits";
-  return "roll";
+// t is video time. The roll runs from 0 s, so the first notes fall in while the title card
+// lies over it (titleOpacity); the credits card follows the music.
+export function phase(t, timeline) {
+  return t >= timeline.music_end ? "credits" : "roll";
+}
+
+// The title card's opacity at video time t: whole until fadeSeconds before the music starts,
+// then fading to nothing as it starts.
+export function titleOpacity(t, timeline, fadeSeconds) {
+  return Math.min(1, Math.max(0, (timeline.music_start - t) / fadeSeconds));
 }
 
 // Pitch -> hand for the notes sounding at tMusic; the latest onset wins an overlap.

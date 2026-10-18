@@ -125,5 +125,10 @@ export const style = {
     // Space between one line's em box and the next's, so the title keeps its own room.
     lineGap: 24,
     colour: "#e8e8e8",
+    // The title card lies over the first falling notes, and fades out over the last of these
+    // seconds before the music starts.
+    fadeSeconds: 0.5,
+    shadow: "rgba(0, 0, 0, 0.8)",
+    shadowBlur: 18,
   },
 };

@@ -1,4 +1,4 @@
-import { phase, pressed } from "./roll.js";
+import { phase, pressed, titleOpacity } from "./roll.js";
 import { drawKeyboard } from "./keyboard.js";
 import { drawNotes } from "./falling.js";
 import { drawSparks } from "./sparks.js";
@@ -8,8 +8,7 @@ import { drawSparks } from "./sparks.js";
 export function drawFrame(ctx, t, data, style) {
   ctx.fillStyle = style.background;
   ctx.fillRect(0, 0, style.width, style.height);
-  const now = phase(t, data.timeline, style.fall.seconds);
-  if (now === "roll") {
+  if (phase(t, data.timeline) === "roll") {
     const tMusic = t - data.timeline.music_start;
     drawRoll(ctx, data.layout, style);
     // The keys go over the notes, which slide under them, and the light where they meet goes
@@ -17,8 +16,19 @@ export function drawFrame(ctx, t, data, style) {
     drawNotes(ctx, data.notes, tMusic, data.layout, style);
     drawKeyboard(ctx, data.layout, pressed(data.notes, tMusic), style);
     drawSparks(ctx, data.notes, tMusic, data.layout, style);
+    // The home page has no cards, and its music starts at 0 s.
+    const opacity = titleOpacity(t, data.timeline, style.cards.fadeSeconds);
+    if (opacity > 0 && data.cards) {
+      ctx.save();
+      ctx.globalAlpha = opacity;
+      // Over the falling notes, the shadow keeps the lines readable.
+      ctx.shadowColor = style.cards.shadow;
+      ctx.shadowBlur = style.cards.shadowBlur;
+      drawCard(ctx, data.cards.title, style, data.layout[0].y);
+      ctx.restore();
+    }
   } else {
-    drawCard(ctx, data.cards[now], style);
+    drawCard(ctx, data.cards.credits, style, style.height);
   }
 }
 
@@ -37,12 +47,13 @@ function drawRoll(ctx, layout, style) {
   }
 }
 
-// The lines centred as a block: the first at the title size, the rest at the line size.
-function drawCard(ctx, lines, style) {
+// The lines centred as a block in the frame's top `area` pixels: the first at the title size,
+// the rest at the line size.
+function drawCard(ctx, lines, style, area) {
   const { cards } = style;
   const sizes = lines.map((_, i) => (i === 0 ? cards.titleSize : cards.lineSize));
   const height = sizes.reduce((sum, size) => sum + size, 0) + cards.lineGap * (lines.length - 1);
-  let y = (style.height - height) / 2;
+  let y = (area - height) / 2;
   ctx.fillStyle = cards.colour;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
