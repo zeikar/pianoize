@@ -54,10 +54,9 @@ pianoize is developed on an Apple-silicon Mac.
 
 ```mermaid
 flowchart LR
-  song["YouTube link<br>or audio file"] --> prepare["prepare<br>tsumugi transcription,<br>melody and piano cover"]
-  prepare --> arrange["arrange<br>Claude writes<br>a two-hand score"]
-  arrange --> build["build and check<br>MIDI on the song's<br>tempo grid"]
-  build --> play["play<br>audio, the viewer<br>and the MP4"]
+  prepare["<b>prepare</b><br>transcription,<br>melody, cover"] --> arrange["<b>arrange</b><br>Claude writes<br>the score"]
+  arrange --> check["<b>build, check</b><br>two-hand<br>MIDI"]
+  check --> play["<b>play</b><br>audio, viewer,<br>MP4"]
 ```
 
 - **An agent writes the arrangement, code builds and checks it.** The arranger dumps the song bar by bar and writes a per-bar score for two hands into `work/`. pianoize turns the score into MIDI on the song's tempo grid, every note at one velocity, and checks that it is playable, unless it is a full arrangement written for listening, and that it fits the harmony ([decision](docs/decisions.md#an-agent-writes-the-arrangement)).
