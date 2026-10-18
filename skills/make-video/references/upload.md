@@ -13,7 +13,7 @@
 - **The credits**, a line each, as the rules in SKILL.md set out:
   - the music: the song, its composer where it is sourced, and the work with its rights holder (`© <holder>`);
   - the arrangement's source: "Arrangement based on tsumugi-piano-cover (CC BY-NC 4.0)" for an arrangement from the cover, or "Transcription: tsumugi (MIT)" for one from the transcription alone;
-  - "Arranged with pianoize: https://github.com/zeikar/pianoize";
+  - "Arranged with pianoize: github.com/zeikar/pianoize", without `https://`: YouTube refuses a link in the description of a channel it hasn't cleared for links;
   - the SoundFont's credit line.
 - **The hashtags,** after a blank line: three or four. YouTube shows the first three above the title, so the work comes first, then `#Piano` and `#PianoArrangement`.
 - **Korean:** translate the labels (음악, 작곡, 편곡, 채보, 피아노 음원) and keep every name, license and URL as it is. Its hashtags may swap one for the work's Korean name.
@@ -54,7 +54,7 @@ Description:
 ```text
 Music: A Made-up Song (composed by Someone), A Made-up Game © A Made-up Studio
 Transcription: tsumugi (MIT)
-Arranged with pianoize: https://github.com/zeikar/pianoize
+Arranged with pianoize: github.com/zeikar/pianoize
 Piano sound: Salamander Grand Piano V3 by Alexander Holm (CC BY 3.0), via FreePats
 
 #MadeUpGame #Piano #PianoArrangement
@@ -73,7 +73,7 @@ Piano sound: Salamander Grand Piano V3 by Alexander Holm (CC BY 3.0), via FreePa
 ```text
 음악: A Made-up Song (작곡: Someone), A Made-up Game © A Made-up Studio
 채보: tsumugi (MIT)
-편곡 도구: pianoize https://github.com/zeikar/pianoize
+편곡 도구: pianoize github.com/zeikar/pianoize
 피아노 음원: Salamander Grand Piano V3 by Alexander Holm (CC BY 3.0), via FreePats
 
 #메이드업게임 #Piano #PianoArrangement
