@@ -4,7 +4,7 @@ Project-specific instructions for pianoize. The global ~/.claude/CLAUDE.md still
 
 ## Documentation map
 
-- [README.md](README.md): direction, the rules, layout, dev commands
+- [README.md](README.md): what pianoize is and the quick start, direction, the rules, layout, dev commands
 - [docs/decisions.md](docs/decisions.md): the design decisions in force, the reason for each, and the license records
 - [docs/evaluation.md](docs/evaluation.md): the evaluation tooling and the checkpoint file format
 - [docs/polishing.md](docs/polishing.md): the polishing commands, the candidate and correction-spec formats, the refined-timeline rules
