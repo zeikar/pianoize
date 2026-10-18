@@ -131,4 +131,25 @@ export const style = {
     shadow: "rgba(0, 0, 0, 0.8)",
     shadowBlur: 18,
   },
+
+  // The video's thumbnail, drawn at the frame's size; ffmpeg scales it to 1280x720.
+  thumbnail: {
+    // How far it zooms in on the frame, keeping the keys at the bottom.
+    zoom: 4 / 3,
+    // The dark band behind the lines, fading out down the picture.
+    band: {
+      height: 570,
+      top: "rgba(8, 9, 12, 0.92)",
+      middle: "rgba(8, 9, 12, 0.55)",
+      end: "rgba(8, 9, 12, 0)",
+    },
+    top: 72,
+    lineGap: 30,
+    maxWidth: 1760,
+    title: { size: 168, weight: 700, colour: "#ffffff" },
+    subtitle: { size: 87, weight: 500, colour: "#e8e8e8" },
+    tag: { size: 54, weight: 500, colour: "#8fe8c0" },
+    shadow: "rgba(0, 0, 0, 0.9)",
+    shadowBlur: 36,
+  },
 };

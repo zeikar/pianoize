@@ -101,16 +101,20 @@ def render_video(
     ] = None,
     gain: Annotated[float, typer.Option(help="FluidSynth's master gain.")] = 0.5,
 ) -> None:
-    """Render the falling-notes video to an MP4, captured in Chrome and encoded with ffmpeg."""
+    """Render the falling-notes video to an MP4, captured in Chrome and encoded with ffmpeg,
+    with its thumbnail (.jpg) and its description (.txt) beside it."""
     _stop_on_signals()
     soundfont = _soundfont_path(soundfont)
-    _refuse_input(out, [midi_path, cards, soundfont], "--out")
+    for path in (out, *video.companions(out)):
+        _refuse_input(path, [midi_path, cards, soundfont], "--out")
     midi = _read_midi(midi_path)
     cards_text = _read_cards(cards)
     try:
-        moments, peak = video.render_video(midi, cards_text, soundfont, out, gain)
+        moments, peak, written = video.render_video(midi, cards_text, soundfont, out, gain)
     except (roll.RollError, video.VideoError, RenderError, OSError) as exc:
         raise _fail(str(exc)) from exc
     _report_peak(peak)
     typer.echo(f"frames: {moments.frames}")
     typer.echo(f"length: {moments.end:.1f} s")
+    for path in written:
+        typer.echo(f"{'thumbnail' if path.suffix == '.jpg' else 'description'}: {path}")

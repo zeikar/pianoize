@@ -1,13 +1,15 @@
 import { style } from "./style.js";
 import { keyLayout } from "./keyboard.js";
 import { load } from "./roll.js";
-import { drawFrame } from "./draw.js";
+import { drawFrame, drawThumbnail } from "./draw.js";
 import { picker } from "./picker.js";
 import { transport } from "./transport.js";
 import { effectsPanel, tune } from "./effects.js";
 
 let ctx;
 let data;
+// In capture mode, whether the page draws the run's thumbnail rather than a frame.
+let thumbnail = false;
 // The style a frame is drawn in: style.js's, or the effects panel's tuning of it. The capture
 // never tunes it.
 let look = style;
@@ -17,7 +19,8 @@ let look = style;
 window.pianoize = { ready: start(), drawAt };
 
 function drawAt(t) {
-  drawFrame(ctx, t, data, look);
+  if (thumbnail) drawThumbnail(ctx, data, look);
+  else drawFrame(ctx, t, data, look);
 }
 
 async function start() {
@@ -38,8 +41,10 @@ async function start() {
   show(load(await (await get(`run/${manifest.arrangement}`)).json()), manifest);
   await document.fonts.ready;
 
-  if (new URLSearchParams(location.search).has("capture")) {
+  const query = new URLSearchParams(location.search);
+  if (query.has("capture")) {
     document.body.classList.add("capture");
+    thumbnail = query.has("thumbnail");
     return;
   }
   const audio = document.getElementById("audio");
@@ -66,13 +71,14 @@ function theme() {
   set("keyboard", `${(style.keyboard.height / style.height) * 100}%`);
 }
 
-function show(notes, { cards, timeline }) {
+function show(notes, { cards, timeline, thumbnail: moment }) {
   const { height } = style.keyboard;
   data = {
     notes,
     layout: keyLayout(style.width, style.height - height, height, style.keyboard),
     cards,
     timeline,
+    thumbnail: moment,
   };
 }
 

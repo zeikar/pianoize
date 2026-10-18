@@ -1,5 +1,5 @@
-"""The falling-notes video's timing, cards and padded audio, and the capture and encode that make
-the MP4."""
+"""The falling-notes video's timing, cards and padded audio, the capture and encode that make the
+MP4, and the thumbnail and description that go with it."""
 
 import json
 import math
@@ -16,9 +16,12 @@ import soundfile
 from . import render, roll, serve
 
 FPS = 60
-# Where the music starts: one fall time (style.js's fall.seconds), so the first notes fall in
-# under the title card and land as the music starts.
-INTRO_SECONDS = 3.0
+FALL_SECONDS = 3.0  # style.js's fall.seconds: how long a note is on screen before it sounds
+# Where the music starts: one fall time, so the first notes fall in under the title card and land
+# as the music starts.
+INTRO_SECONDS = FALL_SECONDS
+THUMBNAIL_SIZE = (1280, 720)  # YouTube's
+MOMENT_STEP = 0.25  # seconds between the music times a thumbnail is chosen from
 # The viewer is page assets, not Python, so it stays at the checkout's top level rather than
 # inside the package; pianoize runs from a checkout.
 VIEWER = Path(__file__).resolve().parents[2] / "viewer"
@@ -37,6 +40,30 @@ def cards(text: str) -> dict[str, list[str]]:
     if not title:
         raise VideoError("the title card is empty")
     return {"title": title}
+
+
+def description(text: str) -> str | None:
+    """The video's description: the cards file after its first `---` line, each line's trailing
+    spaces and the blank lines at its start and end trimmed. None when there is none."""
+    lines = text.splitlines()
+    at = next((i for i, line in enumerate(lines) if line.strip() == "---"), None)
+    body = [] if at is None else _trim(lines[at + 1 :])
+    return "\n".join(body) + "\n" if body else None
+
+
+def thumbnail_moment(notes: list[dict], music_seconds: float) -> dict:
+    """Where the thumbnail looks: the music time, in MOMENT_STEP steps, with the most notes on
+    screen, falling within one fall time of their onset or sounding, the earliest on a tie; and
+    the middle pitch of those notes, which it centres on (middle C with none)."""
+    best_time, best = 0.0, []
+    last = math.floor(max(music_seconds - FALL_SECONDS, 0.0) / MOMENT_STEP)
+    for step in range(last + 1):
+        t = step * MOMENT_STEP
+        shown = [n["pitch"] for n in notes if n["on"] < t + FALL_SECONDS and n["off"] > t]
+        if len(shown) > len(best):
+            best_time, best = t, shown
+    pitch = sorted(best)[len(best) // 2] if best else 60
+    return {"music_seconds": best_time, "pitch": pitch}
 
 
 def _trim(lines: list[str]) -> list[str]:
@@ -79,9 +106,9 @@ def pad(wav_in: Path, wav_out: Path, timeline: Timeline) -> None:
     soundfile.write(wav_out, out, rate, subtype=info.subtype)
 
 
-def manifest(card_lines: dict[str, list[str]], timeline: Timeline) -> dict:
+def manifest(card_lines: dict[str, list[str]], timeline: Timeline, thumbnail: dict) -> dict:
     """What the page reads from /run/manifest.json: the names of the run's files, the cards'
-    lines and the timeline's seconds."""
+    lines, the timeline's seconds and the thumbnail's moment."""
     return {
         "arrangement": "arrangement.json",
         "audio": "audio.wav",
@@ -91,6 +118,7 @@ def manifest(card_lines: dict[str, list[str]], timeline: Timeline) -> dict:
             "music_end": timeline.music_end,
             "end": timeline.end,
         },
+        "thumbnail": thumbnail,
     }
 
 
@@ -108,11 +136,13 @@ def prepare(
     rendered = run_dir / "render.wav"
     peak = render.render(midi, rendered, soundfont, gain=gain)
     info = soundfile.info(rendered)
-    moments = timeline(info.frames / info.samplerate, roll.length(midi))
+    music_seconds = roll.length(midi)
+    moments = timeline(info.frames / info.samplerate, music_seconds)
     pad(rendered, run_dir / "audio.wav", moments)
     rendered.unlink()
+    shown = thumbnail_moment(data["notes"], music_seconds)
     (run_dir / "manifest.json").write_text(
-        json.dumps(manifest(card_lines, moments), indent=2) + "\n", encoding="utf-8"
+        json.dumps(manifest(card_lines, moments, shown), indent=2) + "\n", encoding="utf-8"
     )
     return moments, peak
 
@@ -158,6 +188,28 @@ def encode(tools: Tools, url: str, moments: Timeline, audio: Path, out: Path) ->
         "-movflags", "+faststart",
         str(out),
     ]  # fmt: skip
+    _pipe(capture, encoder)
+
+
+def snapshot(tools: Tools, url: str, out: Path) -> None:
+    """Capture the page's thumbnail once in Chrome, and encode it as the JPEG `out` at
+    THUMBNAIL_SIZE."""
+    capture = [
+        tools.node, str(VIEWER / "capture.mjs"),
+        "--url", url, "--frames", "1", "--fps", "1", "--thumbnail",
+    ]  # fmt: skip
+    width, height = THUMBNAIL_SIZE
+    encoder = [
+        tools.ffmpeg, "-loglevel", "error", "-y",
+        "-f", "image2pipe", "-c:v", "png", "-i", "pipe:",
+        "-vf", f"scale={width}:{height}", "-frames:v", "1", "-q:v", "2",
+        str(out),
+    ]  # fmt: skip
+    _pipe(capture, encoder)
+
+
+def _pipe(capture: list[str], encoder: list[str]) -> None:
+    """Run node's capture into ffmpeg's encoder, and name whichever failed."""
     node = subprocess.Popen(capture, stdout=subprocess.PIPE)
     ffmpeg = None
     try:
@@ -189,28 +241,50 @@ def encode(tools: Tools, url: str, moments: Timeline, audio: Path, out: Path) ->
         raise
 
 
+def companions(out: Path) -> tuple[Path, Path]:
+    """The thumbnail and the description render_video writes beside the MP4 `out`."""
+    return out.with_suffix(".jpg"), out.with_suffix(".txt")
+
+
 def render_video(
     midi: mido.MidiFile,
     cards_text: str,
     soundfont: Path,
     out: Path,
     gain: float,
-) -> tuple[Timeline, float]:
-    """Render the falling-notes MP4 to `out`; return the timeline and the render's peak."""
+) -> tuple[Timeline, float, list[Path]]:
+    """Render the falling-notes MP4 to `out`, with its thumbnail and, where the cards file has
+    one, its description beside it (companions); return the timeline, the render's peak and the
+    files written beside the MP4."""
+    if out in companions(out):
+        raise VideoError(
+            f"{out}: a video's name must not end in .jpg or .txt, which its thumbnail and "
+            "description take"
+        )
     # Checked now, since the replace that would fail comes after the whole capture.
-    if out.is_dir():
-        raise VideoError(f"{out} is a directory")
+    for path in (out, *companions(out)):
+        if path.is_dir():
+            raise VideoError(f"{path} is a directory")
     found = tools()
+    text = description(cards_text)
     # The scratch directory sits beside the destination, so the final replace is atomic and a
     # failed render leaves any existing destination as it was.
     with tempfile.TemporaryDirectory(dir=out.parent, prefix=".video-") as tmp:
         run_dir = Path(tmp)
         moments, peak = prepare(midi, cards_text, soundfont, run_dir, gain)
-        partial = run_dir / "out.mp4"
+        partial, still = run_dir / "out.mp4", run_dir / "out.jpg"
         server = serve.start(VIEWER, run_dir)
         try:
             encode(found, serve.url(server), moments, run_dir / "audio.wav", partial)
+            snapshot(found, serve.url(server), still)
         finally:
             serve.stop(server)
+        thumbnail, about = companions(out)
+        written = [thumbnail]
+        if text is not None:
+            (run_dir / "out.txt").write_text(text, encoding="utf-8")
+            (run_dir / "out.txt").replace(about)
+            written.append(about)
+        still.replace(thumbnail)
         partial.replace(out)
-    return moments, peak
+    return moments, peak, written

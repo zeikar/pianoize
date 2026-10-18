@@ -49,6 +49,32 @@ def test_cards_refuse_an_empty_title_card():
         video.cards("\n---\nCredits\n")
 
 
+def test_the_description_is_the_text_after_the_dashes():
+    text = "Title\n---\n\nCredit one  \n\nCredit two\n\n"
+
+    assert video.description(text) == "Credit one\n\nCredit two\n"
+
+
+@pytest.mark.parametrize("text", ["Title\n", "Title\n---\n\n"])
+def test_no_text_after_dashes_is_no_description(text):
+    assert video.description(text) is None
+
+
+def test_the_thumbnail_shows_the_moment_with_the_most_notes_on_screen():
+    notes = [
+        {"pitch": 60, "hand": "right", "on": 0.0, "off": 0.5},
+        *({"pitch": p, "hand": "left", "on": 5.0, "off": 5.5} for p in (40, 44, 47)),
+    ]
+
+    # The three notes at 5 s come on screen one fall time, 3 s, before it: the earliest step
+    # past 2 s shows them, and their middle pitch centres it.
+    assert video.thumbnail_moment(notes, 10.0) == {"music_seconds": 2.25, "pitch": 44}
+
+
+def test_a_thumbnail_without_notes_shows_the_start_at_middle_c():
+    assert video.thumbnail_moment([], 1.0) == {"music_seconds": 0.0, "pitch": 60}
+
+
 def test_timeline_rounds_the_music_up_to_a_frame():
     moments = video.timeline(1.3, 1.0)
 
@@ -185,7 +211,11 @@ def test_render_video_replaces_the_output(inputs, tmp_path, monkeypatch, fake_fl
     assert result.exit_code == 0, result.output
     # The one-second clip outlasts the half-second MIDI: 3 + 1 seconds at 60 frames.
     assert "frames: 240\nlength: 4.0 s\n" in result.output
+    written = f"thumbnail: {tmp_path / 'out.jpg'}\ndescription: {tmp_path / 'out.txt'}\n"
+    assert written in result.output
     assert out.read_bytes() == b"encoded"
+    assert (tmp_path / "out.jpg").read_bytes() == b"encoded"
+    assert (tmp_path / "out.txt").read_text(encoding="utf-8") == "Credits\n"
     assert len(stopped) == 1
     assert not list(tmp_path.glob(".video-*"))
 
@@ -228,6 +258,27 @@ def test_render_video_refuses_to_overwrite_an_input(inputs, fake_fluidsynth, fak
     assert result.exit_code == 2
     assert "would overwrite an input" in " ".join(result.output.split())
     assert inputs[target].read_bytes() == before
+
+
+def test_render_video_refuses_a_thumbnail_or_description_over_an_input(
+    inputs, tmp_path, fake_fluidsynth, fake_tools
+):
+    # The cards file is cards.txt, so a video named cards.mp4 would write its description there.
+    result = _render(inputs, tmp_path / "cards.mp4")
+
+    assert result.exit_code == 2
+    assert "would overwrite an input" in " ".join(result.output.split())
+    assert inputs["cards"].read_text(encoding="utf-8") == "Title\n---\nCredits\n"
+
+
+@pytest.mark.parametrize("name", ["out.jpg", "out.txt"])
+def test_render_video_refuses_a_video_named_like_its_thumbnail_or_description(
+    inputs, tmp_path, fake_fluidsynth, fake_tools, name
+):
+    result = _render(inputs, tmp_path / name)
+
+    assert result.exit_code == 1
+    assert ".jpg or .txt" in result.output
 
 
 def test_render_video_refuses_a_midi_without_hand_tracks(
@@ -398,7 +449,7 @@ def test_render_video_is_repeatable_and_in_format(
     profiles = _profiles()
 
     for name in ("a.mp4", "b.mp4"):
-        moments, _ = video.render_video(
+        moments, _, _ = video.render_video(
             midi, "Title\n---\nCredits\n", tmp_path / "font.sf2", tmp_path / name, 0.5
         )
 
@@ -413,6 +464,12 @@ def test_render_video_is_repeatable_and_in_format(
     assert sound["codec_name"] == "aac"
     assert int(picture["nb_frames"]) == moments.frames
     assert float(probe["format"]["duration"]) == pytest.approx(moments.end, abs=1 / video.FPS)
+    [still] = _probe(tmp_path / "a.jpg")["streams"]
+    assert (still["codec_name"], still["width"], still["height"]) == (
+        "mjpeg",
+        *video.THUMBNAIL_SIZE,
+    )
+    assert (tmp_path / "a.txt").read_text(encoding="utf-8") == "Credits\n"
     assert not list(tmp_path.glob(".video-*"))
     assert not _profiles() - profiles
 

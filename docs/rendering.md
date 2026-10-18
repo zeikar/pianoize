@@ -1,6 +1,6 @@
 # Rendering
 
-How pianoize turns a two-hand arrangement into a falling-notes video: the notes as JSON, the title card, a preview in a browser, and the MP4. The commands read the MIDI `build-arrangement` writes ([docs/arranging.md](arranging.md)) and render it with the SoundFont as `pianoize render` does ([docs/evaluation.md](evaluation.md#rendering-a-midi-file)). The CLI never calls an LLM, and the same inputs give the same JSON, audio and frames. The reasons are in [docs/decisions.md](decisions.md).
+How pianoize turns a two-hand arrangement into a falling-notes video: the notes as JSON, the title card, a preview in a browser, and the MP4 with its thumbnail and description. The commands read the MIDI `build-arrangement` writes ([docs/arranging.md](arranging.md)) and render it with the SoundFont as `pianoize render` does ([docs/evaluation.md](evaluation.md#rendering-a-midi-file)). The CLI never calls an LLM, and the same inputs give the same JSON, audio and frames. The reasons are in [docs/decisions.md](decisions.md).
 
 ```
 pianoize export-arrangement ARRANGED.mid -o ARRANGED.json
@@ -58,7 +58,7 @@ Piano sound: a made-up credit line
 
 - **Splitting.** The title card ends at the file's first line that is `---` once stripped; without one, the whole file is the title card. Nothing after that line is drawn.
 - **Trimming.** Each line loses its trailing spaces, and the title card loses its blank lines at the start and the end. A blank line inside it stays, and takes a line's room. Its first line is drawn large, the rest smaller.
-- **Credits** go in the video's description: the attributions in [What goes into a video](decisions.md#what-goes-into-a-video) and the SoundFont's credit line from [MIDI is rendered with FluidSynth](decisions.md#midi-is-rendered-with-fluidsynth). The lines after `---` are a place to keep them beside the title.
+- **The description** is the text after `---`, which `render-video` writes to `OUT.txt` with each line's trailing spaces and the blank lines at its start and end trimmed: the credits, the attributions in [What goes into a video](decisions.md#what-goes-into-a-video) and the SoundFont's credit line from [MIDI is rendered with FluidSynth](decisions.md#midi-is-rendered-with-fluidsynth), and any hashtags.
 - **Errors.** An empty title card is refused with `error: …` and exit 1. A cards file that can't be read as UTF-8 is refused the same way.
 
 ## Previewing
@@ -82,22 +82,31 @@ It exports the notes, renders the audio with FluidSynth, pads it to the video's 
 
 ## Rendering the video
 
-`pianoize render-video ARRANGED.mid --cards CARDS.txt -o OUT.mp4 [--soundfont SF2] [--gain G]` writes the MP4. One run does this, in order:
+`pianoize render-video ARRANGED.mid --cards CARDS.txt -o OUT.mp4 [--soundfont SF2] [--gain G]` writes the MP4, and beside it what an upload needs: `OUT.jpg`, its [thumbnail](#the-thumbnail), and `OUT.txt`, its description, the cards file's text after `---`, when it has any. One run does this, in order:
 
-1. Exports the notes and checks the cards.
+1. Exports the notes, checks the cards and picks the thumbnail's moment.
 2. Renders the audio with FluidSynth and pads it to the timeline.
 3. Starts the local server on 127.0.0.1.
 4. Captures the page in Chrome, a PNG per frame.
 5. Pipes the frames and the audio into ffmpeg.
-6. Replaces `OUT.mp4` with the result.
+6. Captures the thumbnail once, and has ffmpeg encode it as a JPEG.
+7. Replaces `OUT.txt`, `OUT.jpg` and `OUT.mp4` with the results.
 
-Its scratch directory, `.video-*`, sits beside `OUT.mp4` and is removed when the run ends. The file is replaced only at the end, so a failed or interrupted run leaves any existing `OUT.mp4` as it was. It prints the peak, the same warning, then the frame count and the video's length:
+Its scratch directory, `.video-*`, sits beside `OUT.mp4` and is removed when the run ends. The files are replaced only at the end, so a failed or interrupted run leaves any existing ones as they were. It prints the peak, the same warning, then the frame count, the video's length and the files written beside it:
 
 ```
 peak 0.412
 frames: 5400
 length: 90.0 s
+thumbnail: video.jpg
+description: video.txt
 ```
+
+A video named with `.jpg` or `.txt` is refused, since its thumbnail or description would take its name.
+
+### The thumbnail
+
+1280×720, YouTube's size, as a JPEG. It shows the moment with the most notes on screen, falling or sounding, among the music's quarter-seconds, the earliest on a tie. The frame there is zoomed in by 4/3, the keys kept at the bottom, and centred on the middle pitch of those notes. A dark band fades down over its top, and the title card's lines go on it: the first large, the last as a small tag in the right hand's light, any between them as a subtitle. A line too wide for the band shrinks to fit. Its sizes and colours are `style.js`'s `thumbnail`; it is drawn at the frame's size and scaled down by ffmpeg.
 
 ### The timeline
 

@@ -1,6 +1,6 @@
-// node capture.mjs --url URL --frames N --fps FPS: loads the page in capture mode in the
-// installed Chrome and writes N PNG frames to stdout, frame i drawn at i / FPS seconds.
-// render-video pipes them into ffmpeg.
+// node capture.mjs --url URL --frames N --fps FPS [--thumbnail]: loads the page in capture mode in
+// the installed Chrome and writes N PNG frames to stdout, frame i drawn at i / FPS seconds, or with
+// --thumbnail the run's thumbnail. render-video pipes them into ffmpeg.
 import { once } from "node:events";
 import { parseArgs } from "node:util";
 import { chromium } from "playwright-core";
@@ -28,13 +28,14 @@ async function capture() {
       url: { type: "string" },
       frames: { type: "string" },
       fps: { type: "string" },
+      thumbnail: { type: "boolean" },
     },
   });
   const frames = Number(values.frames);
   const fps = Number(values.fps);
   const positive = [frames, fps].every((n) => Number.isInteger(n) && n > 0);
   if (!values.url || !positive) {
-    throw new Error("usage: capture.mjs --url URL --frames N --fps FPS");
+    throw new Error("usage: capture.mjs --url URL --frames N --fps FPS [--thumbnail]");
   }
   const browser = await chromium.launch({
     channel: "chrome",
@@ -50,7 +51,7 @@ async function capture() {
     // Chrome's fast PNG encoder: the same pixels as page.screenshot's, in about 60% of the time
     // on frames full of glows and sparks, whose gradients are slow to compress.
     const cdp = await context.newCDPSession(page);
-    await page.goto(`${values.url}?capture`);
+    await page.goto(`${values.url}?capture${values.thumbnail ? "&thumbnail" : ""}`);
     await page.evaluate(() => window.pianoize.ready);
     for (let i = 0; i < frames; i++) {
       await page.evaluate((t) => window.pianoize.drawAt(t), i / fps);
