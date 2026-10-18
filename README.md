@@ -52,12 +52,7 @@ pianoize is developed on an Apple-silicon Mac.
 
 ## How it works
 
-```mermaid
-flowchart LR
-  prepare["<b>prepare</b><br>transcription,<br>melody, cover"] --> arrange["<b>arrange</b><br>Claude writes<br>the score"]
-  arrange --> check["<b>build, check</b><br>two-hand<br>MIDI"]
-  check --> play["<b>play</b><br>audio, viewer,<br>MP4"]
-```
+**prepare** (transcription, melody, cover) → **arrange** (Claude writes the score) → **build and check** (two-hand MIDI) → **play** (audio, the viewer, an MP4)
 
 - **An agent writes the arrangement, code builds and checks it.** The arranger dumps the song bar by bar and writes a per-bar score for two hands into `work/`. pianoize turns the score into MIDI on the song's tempo grid, every note at one velocity, and checks that it is playable, unless it is a full arrangement written for listening, and that it fits the harmony ([decision](docs/decisions.md#an-agent-writes-the-arrangement)).
 - **Two starting points.** M1 compared the audio-to-piano models that run on a Mac; tsumugi-piano-cover kept the most harmony and sounded best, so a sung song is arranged from its cover ([decision](docs/decisions.md#the-arrangement-starts-from-tsumugi-piano-cover)). An instrumental is arranged from tsumugi's transcription of the band alone, which also leaves out the cover's non-commercial terms ([decision](docs/decisions.md#the-transcription-only-arrangement)).
