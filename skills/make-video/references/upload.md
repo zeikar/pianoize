@@ -5,7 +5,7 @@
 ## The title
 
 - **English:** `<the song's name> - <the work> OST | Piano Arrangement`, or for a song from an album or an artist, `<the song's name> - <the artist> | Piano Arrangement`. Add the song's other name in parentheses where it has two: a place's name and its theme's name, say.
-- **Korean:** the same shape, with the Korean names where the work has them and `피아노 편곡` for "Piano Arrangement".
+- **Korean:** the same shape, with the Korean names where the work has them and `피아노` for "Piano Arrangement": the user found `피아노 편곡` stiff in a title.
 - At most 100 characters, YouTube's limit. Leave out "Synthesia" and other words for the video's style: the user dropped them.
 
 ## The description
@@ -65,7 +65,7 @@ Piano sound: Salamander Grand Piano V3 by Alexander Holm (CC BY 3.0), via FreePa
 제목:
 
 ```text
-메이드업 송 - 메이드업 게임 OST | 피아노 편곡
+메이드업 송 - 메이드업 게임 OST | 피아노
 ```
 
 설명:
