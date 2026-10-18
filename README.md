@@ -33,7 +33,7 @@ Then ask for each step in your own words:
 1. **Prepare the song.** `prepare this song: https://youtu.be/…` The [`prepare-song`](skills/prepare-song/SKILL.md) skill downloads the audio, installs the models once (about 1.6 GB of weights, into `~/.cache`), transcribes the song, takes its melody and generates its piano cover. On an Apple-silicon Mac the transcription takes about twice the song's length.
 2. **Arrange it.** `arrange this song for two hands` For a sung song the [`arrange-cover`](skills/arrange-cover/SKILL.md) skill writes from the cover and the melody; for an instrumental, such as game or film music, [`arrange-transcription`](skills/arrange-transcription/SKILL.md) writes from the band's transcription alone. Either one renders `arranged.wav` for you to listen to, then revises the bars you name until you approve.
 3. **Watch it.** Drop `arranged.json` and `arranged.wav` from the song's folder on [zeikar.dev/pianoize](https://zeikar.dev/pianoize/).
-4. **Render the video**, if you want an MP4. From a clone of this repository, with a [cards file](docs/rendering.md#the-cards-file) for the title and the description; the thumbnail and the description land beside the MP4:
+4. **Render the video**, if you want an MP4. From a clone of this repository, with a [cards file](docs/rendering.md#the-cards-file) for the title; the thumbnail lands beside the MP4. The [`make-video`](skills/make-video/SKILL.md) skill does this step for you and writes the upload's title, description and tags in English and Korean:
 
    ```sh
    git clone https://github.com/zeikar/pianoize && cd pianoize
@@ -121,7 +121,7 @@ uv run pianoize render-video arranged.mid --cards cards.txt -o video.mp4
 - `viewer/`: the falling-notes page, its capture script and the script that draws its link preview, plain HTML, CSS and ES modules, with playwright-core installed by `npm ci` in `viewer/`; the page is also on [GitHub Pages](https://zeikar.dev/pianoize/), where it plays an arrangement JSON with its audio, both read in the browser ([docs/rendering.md](docs/rendering.md#on-github-pages))
 - `experiments/`: [M1 model trial](experiments/m1/README.md) scripts; the scripts and their environments lived in `work/m1/`; the tsumugi install moved to the pianoize home
 - `docs/`: the pages listed under [Documentation](#documentation)
-- `skills/`: the Claude Code skills; [`prepare-song`](skills/prepare-song/SKILL.md) makes a song's inputs, [`polish-cover`](skills/polish-cover/SKILL.md) drives the M2 polishing commands, [`arrange-cover`](skills/arrange-cover/SKILL.md) the M3 arranging commands, and [`arrange-transcription`](skills/arrange-transcription/SKILL.md) the same from the transcription alone, the default for an instrumental
+- `skills/`: the Claude Code skills; [`prepare-song`](skills/prepare-song/SKILL.md) makes a song's inputs, [`polish-cover`](skills/polish-cover/SKILL.md) drives the M2 polishing commands, [`arrange-cover`](skills/arrange-cover/SKILL.md) the M3 arranging commands, [`arrange-transcription`](skills/arrange-transcription/SKILL.md) the same from the transcription alone, the default for an instrumental, and [`make-video`](skills/make-video/SKILL.md) renders the video and writes its upload
 - `agents/`: the Claude Code subagent [`arranger`](agents/arranger.md), which both arranging skills dispatch to write the score and loop its build and check
 - `.claude-plugin/`: the manifests that make the repository a Claude Code plugin and its own marketplace
 - `.github/workflows/`: `pages.yml`, which publishes the viewer to GitHub Pages

@@ -16,6 +16,7 @@ SKILLS = {
     "arrange-cover": ROOT / "docs" / "arranging.md",
     "arrange-transcription": ROOT / "docs" / "arranging.md",
     "prepare-song": ROOT / "docs" / "preparing.md",
+    "make-video": ROOT / "docs" / "rendering.md",
 }
 POLISHING = SKILLS["polish-cover"]
 ARRANGING = SKILLS["arrange-cover"]

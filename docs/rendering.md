@@ -1,6 +1,6 @@
 # Rendering
 
-How pianoize turns a two-hand arrangement into a falling-notes video: the notes as JSON, the title card, a preview in a browser, and the MP4 with its thumbnail and description. The commands read the MIDI `build-arrangement` writes ([docs/arranging.md](arranging.md)) and render it with the SoundFont as `pianoize render` does ([docs/evaluation.md](evaluation.md#rendering-a-midi-file)). The CLI never calls an LLM, and the same inputs give the same JSON, audio and frames. The reasons are in [docs/decisions.md](decisions.md).
+How pianoize turns a two-hand arrangement into a falling-notes video: the notes as JSON, the title card, a preview in a browser, and the MP4 with its thumbnail. The `make-video` skill runs them and writes the upload's text ([Running the skill](#running-the-skill)). The commands read the MIDI `build-arrangement` writes ([docs/arranging.md](arranging.md)) and render it with the SoundFont as `pianoize render` does ([docs/evaluation.md](evaluation.md#rendering-a-midi-file)). The CLI never calls an LLM, and the same inputs give the same JSON, audio and frames. The reasons are in [docs/decisions.md](decisions.md).
 
 ```
 pianoize export-arrangement ARRANGED.mid -o ARRANGED.json
@@ -45,7 +45,7 @@ length: 2.0 s
 
 ## The cards file
 
-A cards file is a UTF-8 text file with the title card's lines, and optionally a line with only `---` and the video description's credits, which the video doesn't draw. It lives in `work/` with the song's text; the song's title and artists are not in the repository.
+A cards file is a UTF-8 text file with the title card's lines. A line with only `---` ends it, and nothing after it is drawn. It lives in `work/` with the song's text; the song's title and artists are not in the repository.
 
 ```
 A Made-up Song
@@ -58,7 +58,6 @@ Piano sound: a made-up credit line
 
 - **Splitting.** The title card ends at the file's first line that is `---` once stripped; without one, the whole file is the title card. Nothing after that line is drawn.
 - **Trimming.** Each line loses its trailing spaces, and the title card loses its blank lines at the start and the end. A blank line inside it stays, and takes a line's room. Its first line is drawn large, the rest smaller.
-- **The description** is the text after `---`, which `render-video` writes to `OUT.txt` with each line's trailing spaces and the blank lines at its start and end trimmed: the credits, the attributions in [What goes into a video](decisions.md#what-goes-into-a-video) and the SoundFont's credit line from [MIDI is rendered with FluidSynth](decisions.md#midi-is-rendered-with-fluidsynth), and any hashtags.
 - **Errors.** An empty title card is refused with `error: …` and exit 1. A cards file that can't be read as UTF-8 is refused the same way.
 
 ## Previewing
@@ -82,7 +81,7 @@ It exports the notes, renders the audio with FluidSynth, pads it to the video's 
 
 ## Rendering the video
 
-`pianoize render-video ARRANGED.mid --cards CARDS.txt -o OUT.mp4 [--soundfont SF2] [--gain G]` writes the MP4, and beside it what an upload needs: `OUT.jpg`, its [thumbnail](#the-thumbnail), and `OUT.txt`, its description, the cards file's text after `---`, when it has any. One run does this, in order:
+`pianoize render-video ARRANGED.mid --cards CARDS.txt -o OUT.mp4 [--soundfont SF2] [--gain G]` writes the MP4, and beside it `OUT.jpg`, its [thumbnail](#the-thumbnail). One run does this, in order:
 
 1. Exports the notes, checks the cards and picks the thumbnail's moment.
 2. Renders the audio with FluidSynth and pads it to the timeline.
@@ -90,19 +89,18 @@ It exports the notes, renders the audio with FluidSynth, pads it to the video's 
 4. Captures the page in Chrome, a PNG per frame.
 5. Pipes the frames and the audio into ffmpeg.
 6. Captures the thumbnail once, and has ffmpeg encode it as a JPEG.
-7. Replaces `OUT.txt`, `OUT.jpg` and `OUT.mp4` with the results.
+7. Replaces `OUT.jpg` and `OUT.mp4` with the results.
 
-Its scratch directory, `.video-*`, sits beside `OUT.mp4` and is removed when the run ends. The files are replaced only at the end, so a failed or interrupted run leaves any existing ones as they were. It prints the peak, the same warning, then the frame count, the video's length and the files written beside it:
+Its scratch directory, `.video-*`, sits beside `OUT.mp4` and is removed when the run ends. The files are replaced only at the end, so a failed or interrupted run leaves any existing ones as they were. It prints the peak, the same warning, then the frame count, the video's length and the thumbnail:
 
 ```
 peak 0.412
 frames: 5400
 length: 90.0 s
 thumbnail: video.jpg
-description: video.txt
 ```
 
-A video named with `.jpg` or `.txt` is refused, since its thumbnail or description would take its name.
+A video named with `.jpg` is refused, since its thumbnail would take its name.
 
 ### The thumbnail
 
@@ -186,3 +184,7 @@ A refused file replaces nothing, so what plays keeps playing. The error shows in
 The files are read in the browser and sent nowhere. The picker lists which of the two it has, so they can come one at a time. A pick replaces the files of the kinds it holds: new audio keeps the arrangement, and a new arrangement on the same audio keeps its place. Once both are there, the picker gives way to the stage, with "Choose other files" under the player, and the page scrolls the stage and the player into view with the focus on Play. On a short window the stage narrows so that both fit one screen. The audio's 0 s is the music's 0 s, so there are no cards and no lead-in: notes that start in the first 3 s (`fall.seconds`) are already falling at 0 s. On a phone the picker sits under the stage, since the roll is too short to hold it.
 
 `.github/workflows/pages.yml` publishes it on a push to `main` that touches `viewer/` or the workflow, and on a manual run. The repository's Pages source is set to GitHub Actions; without that, the deploy fails. It uploads only `index.html`, the stylesheets, the `*.js` modules and `social.png`, not `capture.mjs`, `social.html`, `social.mjs`, the tests or the npm files.
+
+## Running the skill
+
+The `make-video` skill, in `skills/make-video/`, turns an approved arrangement into an upload. It writes the title card, runs `render-video` for the MP4 and its thumbnail, looks at the thumbnail, and writes `upload.md` beside them: the title and the description, with its credits and hashtags, in English and in Korean, the tags, and the upload settings the arrangement's terms allow ([decision](decisions.md#the-viewer-and-the-video)). Its `references/upload.md` gives the file's shape. It uploads nothing; the user does.

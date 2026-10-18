@@ -1,5 +1,5 @@
-"""The falling-notes video's timing, cards and padded audio, the capture and encode that make the
-MP4, and the thumbnail and description that go with it."""
+"""The falling-notes video's timing, cards and padded audio, and the capture and encode that make
+the MP4 and its thumbnail."""
 
 import json
 import math
@@ -33,22 +33,13 @@ class VideoError(Exception):
 
 def cards(text: str) -> dict[str, list[str]]:
     """The title card's lines: the cards file up to its first `---` line, or all of it. What
-    follows a `---` line is the description's text, which the video doesn't draw."""
+    follows a `---` line is not drawn."""
     lines = text.splitlines()
     at = next((i for i, line in enumerate(lines) if line.strip() == "---"), len(lines))
     title = _trim(lines[:at])
     if not title:
         raise VideoError("the title card is empty")
     return {"title": title}
-
-
-def description(text: str) -> str | None:
-    """The video's description: the cards file after its first `---` line, each line's trailing
-    spaces and the blank lines at its start and end trimmed. None when there is none."""
-    lines = text.splitlines()
-    at = next((i for i, line in enumerate(lines) if line.strip() == "---"), None)
-    body = [] if at is None else _trim(lines[at + 1 :])
-    return "\n".join(body) + "\n" if body else None
 
 
 def thumbnail_moment(notes: list[dict], music_seconds: float) -> dict:
@@ -241,9 +232,9 @@ def _pipe(capture: list[str], encoder: list[str]) -> None:
         raise
 
 
-def companions(out: Path) -> tuple[Path, Path]:
-    """The thumbnail and the description render_video writes beside the MP4 `out`."""
-    return out.with_suffix(".jpg"), out.with_suffix(".txt")
+def thumbnail_path(out: Path) -> Path:
+    """The thumbnail render_video writes beside the MP4 `out`."""
+    return out.with_suffix(".jpg")
 
 
 def render_video(
@@ -252,21 +243,16 @@ def render_video(
     soundfont: Path,
     out: Path,
     gain: float,
-) -> tuple[Timeline, float, list[Path]]:
-    """Render the falling-notes MP4 to `out`, with its thumbnail and, where the cards file has
-    one, its description beside it (companions); return the timeline, the render's peak and the
-    files written beside the MP4."""
-    if out in companions(out):
-        raise VideoError(
-            f"{out}: a video's name must not end in .jpg or .txt, which its thumbnail and "
-            "description take"
-        )
+) -> tuple[Timeline, float]:
+    """Render the falling-notes MP4 to `out` and its thumbnail beside it (thumbnail_path); return
+    the timeline and the render's peak."""
+    if out == thumbnail_path(out):
+        raise VideoError(f"{out}: a video's name must not end in .jpg, which its thumbnail takes")
     # Checked now, since the replace that would fail comes after the whole capture.
-    for path in (out, *companions(out)):
+    for path in (out, thumbnail_path(out)):
         if path.is_dir():
             raise VideoError(f"{path} is a directory")
     found = tools()
-    text = description(cards_text)
     # The scratch directory sits beside the destination, so the final replace is atomic and a
     # failed render leaves any existing destination as it was.
     with tempfile.TemporaryDirectory(dir=out.parent, prefix=".video-") as tmp:
@@ -279,12 +265,6 @@ def render_video(
             snapshot(found, serve.url(server), still)
         finally:
             serve.stop(server)
-        thumbnail, about = companions(out)
-        written = [thumbnail]
-        if text is not None:
-            (run_dir / "out.txt").write_text(text, encoding="utf-8")
-            (run_dir / "out.txt").replace(about)
-            written.append(about)
-        still.replace(thumbnail)
+        still.replace(thumbnail_path(out))
         partial.replace(out)
-    return moments, peak, written
+    return moments, peak
