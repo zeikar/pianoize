@@ -155,6 +155,7 @@ Two renders of the same inputs with the same Chrome and ffmpeg gave identical fr
 | `transport.js` | The player: play and pause, the time, the seek bar, and the click and keys for them, over the `<audio>` element. |
 | `main.js` | Loads the manifest and the notes, and runs the page in one of its three modes. |
 | `capture.mjs` | Loads the page in Chrome and writes a PNG per frame to stdout, with Chrome's fast PNG encoder. |
+| `social.png` | The page's link preview (`og:image`), which is also the README's hero and the repository's social preview: a 1920×960 frame the viewer drew from made-up notes, beside the name and the tagline. |
 | `test/` | Node tests of the layout, the data, the sparks and the effects' tuning. |
 
 - **The manifest.** The run's directory is served at `/run/`. `/run/manifest.json` names the run's `arrangement.json` and `audio.wav`, and holds the cards' lines and the timeline's `music_start`, `music_end` and `end`.
@@ -176,4 +177,4 @@ A refused file replaces nothing, so what plays keeps playing. The error shows in
 
 The files are read in the browser and sent nowhere. The picker lists which of the two it has, so they can come one at a time. A pick replaces the files of the kinds it holds: new audio keeps the arrangement, and a new arrangement on the same audio keeps its place. Once both are there, the picker gives way to the stage, with "Choose other files" under the player, and the page scrolls the stage and the player into view with the focus on Play. On a short window the stage narrows so that both fit one screen. The audio's 0 s is the music's 0 s, so there are no cards and no lead-in: notes that start in the first 3 s (`fall.seconds`) are already falling at 0 s. On a phone the picker sits under the stage, since the roll is too short to hold it.
 
-`.github/workflows/pages.yml` publishes it on a push to `main` that touches `viewer/` or the workflow, and on a manual run. The repository's Pages source is set to GitHub Actions; without that, the deploy fails. It uploads only `index.html`, the stylesheets and the `*.js` modules, not `capture.mjs`, the tests or the npm files.
+`.github/workflows/pages.yml` publishes it on a push to `main` that touches `viewer/` or the workflow, and on a manual run. The repository's Pages source is set to GitHub Actions; without that, the deploy fails. It uploads only `index.html`, the stylesheets, the `*.js` modules and `social.png`, not `capture.mjs`, the tests or the npm files.
