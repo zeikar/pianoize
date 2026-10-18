@@ -8,7 +8,7 @@
 
 pianoize is a [Claude Code](https://claude.com/claude-code) plugin and a Python CLI. Give it a YouTube link or an audio file: it transcribes the song on your own machine, Claude writes a piano arrangement for two hands bar by bar, and pianoize builds it into MIDI, checks it, and renders it as audio and as a Synthesia-style falling-notes video. The recording never leaves your computer.
 
-[**Open the viewer**](https://zeikar.dev/pianoize/) · [Quick start](#quick-start) · [How it works](#how-it-works) · [Docs](#documentation)
+[**Open the viewer**](https://zeikar.dev/pianoize/) · [Watch on YouTube](https://www.youtube.com/@pianoizemusic) · [Quick start](#quick-start) · [How it works](#how-it-works) · [Docs](#documentation)
 
 ## What it does
 
