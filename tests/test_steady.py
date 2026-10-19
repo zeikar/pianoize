@@ -38,17 +38,19 @@ def _transcription(
     tempos: list[tuple[int, int]],
     markers: list[float],
     parts: list[tuple[str, int, list[tuple[float, float, int]]]],
+    signatures: tuple[tuple[int, int, int], ...] = ((0, 2, 2),),
 ) -> mido.MidiFile:
-    """A file shaped like tsumugi's transcription: a tempo map from (tick, tempo) changes with a
-    2/2 signature and a key; chord markers at seconds, the track ending a bar after the last; an
-    empty unnamed track; then, per (name, channel, notes), a track of (onset, offset, pitch)
-    seconds, each ending with a velocity 0 note_on as tsumugi writes it. Every second becomes a
-    tick on the map."""
+    """A file shaped like tsumugi's transcription: a tempo map from (tick, tempo) changes with
+    (tick, numerator, denominator) signatures, by default 2/2, and a key; chord markers at
+    seconds, the track ending a bar after the last; an empty unnamed track; then, per (name,
+    channel, notes), a track of (onset, offset, pitch) seconds, each ending with a velocity 0
+    note_on as tsumugi writes it. Every second becomes a tick on the map."""
     conductor = [(tick, 0, mido.MetaMessage("set_tempo", tempo=tempo)) for tick, tempo in tempos]
     conductor += [
-        (0, 1, mido.MetaMessage("time_signature", numerator=2, denominator=2)),
-        (0, 2, mido.MetaMessage("key_signature", key="D")),
+        (tick, 1, mido.MetaMessage("time_signature", numerator=n, denominator=d))
+        for tick, n, d in signatures
     ]
+    conductor.append((0, 2, mido.MetaMessage("key_signature", key="D")))
     midi = mido.MidiFile(type=1, ticks_per_beat=TICKS)
     midi.tracks.append(_track("Predicted Tempo Map", conductor))
     segments = notes.tempo_map(midi)
@@ -379,6 +381,41 @@ def test_a_signature_with_the_same_bar_stays_and_is_no_change():
     fixed = steady.apply(midi, found)
     signatures = [m for m in fixed.tracks[0] if m.type == "time_signature"]
     assert [(m.numerator, m.denominator) for m in signatures] == [(2, 2), (4, 4)]
+
+
+def test_bars_tsumugi_wrote_on_a_sixteenth_beat_are_read_as_quarters():
+    # tsumugi writes stretches of a 4/4 song at 120 bpm 4/16 at 30 bpm, its beat on the sixteenth:
+    # the same 2 s bars, but the map's sixteenths are the song's quarters, and the 30 bpm stretches
+    # hold most of the seconds. Read as 4/4, the song grids at 120 in one meter.
+    short, bar = TICKS, 4 * TICKS  # a 4/16 bar and a 4/4 one
+    tempos = [(0, 2000000), (20 * short, 500000), (20 * short + 10 * bar, 2000000)]
+    signatures = ((0, 4, 16), (20 * short, 4, 4), (20 * short + 10 * bar, 4, 16))
+    eighths = [(i / 4, (i + 0.4) / 4, 36) for i in range(8 * 50)]
+    midi = _transcription(tempos, [0.0], [("drums", 9, eighths)], signatures)
+    found = steady.fit(midi)
+    assert found.bpm == pytest.approx(120, abs=0.005)
+    assert found.coverage == 1.0
+    assert found.meter_change is None
+    fixed = steady.apply(midi, found)
+    assert bars.meter(fixed) == bars.Meter(TICKS, 4, 4)
+    half_tick = mido.tick2second(0.5, TICKS, 500000) + 1e-9
+    assert _seconds(fixed, 3, "note_on") == pytest.approx(
+        _seconds(midi, 3, "note_on"), abs=half_tick
+    )
+
+
+def test_a_sixteenth_beat_bar_with_no_tempo_of_its_own_keeps_its_seconds():
+    # A 4/16 signature after a bar of 4/4 at 120 bpm, with no tempo on its tick: the tempo in force
+    # is set again there, at four times the bpm.
+    eighths = [(i / 4, (i + 0.4) / 4, 36) for i in range(16)]
+    midi = _transcription([(0, 500000)], [0.0], [("drums", 9, eighths)], ((0, 4, 4), (BAR, 4, 16)))
+    quartered = steady._quartered(midi)
+    assert [(tick, tempo) for tick, _, tempo in notes.tempo_map(quartered)] == [
+        (0, 500000),
+        (BAR, 125000),
+    ]
+    assert bars.meter(quartered) == bars.Meter(TICKS, 4, 4)
+    assert _seconds(quartered, 3, "note_on") == pytest.approx(_seconds(midi, 3, "note_on"))
 
 
 def test_the_steady_map_is_a_pickup_bar_then_the_fitted_tempo(bent):

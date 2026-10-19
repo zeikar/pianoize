@@ -79,7 +79,8 @@ class Fit:
     other_octave_share: float = (
         0.0  # its share of the map's seconds; 0 when the map spent none there
     )
-    # bars.meter_change of the transcription: the grid keeps the first meter through the song
+    # bars.meter_change of the transcription, its n/16 bars read as n/4: the grid keeps the
+    # first meter through the song
     meter_change: tuple[int, str, str] | None = None
 
     @property
@@ -90,6 +91,84 @@ class Fit:
 
 def _sixteenth(bpm: float) -> float:
     return 15 / bpm  # a tempo counts quarter notes
+
+
+def _tempo_carrier(midi: mido.MidiFile) -> int:
+    """The index of the track that carries the first tempo, or 0 with none."""
+    _, carrier = min(
+        (
+            (tick, index)
+            for index, track in enumerate(midi.tracks)
+            for tick, message in _ticks(track)
+            if message.type == "set_tempo"
+        ),
+        default=(0, 0),
+    )
+    return carrier
+
+
+def _quartered(midi: mido.MidiFile) -> mido.MidiFile:
+    """The file with each n/16 bar written n/4, or the file itself when it has none. tsumugi
+    writes stretches of a 4/4 song 4/16, the beat it tracked on the sixteenth: a 170 bpm beat is a
+    quarter at 42.5 bpm, whose sixteenth grid can't hold the song's eighths. Read as quarters, the
+    bar's ticks and its tempo's bpm are four times as many, so every bar and event keeps its
+    seconds, to the tempo's rounding to the microsecond."""
+    signatures = bars._signatures(midi)
+    if all(denominator != 16 for _, _, denominator in signatures):
+        return midi
+    # (tick, ticks each old tick becomes from there); same-tick signatures make empty spans.
+    spans = [(tick, 4 if denominator == 16 else 1) for tick, _, denominator in signatures]
+    span_ticks = [tick for tick, _ in spans]
+    starts = [0]
+    for (tick, factor), (next_tick, _) in itertools.pairwise(spans):
+        starts.append(starts[-1] + (next_tick - tick) * factor)
+
+    def span(tick: int) -> int:
+        return bisect.bisect_right(span_ticks, tick) - 1
+
+    def moved(tick: int) -> int:
+        index = span(tick)
+        return starts[index] + (tick - span_ticks[index]) * spans[index][1]
+
+    old = notes.tempo_map(midi)
+    tempo_ticks = [tick for tick, _, _ in old]
+    set_at = {
+        tick
+        for track in midi.tracks
+        for tick, message in _ticks(track)
+        if message.type == "set_tempo"
+    }
+    # A tempo in force where the factor changes, from 1 before tick 0, is set again there to be
+    # rescaled with it.
+    restated = {
+        tick: old[bisect.bisect_right(tempo_ticks, tick) - 1][2]
+        for (tick, factor), before in zip(spans, [1] + [f for _, f in spans[:-1]], strict=True)
+        if factor != before and tick not in set_at
+    }
+
+    def rewritten(tick: int, message: mido.Message | mido.MetaMessage):
+        if message.type == "set_tempo":
+            return message.copy(tempo=round(message.tempo / spans[span(tick)][1]))
+        if message.type == "time_signature" and message.denominator == 16:
+            return message.copy(denominator=4)
+        return message
+
+    carrier = _tempo_carrier(midi)
+    quartered = mido.MidiFile(
+        type=midi.type, ticks_per_beat=midi.ticks_per_beat, charset=midi.charset
+    )
+    for index, track in enumerate(midi.tracks):
+        events = [
+            (tick, message) for tick, message in _ticks(track) if message.type != "end_of_track"
+        ]
+        if index == carrier:
+            tempos = [(t, mido.MetaMessage("set_tempo", tempo=v)) for t, v in restated.items()]
+            # Stable: a restated tempo goes after the messages on its tick.
+            events = sorted(events + tempos, key=lambda event: event[0])
+        events = [(moved(tick), rewritten(tick, message)) for tick, message in events]
+        end = max([moved(_final_tick(track))] + [tick for tick, _ in events])
+        quartered.tracks.append(_retimed(events, end))
+    return quartered
 
 
 def _attacks(midi: mido.MidiFile, segments: list[tuple[int, float, int]]) -> np.ndarray:
@@ -282,7 +361,9 @@ def fit(midi: mido.MidiFile) -> Fit:
     change of meter that the grid flattens, if any. Raises SteadyError when it has fewer than
     MIN_ATTACKS distinct attacks, or bars.first_meter refuses its meter, or
     it puts under GOOD of its attacks on the best grid, or the grid misses a sustained stretch, or
-    its bars don't say where the downbeats are. The octave is the dominant tempo's."""
+    its bars don't say where the downbeats are. The octave is the dominant tempo's. tsumugi's n/16
+    bars are read as n/4 (_quartered)."""
+    midi = _quartered(midi)
     segments = notes.tempo_map(midi)
     onsets = _attacks(midi, segments)
     if len(onsets) < MIN_ATTACKS:
@@ -318,7 +399,8 @@ def apply(midi: mido.MidiFile, fit: Fit) -> mido.MidiFile:
     the steady map replaces the one tsumugi's beat tracking wrote it with, as when it flips to the
     other octave, and the score format needs one meter. Type, resolution, charset, track order
     and every other message stay as they were; the new tempos go on the track that carried the
-    first old one."""
+    first old one. tsumugi's n/16 bars are read as n/4 first, as fit reads them."""
+    midi = _quartered(midi)
     ticks_per_beat = midi.ticks_per_beat
     first = bars.first_meter(midi)
     bar_ticks = first.bar_ticks
@@ -342,15 +424,7 @@ def apply(midi: mido.MidiFile, fit: Fit) -> mido.MidiFile:
     def moved(tick: int) -> int:
         return notes.tick_in(new, ticks_per_beat, notes.seconds_at(old, ticks_per_beat, tick))
 
-    _, carrier = min(
-        (
-            (tick, index)
-            for index, track in enumerate(midi.tracks)
-            for tick, message in _ticks(track)
-            if message.type == "set_tempo"
-        ),
-        default=(0, 0),
-    )
+    carrier = _tempo_carrier(midi)
     fixed = mido.MidiFile(type=midi.type, ticks_per_beat=ticks_per_beat, charset=midi.charset)
     for index, track in enumerate(midi.tracks):
         events = [(moved(tick), message) for tick, message in _ticks(track) if kept(message)]
