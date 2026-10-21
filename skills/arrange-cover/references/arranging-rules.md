@@ -112,7 +112,8 @@ When your prompt's mode is `full`, the arrangement is for listening, not for pla
   - **No seconds.** Leave out a note a second from another part's note in the same octave while both sound, such as a held chord tone beside an arpeggio's step.
   - **An open low register.** Below C3, no two notes closer than a fifth.
   - **Nothing above the tune.** Every other part sits under `M`: one above it goes down an octave, or stays out.
-  - **A part that fills another's register,** such as a pad over a guitar's arpeggio, goes up an octave, or stays out.
+  - **A held pad that doubles another part's chords stays out,** in any register: brass or strings holding the chord tones the guitar or the piano already plays. Its top voice is no line on its own, and held on `R` it sounds like a stray long note. Keep a pad where it moves as a line of its own, or where no other part plays the chord.
+  - **Any other part that fills another's register** goes up an octave, or stays out.
 - **One figure per layer, per section.** The transcription's note lengths and voicings vary from bar to bar where the band's don't. So for each section, settle each layer's figure:
   - the bass, held through the bar or struck short;
   - the top voice, one note held or two struck;
