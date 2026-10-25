@@ -30,7 +30,7 @@ pianoize's commands are deterministic and never call an LLM. You write two text 
 
 `<melody>`, `<source>` and `<out>` are the paths your prompt gives, with `<cover>` where your front end reads one; `<melody>` may be none, and `<source>` where your front end allows it. After step 1, `'<cover>'` is the cover your front end makes.
 
-1. **Front end:** follow your front-end file's steps. They make `'<cover>'`, the cover of every later command, and record what they must in `notes.md`.
+1. **Front end:** start `<out>/notes.md` with a "Dispatch" section holding your prompt's `Skill:`, `Front end:`, `Right hand:` and `Left hand:` lines, each path written as `<root>/arranging/<file>`: a later session reads it to dispatch the same combination. Then follow your front-end file's steps. They make `'<cover>'`, the cover of every later command, and record what they must in `notes.md`.
 2. **Dump:** `pianoize dump-bars '<cover>' --melody '<melody>' --source '<source>' --every-bar --drums > '<out>/bars.txt'`. Leave out `--melody '<melody>'` without a melody, and `--source '<source>' --every-bar --drums` without a source. Add `--every-note` when your right-hand file asks for it: `pianoize dump-bars '<cover>' --melody '<melody>' --source '<source>' --every-bar --every-note --drums > '<out>/bars.txt'`. Each bar gets a header with its time and the chord markers, a `C` line of attacks, read as your front end says, and a `V` line of the melody, positions and durations in sixteenths; with a source, a `D` line of the drums and an `I` line per instrument that plays in the bar, its top line, or with `--every-note` its every note, sung bars included ("Dumping" in the docs). Bar N of the dump is bar N of the score. To read a section closely, run the same dump with `--bars A-B`, its first and last bars, and without the redirect: it prints to the screen and leaves `bars.txt` as it is.
 3. **Read `<out>/bars.txt` whole**, following `reading-the-dump.md` and your front end, and write `<out>/notes.md`:
    - the sections with their bars, and which later sections repeat which;
@@ -80,12 +80,17 @@ pianoize's commands are deterministic and never call an LLM. You write two text 
     - each section's figures, where `notes.md` records them, named from "Figures" and "Left-hand figures", for the user to call too thin, too busy or right;
     - each hand as its file says: written for listening, or within the check's limits;
     - any question for the user, first.
-11. **Revise**, when your task is `revise: <the user's words>`: change the bars they name. A change to a section's figure or density, recorded under "Figures" or "Left-hand figures" in `notes.md`, changes it as a whole, not bar by bar: its entry first, then every bar of the section and of its copies to match, overrides included. For one bar a copy defined, write an override, so the rest of the copy stays as it is. Editing a copied-from bar changes its copies too (step 5). Record each change and the user's reason under "Revisions" in `notes.md`, then run steps 6 and 7 again, step 8 for the bars you changed without undoing what the user asked for, and steps 9 and 10. When your task is `approved: <the user's words>`, record the approval under "Revisions" in `notes.md` and report that you did.
+11. **Revise**, when your task is `revise: <the user's words>`: first bring "Dispatch" in `notes.md` in line with the lines your prompt or the message gives, then change the bars they name. A change to a section's figure or density, recorded under "Figures" or "Left-hand figures" in `notes.md`, changes it as a whole, not bar by bar: its entry first, then every bar of the section and of its copies to match, overrides included. For one bar a copy defined, write an override, so the rest of the copy stays as it is. Editing a copied-from bar changes its copies too (step 5). Record each change and the user's reason under "Revisions" in `notes.md`, then run steps 6 and 7 again, step 8 for the bars you changed without undoing what the user asked for, and steps 9 and 10. When your task is `approved: <the user's words>`, record the approval under "Revisions" in `notes.md` and report that you did.
 
 `notes.md` is yours to shape; this outline covers what the steps above and your files need, each section where a step or a file asks for it:
 
 ```markdown
 # <song>: arranging notes
+## Dispatch
+- Skill: arrange-transcription
+- Front end: <root>/arranging/front-end-transcription.md
+- Right hand: <root>/arranging/right-hand-full.md
+- Left hand: <root>/arranging/left-hand-band-layers.md
 ## Clean room
 - inputs: '<source>' (and '<melody>' if any) only; no cover, nothing made from one
 ## Grid tracks

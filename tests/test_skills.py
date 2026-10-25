@@ -15,12 +15,13 @@ SKILLS = {
     "polish-cover": ROOT / "docs" / "polishing.md",
     "arrange-cover": ROOT / "docs" / "arranging.md",
     "arrange-transcription": ROOT / "docs" / "arranging.md",
+    "arrange-vocal": ROOT / "docs" / "arranging.md",
     "prepare-song": ROOT / "docs" / "preparing.md",
     "make-video": ROOT / "docs" / "rendering.md",
 }
 POLISHING = SKILLS["polish-cover"]
 ARRANGING = SKILLS["arrange-cover"]
-ARRANGING_SKILLS = ("arrange-cover", "arrange-transcription")
+ARRANGING_SKILLS = ("arrange-cover", "arrange-transcription", "arrange-vocal")
 
 # A command line is code; prose such as "pianoize reads" is not one.
 CODE = re.compile(r"```.*?```|`[^`\n]+`", re.DOTALL)
@@ -40,6 +41,7 @@ SHARED = ROOT / "arranging"
 PROMPT_FILE = re.compile(r"<root>/arranging/([\w-]+\.md)")
 BARE = re.compile(r"`([a-z-]+\.md)`")
 # Each arranging skill's front end, and its modes' right- and left-hand files, the default first.
+# A skill without modes has one combination, under None, whose hands its prompt names.
 COMBINATIONS = {
     "arrange-cover": (
         "front-end-cover.md",
@@ -55,7 +57,16 @@ COMBINATIONS = {
             "playable": ("right-hand-playable.md", "left-hand-accompaniment.md"),
         },
     ),
+    "arrange-vocal": (
+        "front-end-transcription.md",
+        {None: ("right-hand-full.md", "left-hand-accompaniment.md")},
+    ),
 }
+# A front end or a hand file, wherever a skill names it.
+RULE_FILE = re.compile(r"\b(?:front-end|right-hand|left-hand)-[a-z-]+\.md")
+# The skills that read no cover, and the rule each states.
+CLEAN_ROOM_SKILLS = ("arrange-vocal", "arrange-transcription")
+CLEAN_ROOM_RULE = re.compile(r"^- \*\*Clean room\.\*\* .*$", re.MULTILINE)
 # A row of an arranging skill's "Modes" table: the mode, whether it is the default, and its hands.
 MODE_ROW = re.compile(
     r"^\| `(\w+)`(, the default)? \| `<root>/arranging/([\w-]+\.md)` "
@@ -193,6 +204,12 @@ def test_the_workflow_dumps_the_band_in_every_bar():
     assert any("--every-note" in flags for flags in dumps)
 
 
+def _prompt(text: str, skill: str) -> str:
+    """An arranging skill's dispatch prompt: the code block that opens with its `Skill:` line."""
+    [prompt] = [block for block in FENCED.findall(text) if block.startswith(f"Skill: {skill}\n")]
+    return prompt
+
+
 def _frontmatter(path: Path) -> dict[str, str]:
     head = _text(path).split("---\n")[1]
     return dict(line.split(": ", 1) for line in head.strip().splitlines())
@@ -220,19 +237,52 @@ def test_each_arranging_skill_names_its_combination(skill):
     text = _text(ROOT / "skills" / skill / "SKILL.md")
     front_end, modes = COMBINATIONS[skill]
     rows = MODE_ROW.findall(text)
-    assert [(mode, right, left) for mode, _, right, left in rows] == [
-        (mode, *hands) for mode, hands in modes.items()
-    ]
-    assert [bool(default) for _, default, _, _ in rows] == [True] + [False] * (len(modes) - 1)
-    [prompt] = [block for block in FENCED.findall(text) if block.startswith(f"Skill: {skill}\n")]
-    lines = prompt.splitlines()
+    lines = _prompt(text, skill).splitlines()
     keys = [line.split(":", 1)[0] for line in lines]
     files = ["Workflow", "Front end", "Right hand", "Left hand"]
     assert [key for key in keys if key in files] == files, keys  # each once, in this order
     assert lines[keys.index("Workflow")] == "Workflow: <root>/arranging/workflow.md"
     assert lines[keys.index("Front end")] == f"Front end: <root>/arranging/{front_end}"
+    if None in modes:  # one combination: no "Modes" table, and the prompt names the hands
+        [(right, left)] = modes.values()
+        assert rows == []
+        assert lines[keys.index("Right hand")] == f"Right hand: <root>/arranging/{right}"
+        assert lines[keys.index("Left hand")] == f"Left hand: <root>/arranging/{left}"
+    else:
+        assert [(mode, right, left) for mode, _, right, left in rows] == [
+            (mode, *hands) for mode, hands in modes.items()
+        ]
+        assert [bool(default) for _, default, _, _ in rows] == [True] + [False] * (len(modes) - 1)
+    # Nowhere does it name a front end or a hand file outside its combinations.
+    combined = {front_end, *(name for hands in modes.values() for name in hands)}
+    assert set(RULE_FILE.findall(text)) == combined
     for name in PROMPT_FILE.findall(text):
         assert (SHARED / name).is_file(), name
+
+
+@pytest.mark.parametrize("skill", CLEAN_ROOM_SKILLS)
+def test_the_clean_room_skills_read_no_cover(skill):
+    # It asks for no cover and gives the arranger none, under the rule both skills state alike.
+    text = _text(ROOT / "skills" / skill / "SKILL.md")
+    assert "Cover:" not in _prompt(text, skill)
+    assert "<cover>" not in text and "`cover.mid`" not in text
+    [rule] = CLEAN_ROOM_RULE.findall(text)
+    for other in CLEAN_ROOM_SKILLS:
+        assert CLEAN_ROOM_RULE.findall(_text(ROOT / "skills" / other / "SKILL.md")) == [rule], other
+
+
+def test_the_notes_record_the_dispatch_for_a_later_session():
+    # A revision in a new conversation dispatches what wrote the score, whichever skill loaded.
+    blocks = FENCED.findall(_text(SHARED / "workflow.md"))
+    [outline] = [block for block in blocks if block.startswith("# <song>: arranging notes\n")]
+    first = re.split(r"^## ", outline, flags=re.MULTILINE)[1].splitlines()
+    assert first[0] == "Dispatch"
+    lines = dict(line.removeprefix("- ").split(": ", 1) for line in first[1:])
+    assert list(lines) == ["Skill", "Front end", "Right hand", "Left hand"]
+    front_end, modes = COMBINATIONS[lines["Skill"]]  # the example is a real combination
+    files = [PROMPT_FILE.fullmatch(path)[1] for path in list(lines.values())[1:]]
+    assert files[0] == front_end and tuple(files[1:]) in modes.values()
+    assert '"Dispatch"' in _text(SHARED / "main-session.md")
 
 
 def test_the_prepare_skill_sets_up_and_prepares_into_a_directory():

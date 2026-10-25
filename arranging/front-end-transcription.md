@@ -11,7 +11,7 @@ The only inputs are tsumugi's transcription, tsumugi's melody MIDI, and what pia
 - a refined timeline;
 - the `bars.txt`, `notes.md`, `score.txt` or `arranged.mid` of an `arrange-cover` or `polish-cover` run.
 
-If `<out>` holds `cover.regrid.mid` or such a run's files, stop and report it: the main session asks for another directory. Record the inputs under "Clean room" at the top of `notes.md`.
+If `<out>` holds `cover.regrid.mid` or such a run's files, stop and report it: the main session asks for another directory. Record the inputs under "Clean room" at the top of `notes.md`, right after "Dispatch".
 
 ## Inputs
 

@@ -304,7 +304,7 @@ A cover whose [meter](#meter) changes, or a type 2 cover, melody or source, prin
 
 ## Running the skills
 
-Two arranging skills run the [workflow](#workflow) above: `arrange-cover`, in `skills/arrange-cover/`, from the cover, and `arrange-transcription`, in `skills/arrange-transcription/`, from tsumugi's transcription alone, under a clean-room rule: it reads no cover. Each runs it in two parts, the main session's and the arranger's. Its `SKILL.md` is the main session's: its inputs, its modes and the prompt that dispatches the plugin's `arranger` subagent, defined in `agents/arranger.md`, which runs the steps. The subagent's tools are the shell and the files, nothing else; a session without the `pianoize:arranger` type dispatches a general-purpose agent that reads the definition first. The skills ship in the same Claude Code plugin as `polish-cover`; the plugin's layout and how to install it are in [docs/polishing.md](polishing.md#running-the-skill).
+Three arranging skills run the [workflow](#workflow) above. Two write from tsumugi's transcription under a clean-room rule, reading no cover: `arrange-vocal`, in `skills/arrange-vocal/`, for a sung song, a right hand for listening over a pianist's left hand; and `arrange-transcription`, in `skills/arrange-transcription/`, for an instrumental, the band's layers in both hands, or on request a playable arrangement. The third, `arrange-cover`, in `skills/arrange-cover/`, writes from the cover. Each runs it in two parts, the main session's and the arranger's. Its `SKILL.md` is the main session's: its inputs, its modes where it has them, and the prompt that dispatches the plugin's `arranger` subagent, defined in `agents/arranger.md`, which runs the steps. The subagent's tools are the shell and the files, nothing else; a session without the `pianoize:arranger` type dispatches a general-purpose agent that reads the definition first. The skills ship in the same Claude Code plugin as `polish-cover`; the plugin's layout and how to install it are in [docs/polishing.md](polishing.md#running-the-skill).
 
 The rest is in rule files the skills share, in `arranging/`: `SKILL.md` points the main session to `main-session.md`, and the prompt names the arranger's four by absolute path, the workflow, a front end and a file for each hand, which name the rest:
 
@@ -320,16 +320,17 @@ The rest is in rule files the skills share, in `arranging/`: `SKILL.md` points t
 - `left-hand-band-layers.md`: the left hand for listening, the band's bass and the parts below middle C.
 - `left-hand-accompaniment.md`: the left hand as a pianist's accompaniment, a low bass and a short chord, within the check's limits whatever the right hand is.
 
-The prompt combines one front end with one right hand and one left hand, as the skill and its mode say ([decision](decisions.md#playable-arrangements)):
+The prompt combines one front end with one right hand and one left hand, as the skill's combination says, chosen by its mode where it has modes ([decision](decisions.md#playable-arrangements)):
 
 | skill | default for | front end | right hand | left hand | check |
 | --- | --- | --- | --- | --- | --- |
+| `arrange-vocal` | a sung song | `front-end-transcription.md` | `right-hand-full.md` | `left-hand-accompaniment.md` | `--full` until clean, then once without it for the left hand |
 | `arrange-transcription`, full (default) | an instrumental | `front-end-transcription.md` | `right-hand-full.md` | `left-hand-band-layers.md` | `--full` |
 | `arrange-transcription`, playable | | `front-end-transcription.md` | `right-hand-playable.md` | `left-hand-accompaniment.md` | without `--full` |
-| `arrange-cover`, playable (default) | a sung song | `front-end-cover.md` | `right-hand-playable.md` | `left-hand-cover.md` | without `--full` |
+| `arrange-cover`, playable (default) | on request | `front-end-cover.md` | `right-hand-playable.md` | `left-hand-cover.md` | without `--full` |
 | `arrange-cover`, full | | `front-end-cover.md` | `right-hand-full.md` | `left-hand-band-layers.md` | `--full` |
 
-`arrange-cover` is the default for a sung song, and `arrange-transcription` for an instrumental; see [the decision](decisions.md#the-transcription-only-arrangement). Each writes its default mode unless the user asks for the other.
+`arrange-vocal` is the default for a sung song ([decision](decisions.md#the-vocal-arrangement)), clean-room like `arrange-transcription`, the default for an instrumental ([decision](decisions.md#the-transcription-only-arrangement)). `arrange-vocal` has one combination and no mode: the check runs with `--full` until it prints `clean`, then once more without `--full` for the left hand, which must flag nothing on `LH`. `arrange-cover` runs when the user asks for the cover. `arrange-transcription` and `arrange-cover` each write their default mode unless the user asks for the other.
 
 The inputs come from `pianoize prepare` ([docs/preparing.md](preparing.md)). On an instrumental, which has no `melody.mid` unless `prepare` was given `--melody-track`, `dump-bars` and `check-arrangement` run without `--melody`, and the dump's `V` lines are all empty.
 
