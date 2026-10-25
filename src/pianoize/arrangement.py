@@ -74,7 +74,7 @@ class Score:
     sixteenths_per_bar: int
 
 
-def _pitch_class(letter: str, accidental: str) -> int:
+def pitch_class(letter: str, accidental: str) -> int:
     return _LETTERS[letter] + _ACCIDENTALS[accidental]
 
 
@@ -88,11 +88,11 @@ def chord_pitch_classes(symbol: str) -> frozenset[int] | None:
         raise ArrangementError(f"bad chord {symbol!r} (qualities: {known})")
     tensions = match[4].split(",") if match and match[4] is not None else []
     if match and all(tension in TENSIONS for tension in tensions):
-        root = _pitch_class(match[1], match[2])
+        root = pitch_class(match[1], match[2])
         intervals = [*QUALITIES[match[3]], *(TENSIONS[tension] for tension in tensions)]
         classes = {(root + interval) % 12 for interval in intervals}
         if match[5]:
-            classes.add(_pitch_class(match[5], match[6]) % 12)
+            classes.add(pitch_class(match[5], match[6]) % 12)
         return frozenset(classes)
     raise ArrangementError(f"bad chord {symbol!r}")
 
@@ -101,7 +101,7 @@ def pitch(name: str) -> tuple[int, bool]:
     """A note name's MIDI pitch, C4 being 60, and whether a trailing ~ marks it a passing tone."""
     match = _NOTE.fullmatch(name)
     if match:
-        value = 12 * (int(match[3]) + 1) + _pitch_class(match[1], match[2])
+        value = 12 * (int(match[3]) + 1) + pitch_class(match[1], match[2])
         if value <= 127:  # MIDI's top note is G9
             return value, match[4] == "~"
     raise ArrangementError(f"bad note {name!r}")

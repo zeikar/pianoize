@@ -11,7 +11,7 @@ The [`arrange-cover` skill](#running-the-skills) runs it in these steps: its mai
 3. **Read.** The agent reads the dump whole and writes its notes: the sections and their bars, which sections repeat which, a chord per bar, the melody's entries, the hits and stop-times, and with a transcription the band: its bass, its drums, a backing vocal and the parts the cover leaves out. The cover's notes and markers are evidence, not truth.
 4. **Write, section by section.** The agent writes the [score](#the-score-format) one section at a time, reusing a repeated section with a [copy](#copies-and-overrides).
 5. **Build.** [`build-arrangement`](#building) turns the score into a two-hand MIDI on the cover's tempo map.
-6. **Check and fix.** [`check-arrangement`](#checking) checks that each hand can play the score, unless it is a full arrangement, and that the accompaniment fits the score's own chords. The agent fixes every flagged finding, after each section and at the end, until the check prints `clean`. Given tsumugi's melody, the check also lists the vocal notes the top of the right hand leaves out; the agent adds each one or records why it stays out. With a transcription, the agent then compares the finished score with the band bar by bar: the bass under each chord, the stops and breakdowns, copies included, and the parts it took.
+6. **Check and fix.** [`check-arrangement`](#checking) checks that each hand can play the score, unless it is a full arrangement, and that the accompaniment fits the score's own chords. The agent fixes every flagged finding, after each section and at the end, until the check prints `clean`. Given tsumugi's melody, the check also lists the vocal notes the top of the right hand leaves out; the agent adds each one or records why it stays out. Given the transcription, it also lists the left-hand notes the band doesn't back, each fixed or justified in `notes.md`. With a transcription, the agent then compares the finished score with the band bar by bar: the bass under each chord, the stops and breakdowns, copies included, and the parts it took.
 7. **Render and export.** `pianoize render` ([docs/evaluation.md](evaluation.md#rendering-a-midi-file)) turns the MIDI into a WAV, and `pianoize export-arrangement` ([docs/rendering.md](rendering.md#the-arrangement-json)) into the JSON the falling-notes viewer plays with it, on the [home page](rendering.md#on-github-pages) as well.
 8. **Listen.** The agent cannot hear the result, so the user is the last gate. They approve it, or name places; the agent revises those bars, overriding a copied bar where the copy is the cause, and builds, checks, renders and exports again.
 
@@ -176,7 +176,7 @@ length: 8.5 s
 
 ## Checking
 
-`pianoize check-arrangement SCORE.txt --cover COVER.mid [--melody MELODY.mid] [--full]` checks the notes the build plays: the score read on the cover's meter, with restrikes cut as the build cuts them. It writes no file. The pedal and the tail are left out, so a note lasts from its onset to its end as written. Jumps are timed in seconds on the cover's tempo map. The limits are for an advanced player ([decision](decisions.md#playable-arrangements)).
+`pianoize check-arrangement SCORE.txt --cover COVER.mid [--melody MELODY.mid] [--source SOURCE.mid [--piano-track NAME] [--bass-track NAME]] [--full]` checks the notes the build plays: the score read on the cover's meter, with restrikes cut as the build cuts them. It writes no file. The pedal and the tail are left out, so a note lasts from its onset to its end as written. Jumps are timed in seconds on the cover's tempo map. The limits are for an advanced player ([decision](decisions.md#playable-arrangements)).
 
 With `--full`, for a full arrangement, written for listening rather than playing, the limits on the hands are dropped: no `N held`, `span`, `jump` or `crossing` finding. A pitch struck twice in one hand and the `harmony` rule are checked as always. Since the hands may now cross, two rules reach over both:
 - `notes` also flags a key struck while both hands hold it, `C4 in both hands`, on `LH`;
@@ -205,9 +205,9 @@ harmony: 1 (1 flagged)
 problems: 2
 ```
 
-A finding's line gives the bar and position of its attack, the hand (`RH` or `LH`), the rule and the detail, two spaces apart. A span listed but not flagged ends `(listed, not flagged)`. Pitches are spelled with sharps. The report's last line is `problems: K`, counting the flagged findings, or `clean` when none is flagged, so listed spans can still print above `clean`. With `--melody`, the list below follows it.
+A finding's line gives the bar and position of its attack, the hand (`RH` or `LH`), the rule and the detail, two spaces apart. A span listed but not flagged ends `(listed, not flagged)`. Pitches are spelled with sharps. The report's last line is `problems: K`, counting the flagged findings, or `clean` when none is flagged, so listed spans can still print above `clean`. With `--melody`, [the vocal notes left out](#the-melody-the-right-hand-leaves-out) follow it, and with `--source`, after them, [the left-hand notes the band doesn't back](#the-left-hand-against-the-band).
 
-The command exits 1 while any finding is flagged, and 0 otherwise. A score or cover it can't read prints `error: …` and exits 1, as `build-arrangement` does, and so does a type 2 melody; a missing file or a bad option exits 2.
+The command exits 1 while any finding is flagged, and 0 otherwise. A score or cover it can't read prints `error: …` and exits 1, as `build-arrangement` does, and so does a type 2 melody or source; a missing file or a bad option exits 2.
 
 ### The melody the right hand leaves out
 
@@ -224,6 +224,33 @@ With `--melody`, tsumugi's melody, a list follows the report: each vocal note th
   ```
 
 - **The list is never flagged**: it leaves the exit code and the `problems: K` or `clean` line as they were. Each listed note is added to the right hand, or its omission is a choice to record: a stray of the transcription, a run too fast to read as it falls.
+
+### The left hand against the band
+
+With `--source`, tsumugi's transcription, a list follows the report, after `--melody`'s: each left-hand note the band's sustained parts don't back, and each that rubs against the band's piano.
+
+- **The band** is two tracks of the source and its markers. The band piano is the track `--piano-track` names, `piano` by default, and the bass the one `--bass-track` names, `electric_bass` by default, the tracks [`build-grid`](#building-the-grid-from-a-transcription) copies. tsumugi writes a track only for an instrument it hears, so a default that no track has reads none, and a band without a piano or a bass is checked against the parts it has. An empty name, `--bass-track ''`, reads none too. Each note and marker is placed as the dump places the source: by its seconds on the cover's tempo map, each end rounded to the nearest half-sixteenth.
+- **Held.** A band-piano or bass note is held at a left-hand attack when its rounded onset is at or before the attack's rounded tick, its rounded end after it, and it lasts at least an eighth, four half-sixteenths, so a sixteenth run or a sliver never backs. A note released at the attack is not held.
+- **The home register.** Only the bass's notes at or below B2, MIDI 47, back: an octave and a fifth above the open E string's E1 (28 + 19), the range a standard-tuned bass's roots sit in. A bass note at C3 or above is a fill or a line.
+- **The marker in force** is the source's last marker at or before the attack, by its rounded tick. Its text is tsumugi's chord guess, `ROOT[:QUALITY][/BASS]`, or `N` for none, the root and the slash bass spelled with `#` or `b` as tsumugi respells them for the key: `Bb:m7/D`, `Gb`. The qualities are tsumugi's: `5`, the major, written as the root alone (`A#`), `-5`, `m`, `dim`, `aug`, `sus2`, `sus4`, `6`, `7`, `M7`, `m6`, `m7`, `mM7`, `7-5`, `m7-5`, `aug7`, `augM7`, `7sus4`, `dim7`, `add9`, `madd9`, `69` and `m69`; `-5` and `7-5` are the major triad and the dominant seventh with a flat fifth, and `m7-5` the half-diminished seventh. Tensions follow in parentheses, separated by commas: `9`, `b9`, `#9`, `11`, `#11`, `13` and `b13` (`Eb:7(b9)`). A quality or a tension outside these backs the root and the slash bass alone; `N`, or a text that is no chord, backs nothing.
+- **Backed.** A left-hand note is backed when its pitch class is among the held band-piano notes', the held home-register bass notes' or the marker's.
+- **The notes checked for backing** are, at each left-hand attack, each struck note not marked `~`, and one marked `~` only when it is the lowest left-hand note sounding there: no left-hand note struck at the attack, or earlier and still held, sits below it. An invented walk-up marked `~` is still a bass the band doesn't play; a `~` neighbour inside a dyad over a held root is not.
+- **A semitone** is a struck left-hand note, `~` or not, with a held band-piano note exactly 1 or 13 semitones above or below it: a minor second or a minor ninth, which rub, as the build's [re-press](#building) counts them. A major seventh, or a semitone two octaves or more away, is the band's own colour, not a rub.
+- **Each line** is one of two:
+  - `bar N pos P  LH  unbacked  NOTE  bass …  piano …  marker …`, for a note checked for backing and not backed, giving the held home-register bass notes and the held band-piano notes, each by pitch, `-` for none, and the marker's text, `-` for none;
+  - `bar N pos P  LH  semitone  NOTE against piano …`, naming the held band-piano notes a minor second or ninth from it.
+
+  The place is the attack's, as the report gives it, and pitches are spelled with sharps. The lines run by time, `unbacked` before `semitone`, then by pitch. A last line counts both, `harmony backing: 0 unbacked, 0 semitone` when nothing is listed. A made-up example, a left hand striking `A#1+E3~+G3` where the bass holds A#1, the band piano D4 and F4, and the marker is `A#:m7`: the bass backs A#1, and E3~ sits over it, so only its semitone is listed.
+
+  ```
+  clean
+  bar 12 pos 4  LH  unbacked  G3  bass A#1  piano D4 F4  marker A#:m7
+  bar 12 pos 4  LH  semitone  E3 against piano F4
+  harmony backing: 1 unbacked, 1 semitone
+  ```
+
+- **The list is never flagged**: it leaves the exit code and the `problems: K` or `clean` line as they were. The transcription and its markers are evidence, not the answer key, so each listed note is changed to one the band backs, or kept with its reason recorded: a line the band plays that its transcription misses, a voice the arrangement adds on purpose.
+- **Errors.** A track name passed that no track of the source has prints `error: SOURCE.mid: no track named 'strings'; tracks named: …`, listing the tracks the source names, and exits 1 before the report. A type 2 source fails as a type 2 melody does.
 
 ## Dumping
 

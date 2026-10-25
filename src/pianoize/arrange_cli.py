@@ -11,7 +11,19 @@ from typing import Annotated
 import mido
 import typer
 
-from . import arrange, arrangement, bars, dump, evidence, files, grid, notes, playability, regrid
+from . import (
+    arrange,
+    arrangement,
+    backing,
+    bars,
+    dump,
+    evidence,
+    files,
+    grid,
+    notes,
+    playability,
+    regrid,
+)
 from .cli import _fail, _read_midi, _refuse_input, app
 
 _RANGE = re.compile(r"(\d+)-(\d+)")
@@ -95,6 +107,36 @@ def check_arrangement(
             dir_okay=False,
         ),
     ] = None,
+    source_path: Annotated[
+        Path | None,
+        typer.Option(
+            "--source",
+            metavar="SOURCE.mid",
+            help="tsumugi's transcription: after the report, and after --melody's list, list each "
+            "left-hand note the band's held piano and bass and its chord markers don't back, and "
+            "each a minor second or ninth from a held band-piano note.",
+            exists=True,
+            dir_okay=False,
+        ),
+    ] = None,
+    piano_track: Annotated[
+        str | None,
+        typer.Option(
+            "--piano-track",
+            metavar="NAME",
+            help=f"With --source, the track of the band's piano. Default: {backing.PIANO_TRACK}, "
+            "which reads none when the source has no such track. An empty name reads none.",
+        ),
+    ] = None,
+    bass_track: Annotated[
+        str | None,
+        typer.Option(
+            "--bass-track",
+            metavar="NAME",
+            help=f"With --source, the track of the band's bass. Default: {backing.BASS_TRACK}, "
+            "which reads none when the source has no such track. An empty name reads none.",
+        ),
+    ] = None,
     full: Annotated[
         bool,
         typer.Option(
@@ -109,19 +151,33 @@ def check_arrangement(
 
     The notes are checked as the build plays them: hand by hand for playability, unless --full,
     and the accompaniment against the score's chords. Exit 1 while any finding is flagged; a
-    finding listed, not flagged, leaves it clean, as do the vocal notes --melody lists.
+    finding listed, not flagged, leaves it clean, as do the vocal notes --melody lists and the
+    left-hand notes --source lists.
     """
+    for option, track in (("--piano-track", piano_track), ("--bass-track", bass_track)):
+        if track is not None and source_path is None:
+            raise typer.BadParameter("needs --source, whose track it names", param_hint=option)
     midi, meter, score = _load(score_path, cover)
     sung = None if melody_path is None else _read_timed(melody_path)
+    source = None if source_path is None else _read_timed(source_path)
     tempo_map = notes.tempo_map(midi)
     try:
         findings = playability.check(score, meter, tempo_map, full=full)
     except arrangement.ArrangementError as exc:
         raise _fail(f"{score_path}: {exc}") from exc
+    backing_items = None
+    if source is not None:
+        # Before the report, so a track name the source lacks prints the error alone.
+        try:
+            backing_items = backing.items(score, meter, tempo_map, source, piano_track, bass_track)
+        except evidence.EvidenceError as exc:
+            raise _fail(f"{source_path}: {exc}") from exc
     typer.echo(playability.report(findings, meter))
     if sung is not None:
         missing = playability.missing(score, meter, tempo_map, sung)
         typer.echo(playability.missing_report(missing, meter, tempo_map))
+    if backing_items is not None:
+        typer.echo(backing.report(backing_items, meter))
     if any(finding.flagged for finding in findings):
         raise typer.Exit(1)
 
