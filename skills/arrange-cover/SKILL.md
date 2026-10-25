@@ -7,14 +7,7 @@ description: This skill should be used when the user wants a two-hand piano arra
 
 pianoize arranges a song for a falling-notes video (Synthesia style) from the piano cover tsumugi-piano-cover made of it, and tsumugi's transcription of its sung melody, where the song has one. tsumugi's transcription of the whole band, with a track per instrument, is read under the cover in every bar where there is one: its bass, its drums, a backing vocal and the parts the cover leaves out make the arrangement richer and keep its chords and stops honest. A score for two hands is written bar by bar; pianoize builds it into MIDI on the cover's tempo grid and checks that it fits the score's chords and, unless it is a full arrangement, that it is playable.
 
-**The arranging runs in a subagent, `pianoize:arranger`.** It reads the long dump, writes the score and loops the build and the check in its own context, following **`references/workflow.md`**. You, the main session, gather the inputs, dispatch it, relay its report to the user and the user's answers back to it. Don't read the dump or write the score yourself: that is what keeps your context free for the user.
-
-## Rules
-
-- **The arranger arranges.** Changes to the score, the notes or the MIDI go through it, revisions included.
-- **Never paste song content into the repository.** A song's chords, notes, markers, lyrics and times stay in `work/`, which is never committed: none of it goes into docs, tests, code, commit messages or issues.
-- **Nobody can hear it but the user.** Never claim the arrangement sounds right. The user's listening decides.
-- **Audio never leaves the machine.** Upload nothing.
+**The arranging runs in a subagent, `pianoize:arranger`.** It reads the long dump, writes the score and loops the build and the check in its own context, following the rule files its prompt names. You, the main session, gather the inputs, dispatch it, relay its report to the user and the user's answers back to it. Don't read the dump or write the score yourself: that is what keeps your context free for the user.
 
 ## Inputs
 
@@ -29,51 +22,43 @@ Ask the user for any input that is missing and stop until you have it. The `prep
 
 ## The command line
 
-- **Plugin root:** `${CLAUDE_PLUGIN_ROOT}`. If that is a directory with a `pyproject.toml` in it, this skill runs from the pianoize Claude Code plugin, and that directory is the plugin's own copy of pianoize: the command line is `uv run --project '<plugin root>'` followed by pianoize and its command, run from the current directory, and the docs are in `<plugin root>/docs/`. Otherwise (empty, still a `${…}` placeholder, or no `pyproject.toml` there) there is no plugin root: in a pianoize checkout, it is `uv run` followed by pianoize, run there, with the docs in its `docs/`; anywhere else, tell the user to install the pianoize plugin, and stop.
-- Below, `<root>` is the plugin root, or without one, the checkout's root.
-- Without `uv` on `PATH` (`command -v uv`), tell the user to install it (https://docs.astral.sh/uv/) and stop.
-- The arranger writes score format version 1. If it reports that pianoize expects another version, the skill and pianoize are out of step: tell the user, and stop.
+**Plugin root:** `${CLAUDE_PLUGIN_ROOT}`. Read **`../../arranging/main-session.md`** and follow it: from this plugin root it settles the command line and `<root>`, and it gives the rules and the steps that dispatch the arranger with the prompt below.
 
-## Workflow
+## Modes
 
-1. **Inputs and tools.** Gather the inputs, check for `uv`, settle the command line, and create `<out>` with `mkdir -p`, single-quoting the path.
-2. **Dispatch the arranger** with the Agent tool: `subagent_type` `pianoize:arranger`, a `name` such as `arranger-<song>` so you can reach it again, and the prompt below. If no `pianoize:arranger` type is available, dispatch a general-purpose agent with the same prompt, its first line `First read <root>/agents/arranger.md and act as it says.` That agent has every tool, so the definition's limit to the shell and the files rests on its instructions there. Tell the user in one line that the arrangement has started and that a full song takes a while, then wait for the arranger to finish: don't poll its files.
-   ```
-   Skill: arrange-cover
-   Workflow: <root>/skills/arrange-cover/references/workflow.md
-   Command line: <the command line>
-   Docs: <the docs directory>
-   Cover: '<cover>'
-   Melody: '<melody>' (or: none)
-   Source: '<source>' (or: none)
-   Out: '<out>'
-   SoundFont: '<sf2>' (or: $PIANOIZE_SOUNDFONT, or: none)
-   Mode: <mode>
-   Task: arrange
-   ```
-3. **Read its report.** If it stopped on an error it can't fix, an input it can't read or a score format pianoize doesn't take, tell the user, and stop. If it asks the user something, ask them, send the answer to the same arranger with SendMessage, and wait again.
-4. **Ask the user to listen.** Relay the report in the user's language: the mode, and in full mode that no one could play it as written; the WAV to listen to (or the MIDI, without a render), and that they can watch it fall too, since dropping `arranged.json` and `arranged.wav` on https://zeikar.dev/pianoize/ plays them there, read in the browser and uploaded nowhere; the places to listen first, by bar and time; the repeats a change to a copied-from bar changed; the gaps; each regridded span, where they listen to the song and count its bars; and in full mode, each section's figures, for them to call too thin, too busy or right. Ask them to approve, or to name the places to change by bar or time, and stop until they answer.
-5. **Revise.** Send their words, verbatim, to the same arranger with SendMessage as `Task: revise: <their words>`, wait for its report, and go back to step 4. To switch modes, keep the first version to compare: make a new `<out>`, copy `score.txt` and `notes.md` into it, and send the new `Mode:` and `Out:` lines with the task. If the arranger can't be reached, a new conversation say, dispatch a new one with step 2's prompt and that task: `notes.md` and `score.txt` hold everything decided so far.
-6. **Approval.** Send `Task: approved: <their words>` to the arranger, which records it in `notes.md`; with no arranger to reach, dispatch a new one with step 2's prompt and that task.
+| `<mode>` | `Right hand:` | `Left hand:` |
+| --- | --- | --- |
+| `playable`, the default | `<root>/arranging/right-hand-playable.md` | `<root>/arranging/left-hand-cover.md` |
+| `full` | `<root>/arranging/right-hand-full.md` | `<root>/arranging/left-hand-band-layers.md` |
+
+Dispatch the arranger with this prompt, its `Right hand:` and `Left hand:` lines from the mode's row:
+```
+Skill: arrange-cover
+Workflow: <root>/arranging/workflow.md
+Front end: <root>/arranging/front-end-cover.md
+Right hand: <the mode's right hand above>
+Left hand: <the mode's left hand above>
+Command line: <the command line>
+Docs: <the docs directory>
+Cover: '<cover>'
+Melody: '<melody>' (or: none)
+Source: '<source>' (or: none)
+Out: '<out>'
+SoundFont: '<sf2>' (or: $PIANOIZE_SOUNDFONT, or: none)
+Task: arrange
+```
 
 ## Output files
 
-All in `<out>`, written by the arranger and the commands it runs:
+All in `<out>`. The front end adds this one; the rest are under "Output files" in `../../arranging/main-session.md`.
 
 | file | written by | holds |
 | --- | --- | --- |
 | `cover.regrid.mid` | `regrid` | the cover with its tempo hiccups regridded, used as the cover |
-| `bars.txt` | `dump-bars` | the cover's attacks, the melody, and with a source the drums and the instrument lines, bar by bar |
-| `notes.md` | the arranger | the sections, the chords, the melody's entries, the band and what was taken from it, the hits and stops, every inferred, filled or copied place, the comparison with the band, the gaps, and the revisions |
-| `score.txt` | the arranger | the two-hand score, format version 1 |
-| `arranged.mid` | `build-arrangement` | the two-hand MIDI on the cover's tempo grid |
-| `arranged.wav` | `render` | the render for the user to listen to |
-| `arranged.json` | `export-arrangement` | the notes the falling-notes viewer plays with `arranged.wav` |
 
 ## Additional resources
 
-- **`references/workflow.md`:** the arranger's rules, commands, steps, `notes.md` outline and report.
-- **`references/reading-the-dump.md`:** the dump's lines, the markers, finding the chords, the hits, the stops, the melody, the drums and the instrument lines, and reading a long dump.
-- **`references/arranging-rules.md`:** keeping the feel, copying the cover, the sections where no one sings, taking from the band, inferring, voicing the hands, the pedal, and fixing each check rule.
-- **pianoize's `agents/arranger.md`:** the subagent's definition, its tools limited to the shell and the files.
-- **pianoize's `docs/arranging.md`:** the score format, every command, the check's limits and the output formats.
+- **`../../arranging/main-session.md` and `../../arranging/workflow.md`:** the two sides. Yours: the command line, the rules, the steps from dispatch to approval, and the output files. The arranger's: its rules, commands, steps, `notes.md` outline and report, and the rule files it reads beside it, how to read the dump and the arranging rules every arrangement shares.
+- **`../../arranging/front-end-cover.md`:** the cover regridded, how to read `C` and the melody off it, copying the cover, and the comparison with the band.
+- **`../../arranging/right-hand-playable.md`, `../../arranging/left-hand-cover.md`, `../../arranging/right-hand-full.md` and `../../arranging/left-hand-band-layers.md`:** the hands, paired as "Modes" pairs them: a playable arrangement's within the check's limits, the left from the cover; a full one's for listening, the band's parts layer by layer.
+- **pianoize's `agents/arranger.md` and `docs/arranging.md`:** the subagent's definition, its tools limited to the shell and the files; the score format, every command, the check's limits and the output formats.

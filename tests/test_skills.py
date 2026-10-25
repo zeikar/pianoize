@@ -27,40 +27,41 @@ CODE = re.compile(r"```.*?```|`[^`\n]+`", re.DOTALL)
 COMMAND = re.compile(r"\bpianoize (?=[a-z])")
 NAME = re.compile(r"[a-z][a-z-]*")
 FLAG = re.compile(r"(?<![^\s\[])--?[A-Za-z][A-Za-z-]*")  # after a space or a [, not inside a path
-# A file a skill names in code, from the skill's directory: a reference or a SKILL.md, its own or
-# another skill's.
-REFERENCE = re.compile(r"`((?:\.\./[a-z-]+/)?(?:references/[\w.-]+\.md|SKILL\.md))`")
-# What arrange-transcription cites of arrange-cover's references by name, marked as it is there
-# (a heading, a bold lead, a clause): arrange-cover keeps changing, and a rename must fail here.
-CITED_FROM_ARRANGE_COVER = [
-    ("arranging-rules.md", "## Keep the feel"),
-    ("arranging-rules.md", "**The groove is the original's."),
-    ("arranging-rules.md", "## Copy the cover where it renders a moment best"),
-    ("arranging-rules.md", "## Where no one sings"),
-    ("arranging-rules.md", "## Take from the band"),
-    ("arranging-rules.md", "**The left hand still comes from the cover:**"),
-    ("arranging-rules.md", "**Without a source**"),
-    ("arranging-rules.md", "## Infer and fill"),
-    ("arranging-rules.md", "## One velocity"),
-    ("arranging-rules.md", "## Readable when falling"),
-    ("arranging-rules.md", "**One pattern per section.**"),
-    ("arranging-rules.md", "## The hands"),
-    ("arranging-rules.md", "Write it an octave up where the cover plays it there."),
-    ("arranging-rules.md", "**Jumps take time.**"),
-    ("arranging-rules.md", "## Pedal"),
-    ("arranging-rules.md", "## Chords and passing tones"),
-    ("arranging-rules.md", "## Fixing the check"),
-    ("arranging-rules.md", "## A full arrangement"),
-    ("arranging-rules.md", "**One figure per layer, per section.**"),
-    ("arranging-rules.md", "**What no longer applies,**"),
-    ("reading-the-dump.md", "## Markers are a model's guesses"),
-    ("reading-the-dump.md", "## The drums"),
-    ("reading-the-dump.md", "## The melody"),
-    ("reading-the-dump.md", "**Skip the strays.**"),
-    ("reading-the-dump.md", "**Note the octave.**"),
-    ("reading-the-dump.md", "**Where `V` is silent**"),
-    ("reading-the-dump.md", "**Where `V` and the cover disagree on a pitch,**"),
-]
+# A file a skill names in code, from the skill's directory: one of its references, its own SKILL.md
+# or another skill's, or a rule file the arranging skills share.
+REFERENCE = re.compile(
+    r"`(references/[\w.-]+\.md|(?:\.\./[a-z-]+/)?SKILL\.md|\.\./\.\./arranging/[\w-]+\.md)`"
+)
+# A relative path in code: each must be one REFERENCE matches, or it would go unchecked.
+RELATIVE = re.compile(r"`(\.\./[^`\s]+\.md)`")
+# The rule files the arranging skills share, which their dispatch prompts name by path, and the
+# names the shared files use for each other.
+SHARED = ROOT / "arranging"
+PROMPT_FILE = re.compile(r"<root>/arranging/([\w-]+\.md)")
+BARE = re.compile(r"`([a-z-]+\.md)`")
+# Each arranging skill's front end, and its modes' right- and left-hand files, the default first.
+COMBINATIONS = {
+    "arrange-cover": (
+        "front-end-cover.md",
+        {
+            "playable": ("right-hand-playable.md", "left-hand-cover.md"),
+            "full": ("right-hand-full.md", "left-hand-band-layers.md"),
+        },
+    ),
+    "arrange-transcription": (
+        "front-end-transcription.md",
+        {
+            "full": ("right-hand-full.md", "left-hand-band-layers.md"),
+            "playable": ("right-hand-playable.md", "left-hand-accompaniment.md"),
+        },
+    ),
+}
+# A row of an arranging skill's "Modes" table: the mode, whether it is the default, and its hands.
+MODE_ROW = re.compile(
+    r"^\| `(\w+)`(, the default)? \| `<root>/arranging/([\w-]+\.md)` "
+    r"\| `<root>/arranging/([\w-]+\.md)` \|$",
+    re.MULTILINE,
+)
 
 # A fenced code block's text; under a list item its fences are indented.
 FENCED = re.compile(r"^[ \t]*```[^\n]*\n(.*?)^[ \t]*```", re.DOTALL | re.MULTILINE)
@@ -75,8 +76,12 @@ def _text(path: Path) -> str:
 
 
 def _documents(skill: str) -> list[Path]:
+    """A skill's SKILL.md, its references, the shared rule files for an arranging skill, and its
+    doc."""
     directory = ROOT / "skills" / skill
-    return [directory / "SKILL.md", *sorted((directory / "references").glob("*.md")), SKILLS[skill]]
+    shared = sorted(SHARED.glob("*.md")) if skill in ARRANGING_SKILLS else []
+    references = sorted((directory / "references").glob("*.md"))
+    return [directory / "SKILL.md", *references, *shared, SKILLS[skill]]
 
 
 def test_skill_is_written_for_this_schema():
@@ -94,8 +99,7 @@ def test_skill_and_docs_name_this_spec_version():
 
 
 def _scores(skill: str) -> list[tuple[str, str]]:
-    """(file name, text) of each score in a code block of an arranging skill, its references and
-    its doc."""
+    """(file name, text) of each score in a code block of an arranging skill's documents."""
     return [
         (path.name, block)
         for path in _documents(skill)
@@ -104,14 +108,14 @@ def _scores(skill: str) -> list[tuple[str, str]]:
     ]
 
 
-@pytest.mark.parametrize("skill", ARRANGING_SKILLS)
-def test_arrange_skill_and_docs_name_this_format_version(skill):
+def test_arrange_skill_and_docs_name_this_format_version():
     version = str(arrangement.FORMAT_VERSION)
-    text = _text(ROOT / "skills" / skill / "SKILL.md")
-    assert re.findall(r"score format version (\d+)", text) == [version]
-    assert re.findall(r"`format (\d+)`", _text(SKILLS[skill])) == [version]
-    for name, score in _scores(skill):  # every score opens with its format line
-        assert score.split("\n", 1)[0].strip() == f"format {version}", name
+    session = _text(SHARED / "main-session.md")
+    assert re.findall(r"score format version (\d+)", session) == [version]
+    for skill in ARRANGING_SKILLS:
+        assert re.findall(r"`format (\d+)`", _text(SKILLS[skill])) == [version], skill
+        for name, score in _scores(skill):  # every score opens with its format line
+            assert score.split("\n", 1)[0].strip() == f"format {version}", name
 
 
 @pytest.mark.parametrize("skill", ARRANGING_SKILLS)
@@ -170,31 +174,23 @@ def test_named_commands_and_their_options_exist(skill):
             assert flags <= options | {"--help"}, (path.name, name, flags - options)
         if path.name == "SKILL.md":
             assert lines, "SKILL.md names no pianoize command"
+        if path == SHARED / "workflow.md":
+            assert {"build-arrangement", "check-arrangement"} <= {name for name, _ in lines}
 
 
-def _workflow(skill: str) -> str:
-    return _text(ROOT / "skills" / skill / "references" / "workflow.md")
-
-
-def test_the_transcription_skill_builds_the_grid_and_dumps_the_drums():
-    lines = list(_command_lines(_workflow("arrange-transcription")))
+def test_the_transcription_front_end_builds_the_grid():
+    lines = list(_command_lines(_text(SHARED / "front-end-transcription.md")))
     assert "build-grid" in {name for name, _ in lines}
-    assert any(name == "dump-bars" and "--drums" in flags for name, flags in lines)
 
 
-def test_the_cover_workflow_steps_the_transcription_workflow_cites():
-    # arrange-transcription cites the score example in step 4 and the copies in step 5.
-    cited = _workflow("arrange-transcription")
-    assert "the example in step 4 of `../arrange-cover/references/workflow.md`" in cited
-    assert "as step 5 of `../arrange-cover/references/workflow.md` says" in cited
-    steps = _workflow("arrange-cover")
-    assert "\n4. **Write `<out>/score.txt`" in steps and "```\n   format 1\n" in steps
-    assert "\n5. **Repeats:** write a section that repeats an earlier one as" in steps
-
-
-def test_the_cover_skill_dumps_the_band_in_every_bar():
-    lines = list(_command_lines(_workflow("arrange-cover")))
-    assert any(name == "dump-bars" and {"--every-bar", "--drums"} <= flags for name, flags in lines)
+def test_the_workflow_dumps_the_band_in_every_bar():
+    dumps = [
+        flags
+        for name, flags in _command_lines(_text(SHARED / "workflow.md"))
+        if name == "dump-bars"
+    ]
+    assert any({"--every-bar", "--drums"} <= flags for flags in dumps)
+    assert any("--every-note" in flags for flags in dumps)
 
 
 def _frontmatter(path: Path) -> dict[str, str]:
@@ -209,11 +205,34 @@ def test_the_arranging_skills_dispatch_the_arranger():
     # The shell and the files only: no web tools, so audio and song content stay on the machine.
     tools = {tool.strip() for tool in front["tools"].split(",")}
     assert tools == {"Bash", "Read", "Write", "Edit", "Glob", "Grep"}
+    session = _text(SHARED / "main-session.md")
+    assert "`pianoize:arranger`" in session
+    assert "<root>/agents/arranger.md" in session  # the fallback without the type
     for skill in ARRANGING_SKILLS:
         text = _text(ROOT / "skills" / skill / "SKILL.md")
-        assert "`pianoize:arranger`" in text, skill
-        assert f"<root>/skills/{skill}/references/workflow.md" in text, skill
-        assert "<root>/agents/arranger.md" in text, skill  # the fallback without the type
+        assert "Workflow: <root>/arranging/workflow.md" in text, skill
+        assert "`../../arranging/main-session.md`" in text, skill  # its only route to the steps
+        assert skill in _text(agent), skill
+
+
+@pytest.mark.parametrize("skill", ARRANGING_SKILLS)
+def test_each_arranging_skill_names_its_combination(skill):
+    text = _text(ROOT / "skills" / skill / "SKILL.md")
+    front_end, modes = COMBINATIONS[skill]
+    rows = MODE_ROW.findall(text)
+    assert [(mode, right, left) for mode, _, right, left in rows] == [
+        (mode, *hands) for mode, hands in modes.items()
+    ]
+    assert [bool(default) for _, default, _, _ in rows] == [True] + [False] * (len(modes) - 1)
+    [prompt] = [block for block in FENCED.findall(text) if block.startswith(f"Skill: {skill}\n")]
+    lines = prompt.splitlines()
+    keys = [line.split(":", 1)[0] for line in lines]
+    files = ["Workflow", "Front end", "Right hand", "Left hand"]
+    assert [key for key in keys if key in files] == files, keys  # each once, in this order
+    assert lines[keys.index("Workflow")] == "Workflow: <root>/arranging/workflow.md"
+    assert lines[keys.index("Front end")] == f"Front end: <root>/arranging/{front_end}"
+    for name in PROMPT_FILE.findall(text):
+        assert (SHARED / name).is_file(), name
 
 
 def test_the_prepare_skill_sets_up_and_prepares_into_a_directory():
@@ -231,24 +250,42 @@ def test_named_references_exist(skill):
     assert named, "the skill names no reference"
     for document, name in named:
         assert (directory / name).is_file(), (document, name)
+    for path in documents:  # a wrong depth, `../arranging/…`, matches no REFERENCE
+        for name in RELATIVE.findall(_text(path)):
+            assert REFERENCE.fullmatch(f"`{name}`"), (path.name, name)
 
 
-def test_what_arrange_transcription_cites_of_arrange_cover_exists():
-    # SKILL.md and its references; the last document is docs/arranging.md.
-    citing = "".join(_text(path) for path in _documents("arrange-transcription")[:-1])
-    cited = ROOT / "skills" / "arrange-cover" / "references"
-    for reference, name in CITED_FROM_ARRANGE_COVER:
-        assert name in _text(cited / reference), (reference, name)
-        assert f'"{name.strip("#*.,: ")}"' in citing, name  # the list follows what the skill cites
+def test_what_the_shared_files_name_exists():
+    shared = sorted(SHARED.glob("*.md"))
+    assert shared
+    for path in shared:
+        for name in BARE.findall(_text(path)):
+            if name != "notes.md":  # the arranger's own output
+                found = (SHARED / name).is_file() or (ROOT / "docs" / name).is_file()
+                assert found, (path.name, name)
 
 
-@pytest.mark.parametrize("skill", SKILLS)
-def test_references_need_no_plugin_root(skill):
+def test_no_skill_cites_another_skills_references():
+    # What two skills share is in arranging/, not in one skill's references.
+    documents = [
+        *sorted((ROOT / "skills").glob("*/SKILL.md")),
+        *sorted((ROOT / "skills").glob("*/references/*.md")),
+        *sorted(SHARED.glob("*.md")),
+    ]
+    assert documents
+    for path in documents:
+        assert not re.search(r"\.\./[a-z-]+/references/", _text(path)), path
+
+
+def test_references_need_no_plugin_root():
     # Claude Code substitutes ${CLAUDE_PLUGIN_ROOT} only in SKILL.md, never in the files it names.
-    references = sorted((ROOT / "skills" / skill / "references").glob("*.md"))
+    references = [
+        *sorted(SHARED.glob("*.md")),
+        *sorted((ROOT / "skills").glob("*/references/*.md")),
+    ]
     assert references
     for path in references:
-        assert "CLAUDE_PLUGIN_ROOT" not in _text(path), path.name
+        assert "CLAUDE_PLUGIN_ROOT" not in _text(path), path
 
 
 def test_manifests_leave_the_version_to_pyproject():
