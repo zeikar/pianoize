@@ -110,7 +110,7 @@ pianoize's commands are deterministic and never call an LLM. You write two text 
 ## Figures
 - verse: the bass held through the bar, the top voice one note held, the guitar's sixteenths in `L`
 ## Left-hand figures
-- verse: the bass on the kicks at 0 and 10, a two-note chord on the snare
+- verse, first half: a broken chord, root octave at 0, fifth at 6, upper root at 10, tenth at 12
 ## Hits and stops
 - bar 12: a hit at 7 with a crash, then a stop to the end of the bar
 - bars 60-63: a breakdown, the drums on the downbeat only, the band holding its chords
