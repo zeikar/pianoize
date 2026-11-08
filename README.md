@@ -11,9 +11,10 @@ pianoize is a [Claude Code](https://claude.com/claude-code) plugin and a Python 
 [**Open the viewer**](https://zeikar.dev/pianoize/) · [Watch on YouTube](https://www.youtube.com/@pianoizemusic) · [Quick start](#quick-start) · [How it works](#how-it-works) · [Docs](#documentation)
 
 <p align="center">
-  <a href="https://www.youtube.com/watch?v=eLgVMrafvJQ"><img src="https://img.youtube.com/vi/eLgVMrafvJQ/maxresdefault.jpg" width="80%" alt="Watch on YouTube: Ereve (Raindrop Flower), MapleStory OST, arranged and rendered by pianoize"></a>
+  <a href="https://www.youtube.com/watch?v=eLgVMrafvJQ"><img src="https://img.youtube.com/vi/eLgVMrafvJQ/maxresdefault.jpg" width="40%" alt="Watch on YouTube: Ereve (Raindrop Flower), MapleStory OST, arranged and rendered by pianoize"></a>
+  <a href="https://www.youtube.com/watch?v=j7EZi4i9Uck"><img src="https://img.youtube.com/vi/j7EZi4i9Uck/maxresdefault.jpg" width="40%" alt="Watch on YouTube: Orbis (Shinin' Harbor), MapleStory OST, arranged and rendered by pianoize"></a>
   <br>
-  <sub>▶ Ereve (Raindrop Flower), MapleStory OST: arranged from tsumugi's transcription and rendered by pianoize</sub>
+  <sub>▶ MapleStory OST, arranged from tsumugi's transcription and rendered by pianoize</sub>
 </p>
 
 ## What it does
