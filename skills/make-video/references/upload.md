@@ -26,6 +26,7 @@ One list for both languages, comma-separated, at most 500 characters with the co
 
 - **Monetization:** off for an arrangement from the cover. For one from the transcription alone, the arrangement adds no terms, so the song's rights and any fan-work guidelines decide: say so, and leave it to the user.
 - **Category:** Music.
+- **Playlist:** one short name per kind of music, the same for every video of that kind: the game's name for its music, `Vocaloid` for a Vocaloid song. Where you can't tell whether the channel has a fitting one, ask the user; for a song that fits none, propose a new one.
 - **Audience:** not made for kids.
 - **Languages:** the title and description language is English; add Korean under Languages and paste the Korean title and description there.
 - **Thumbnail:** `arranged.jpg`.
@@ -89,6 +90,7 @@ A Made-up Song, A Made-up Game, A Made-up Game OST, 메이드업 게임, piano, 
 
 - Monetization: the arrangement adds no terms; the song's rights decide.
 - Category: Music
+- Playlist: A Made-up Game
 - Audience: not made for kids
 - Languages: English; add Korean and paste the Korean title and description.
 - Thumbnail: `arranged.jpg`

@@ -44,7 +44,7 @@ Ask the user for any input that is missing and stop until you have it.
 3. **Render:** `pianoize render-video '<out>/arranged.mid' --cards '<out>/cards.txt' -o '<out>/arranged.mp4'`, adding `--soundfont '<sf2>'` when you have one, in the background: it takes a few times the song's length. It prints the peak, the frame count, the length and the thumbnail's path, `<out>/arranged.jpg`. If it warns that the peak could clip, render again with a lower `--gain`.
 4. **Look at the thumbnail,** `<out>/arranged.jpg`: the title readable, not cut, not shrunk to a small size. A first line too long for the band shrinks to fit: shorten the card's lines and render again.
 5. **Write `<out>/upload.md`** following **`references/upload.md`**.
-6. **Report** in the user's language: the video, the thumbnail and `upload.md`; the monetization the terms allow; every credit marked unconfirmed; and that they watch the video before uploading it. Stop until they answer.
+6. **Report** in the user's language: the video, the thumbnail and `upload.md`; the monetization the terms allow; the playlist, saying if it is a new one; every credit marked unconfirmed; and that they watch the video before uploading it. Stop until they answer.
 7. **Revise** what they ask. A change to the title card renders again; a change to the text edits `upload.md`.
 
 ## Output files
