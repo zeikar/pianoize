@@ -31,7 +31,7 @@ bar 2 | 0:Dm7 7:Bb | pedal=0,7,x8
 
 In a section without vocal, an intro, an interlude, a bridge or an ending, an instrument carries the tune, and such a section sounds weaker than the sung ones.
 
-- **The right hand takes the instrument line that carries the tune**, from its `I` line ("The instrument lines" in `reading-the-dump.md`): a brass or synth riff, a guitar or flute lead. Keep its rhythm and its notes, and write it as `M`, in the octave where it sits above the accompaniment, rather than `C`'s top note.
+- **The right hand takes the instrument line that carries the tune**, from its `I` line ("The instrument lines" in `reading-the-dump.md`): a brass or synth riff, a guitar or flute lead. Keep its rhythm and its notes, and write it as `M`, in the octave where it sits above the accompaniment, rather than `C`'s top note. Where the lead is an improvised solo that leans on bends and sustain, follow `instrumental-solos.md` instead.
 - **The left hand** plays there as your left-hand file says, as in the sung sections.
 
 ## Take from the band

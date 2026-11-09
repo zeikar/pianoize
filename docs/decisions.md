@@ -184,6 +184,10 @@ On a sung band song the user compared three arrangements: `arrange-cover`'s play
 
 Its left hand follows `arranging/left-hand-accompaniment.md`: a bass on the strong beats and a two-note chord holding the third on the backbeat, the chord's root rather than every note the bass guitar plays, only what the band's sustained parts agree on, density rising through the song, and one figure per section. The band-layer left hand had laid a held pad under the bass guitar's rhythm on one low pitch, which lost; the test's remaining faults were all a chord root misread, a bass fill taken for a slash bass or a passing tone voiced as a chord tone, which the sustained-parts rule and `check-arrangement --source` address. The file replaces the unsettled left hand of the transcription-only arrangement's first trial, and `arrange-transcription`'s playable mode uses it too. The whole is checked with `--full`, and the left hand once more without it, so one hand can play it.
 
+### An improvised solo is rewritten for the piano
+
+A sung song's distorted guitar solo was transcribed note for note, moved an octave up, thinned to its contour and left out, and the user rejected all four by ear. What the user liked best was a passage written for the piano: chord-tone arpeggios that rise, fall and breathe where the solo does, keeping only its peaks and landing notes. So `arranging/instrumental-solos.md` replaces the rule to keep a lead's notes and rhythm for an improvised solo, and leaves it standing for a riff, a hook or a composed line. It is a separate file because it is an exception that most songs don't reach. It rests on one song so far, and published piano arrangements treat guitar solos in several ways, so it is the first thing to try, and the ear still decides.
+
 ## Rendering
 
 ### MIDI is rendered with FluidSynth

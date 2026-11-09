@@ -312,6 +312,7 @@ The rest is in rule files the skills share, in `arranging/`: `SKILL.md` points t
 - `workflow.md`: the arranger's rules, commands, steps, `notes.md` outline and report. The arranger reads it first, then the three other files the prompt names.
 - `reading-the-dump.md`: how to read the [dump](#dumping) into `notes.md`: the lines, the markers, the chords, the hits and stops, the drums, the melody and the instrument lines.
 - `arranging-rules.md`: the judgment every arrangement shares: the feel, the sections where no one sings, what to take from the band, inferring, the transcription's errors, one velocity, readability, the pedal, the chords and how to fix each finding of the check.
+- `instrumental-solos.md`: an improvised instrumental solo, written as arpeggios that follow its phrases rather than transcribed; `arranging-rules.md` sends the arranger to it where a section has one.
 - `front-end-cover.md`: the cover regridded, its notes, the melody off it, and the comparison with the band.
 - `front-end-transcription.md`: the clean room, the grid [`build-grid`](#building-the-grid-from-a-transcription) makes and its regrid, and the dump and the melody without a cover.
 - `right-hand-playable.md`: the right hand within the check's limits.
