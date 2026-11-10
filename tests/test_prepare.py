@@ -10,12 +10,13 @@ from conftest import SAMPLE_RATE
 from test_steady import bent_transcription, random_transcription
 from typer.testing import CliRunner
 
-from pianoize import notes
+from pianoize import notes, tsumugi
 from pianoize.cli import app
+from pianoize.prepare_cli import _stereo
 
-OUTPUTS = ("song.wav", "transcription.mid", "source.mid", "melody.mid", "cover.mid")
+OUTPUTS = ("song.wav", "transcription.mid", "source.mid", "melody.mid", "cover.mid", "stems.npz")
 # What a run reuses with every output there: a source.mid already made needs no transcription.mid.
-REUSED = ("song.wav", "source.mid", "melody.mid", "cover.mid")
+REUSED = ("song.wav", "source.mid", "melody.mid", "cover.mid", "stems.npz")
 # Not stem_splitter's 44.1 kHz, so a resample would show.
 RATE = 48000
 
@@ -42,13 +43,13 @@ def option(argv: list[str], name: str) -> str:
     return argv[argv.index(name) + 1]
 
 
-def test_prepare_writes_the_five_files_and_a_summary(fake_install, flac, tmp_path):
+def test_prepare_writes_the_six_files_and_a_summary(fake_install, flac, tmp_path):
     out = tmp_path / "out"
 
     result = prepare(flac, "-o", out)
 
     assert result.exit_code == 0, result.output
-    assert listing(out) == sorted([*OUTPUTS, "transcribe.log", "generate.log"])
+    assert listing(out) == sorted([*OUTPUTS, "transcribe.log", "generate.log", "stems.log"])
     info = soundfile.info(out / "song.wav")
     assert (info.format, info.subtype) == ("WAV", "PCM_16")
     assert (info.samplerate, info.channels, info.frames) == (RATE, 2, SAMPLE_RATE)
@@ -56,28 +57,38 @@ def test_prepare_writes_the_five_files_and_a_summary(fake_install, flac, tmp_pat
     assert "Loading AMT model on cpu" in log
     assert not any(line.startswith("@@") for line in log)
     assert (out / "generate.log").read_text(encoding="utf-8").endswith(": 1 note\n")
-    worker, generator = (r["argv"] for r in fake_install.records())
+    worker, generator, splitter, measurer = (r["argv"] for r in fake_install.records())
     assert option(worker, "--audio") == str(out / "song.wav")
     assert option(generator, "--source") == str(out / "source.mid")
+    assert splitter[splitter.index("stem_splitter.cli") + 1] == str(out / "song.wav")
+    assert Path(option(measurer, "--out")).name == "stems.npz"
+    assert (out / "stems.log").read_text(encoding="utf-8").splitlines()[-1].endswith(": 100 frames")
     melody = mido.MidiFile(out / "melody.mid")
     assert [t.name for t in melody.tracks] == ["", "melody"]
     assert {m.type for m in melody.tracks[0]} == {"set_tempo", "time_signature", "end_of_track"}
     lines = result.output.splitlines()
-    for step, log_name in (("transcribing", "transcribe.log"), ("generating", "generate.log")):
+    for step, log_name in (
+        ("transcribing", "transcribe.log"),
+        ("generating", "generate.log"),
+        ("separating", "stems.log"),
+    ):
         assert any(
             line.startswith(step) and line.endswith(f"; log: {out / log_name}") for line in lines
         )
     assert any(re.fullmatch(r"transcribe: \d+ s", line) for line in lines)
     assert any(re.fullmatch(r"generate: \d+ s", line) for line in lines)
+    # The step is last: its line follows the generation's, and the summary follows it.
+    assert re.fullmatch(r"stems: \d+ s", lines[lines.index("song.wav: 0.9 s") - 1])
     # The fake's transcription strikes its three notes at once.
     assert "tempo grid: keeping tsumugi's tempo map: 1 distinct attacks, fewer than 300" in lines
     assert (out / "source.mid").read_bytes() == (out / "transcription.mid").read_bytes()
-    assert lines[-4:] == [
+    assert lines[-5:] == [
         "song.wav: 0.9 s",
         "source.mid: 6 tracks: Predicted Tempo Map 0, Predicted Chords 0, (unnamed) 0, piano 1, "
         "melody 1, drums 1",
         "melody.mid: 1 notes",
         "cover.mid: 1 notes, 0.5 s",
+        "stems.npz: 1.2 s, guitar, other, piano, vocals",
     ]
 
 
@@ -149,7 +160,7 @@ def test_a_run_with_the_transcription_kept_decodes_and_generates_again(
     assert lines[0] == f"reusing {out / 'transcription.mid'}"
     assert any(line.startswith("tempo grid: ") for line in lines)
     assert soundfile.info(out / "song.wav").samplerate == RATE
-    assert listing(out) == sorted([*OUTPUTS, "transcribe.log", "generate.log"])
+    assert listing(out) == sorted([*OUTPUTS, "transcribe.log", "generate.log", "stems.log"])
 
 
 def test_a_directory_from_before_the_grid_is_reused_as_it_is(fake_install, flac, tmp_path):
@@ -187,7 +198,7 @@ def test_a_steady_transcription_is_gridded(fake_install, flac, tmp_path):
         "tempo grid: tsumugi also ran 17% of its seconds at 60.00 bpm; the grid takes 120.00, "
         "the octave it held longer; check the bars by ear"
     ) in result.output
-    _, generator = (r["argv"] for r in fake_install.records())
+    _, generator, *_ = (r["argv"] for r in fake_install.records())
     assert option(generator, "--source") == str(out / "source.mid")
 
 
@@ -339,9 +350,11 @@ def test_an_instrumental_prepares_without_a_melody(fake_install, flac, tmp_path)
             "cover.mid",
             "transcribe.log",
             "generate.log",
+            "stems.npz",
+            "stems.log",
         ]
     )
-    assert fake_install.records()[-1]["argv"][1:3] == ["-m", "piano_cover.generate"]
+    assert fake_install.records()[-3]["argv"][1:3] == ["-m", "piano_cover.generate"]
     assert (
         "melody.mid: none: no track named 'melody'; --melody-track NAME takes a track as the melody"
         in result.output.splitlines()
@@ -384,7 +397,8 @@ def test_an_unknown_melody_track_is_a_usage_error(fake_install, flac, tmp_path):
 
     assert result.exit_code == 0, result.output
     assert f"reusing {out / 'source.mid'}" in result.output.splitlines()
-    assert len(fake_install.records()) == calls + 1
+    # The cover, then the stems: their two calls.
+    assert len(fake_install.records()) == calls + 3
 
 
 def test_an_unknown_melody_track_is_refused_on_a_finished_directory(fake_install, flac, tmp_path):
@@ -404,3 +418,83 @@ def test_an_unknown_melody_track_is_refused_on_a_finished_directory(fake_install
 
     assert result.exit_code == 0, result.output
     assert f"reusing {out / 'melody.mid'}" in result.output.splitlines()
+
+
+def splitter_wav(fake_install) -> Path:
+    argv = next(r["argv"] for r in fake_install.records() if "stem_splitter.cli" in r["argv"])
+    return Path(argv[argv.index("stem_splitter.cli") + 1])
+
+
+def test_a_mono_recording_reaches_the_splitter_with_two_channels(fake_install, tmp_path, synth):
+    mono = tmp_path / "in" / "song.flac"
+    mono.parent.mkdir()
+    soundfile.write(mono, synth, RATE)
+    out = tmp_path / "out"
+
+    # The fake splitter refuses a file of any other channel count.
+    result = prepare(mono, "-o", out)
+
+    assert result.exit_code == 0, result.output
+    assert splitter_wav(fake_install).parent != out
+    assert soundfile.info(out / "song.wav").channels == 1
+    assert listing(out) == sorted([*OUTPUTS, "transcribe.log", "generate.log", "stems.log"])
+
+
+def test_stereo_doubles_a_mono_file_and_cuts_a_wider_one(tmp_path):
+    wide = np.arange(12, dtype=np.float32).reshape(4, 3) / 16
+    for data, expected in ((wide[:, :1], wide[:, [0, 0]]), (wide, wide[:, :2])):
+        wav = tmp_path / "song.wav"
+        soundfile.write(wav, data, 8000, subtype="FLOAT")
+        scratch = tmp_path / "scratch"
+        scratch.mkdir(exist_ok=True)
+
+        copy = _stereo(wav, scratch)
+
+        assert copy == scratch / "song.wav"
+        np.testing.assert_array_equal(soundfile.read(copy, dtype="float32")[0], expected)
+    stereo = tmp_path / "stereo.wav"
+    soundfile.write(stereo, wide[:, :2], 8000)
+    assert _stereo(stereo, scratch) == stereo
+
+
+def test_a_failing_splitter_keeps_the_other_outputs(fake_install, flac, tmp_path):
+    fake_install.log.with_name("stems-fail").touch()
+    out = tmp_path / "out"
+
+    result = prepare(flac, "-o", out)
+
+    assert result.exit_code == 1
+    assert f"error: stem-splitter separate failed (1): [ERROR] boom; log: {out / 'stems.log'}" in (
+        result.output
+    )
+    # No scratch directory, stem WAV or partial table.
+    assert listing(out) == sorted(
+        [*(name for name in OUTPUTS if name != "stems.npz"), "transcribe.log", "generate.log"]
+        + ["stems.log"]
+    )
+
+
+def test_a_table_that_was_never_made_is_made_by_the_stem_calls_alone(fake_install, flac, tmp_path):
+    out = tmp_path / "out"
+    assert prepare(flac, "-o", out).exit_code == 0
+    (out / "stems.npz").unlink()
+    calls = len(fake_install.calls())
+
+    result = prepare(flac, "-o", out)
+
+    assert result.exit_code == 0, result.output
+    splitter, measurer = fake_install.calls()[calls:]
+    assert "stem_splitter.cli" in splitter
+    assert measurer[3] == str(tsumugi.STEM_WORKER)
+    assert (out / "stems.npz").is_file()
+
+
+def test_a_reused_table_that_cannot_be_read_is_an_error(fake_install, flac, tmp_path):
+    out = tmp_path / "out"
+    assert prepare(flac, "-o", out).exit_code == 0
+    (out / "stems.npz").write_bytes(b"not a table")
+
+    result = prepare(flac, "-o", out)
+
+    assert result.exit_code == 1
+    assert result.output.splitlines()[-1] == f"error: {out / 'stems.npz'}: not an npz file"

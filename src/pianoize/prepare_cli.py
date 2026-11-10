@@ -14,7 +14,7 @@ import mido
 import soundfile
 import typer
 
-from . import files, grid, steady, tsumugi
+from . import files, grid, steady, stems, tsumugi
 from .cli import _fail, _read_midi, _refuse_input, _stop_on_signals, app
 
 DEFAULT_MELODY_TRACK = "melody"
@@ -136,11 +136,38 @@ def _generate(install: tsumugi.Install, source: Path, cover: Path, scratch: Path
     typer.echo(f"generate: {time.monotonic() - start:.0f} s")
 
 
+def _stereo(wav: Path, scratch: Path) -> Path:
+    """`wav` when it has two channels, else a two-channel copy in `scratch`, as tsumugi's own
+    pipeline makes one for the stem splitter: a mono file doubled, a wider one cut to its first
+    two."""
+    try:
+        if soundfile.info(wav).channels == 2:
+            return wav
+        data, rate = soundfile.read(wav, dtype="float32", always_2d=True)
+    except (soundfile.LibsndfileError, OSError) as exc:
+        raise _fail(f"{wav}: cannot read audio: {_reason(exc)}") from exc
+    copy = scratch / wav.name
+    soundfile.write(copy, data[:, [0, min(1, data.shape[1] - 1)]], rate, subtype="PCM_16")
+    return copy
+
+
+def _stems(install: tsumugi.Install, wav: Path, table: Path, scratch: Path) -> None:
+    log = table.with_name("stems.log")
+    typer.echo(
+        "separating the stems with tsumugi's stem splitter and measuring them, about "
+        f"the song's length on an Apple-silicon Mac; log: {log}"
+    )
+    start = time.monotonic()
+    tsumugi.measure(install, _stereo(wav, scratch), scratch / table.name, log)
+    (scratch / table.name).replace(table)
+    typer.echo(f"stems: {time.monotonic() - start:.0f} s")
+
+
 def _notes(track: mido.MidiTrack) -> int:
     return sum(m.type == "note_on" and m.velocity > 0 for m in track)
 
 
-def _summary(wav: Path, source: Path, melody: Path, cover: Path) -> None:
+def _summary(wav: Path, source: Path, melody: Path, cover: Path, table: Path) -> None:
     try:
         duration = soundfile.info(wav).duration
     except (soundfile.LibsndfileError, OSError) as exc:
@@ -158,6 +185,11 @@ def _summary(wav: Path, source: Path, melody: Path, cover: Path) -> None:
         )
     played = _read_midi(cover)
     typer.echo(f"cover.mid: {sum(map(_notes, played.tracks))} notes, {played.length:.1f} s")
+    try:
+        loaded = stems.load(table)
+    except stems.StemsError as exc:
+        raise _fail(f"{table}: {exc}") from exc
+    typer.echo(f"stems.npz: {loaded.seconds:.1f} s, {', '.join(loaded.stems)}")
 
 
 @app.command()
@@ -176,7 +208,8 @@ def prepare(
         typer.Option(
             "-o",
             "--out-dir",
-            help="Where song.wav, transcription.mid, source.mid, melody.mid and cover.mid go.",
+            help="Where song.wav, transcription.mid, source.mid, melody.mid, cover.mid and "
+            "stems.npz go.",
         ),
     ],
     melody_track: Annotated[
@@ -189,8 +222,8 @@ def prepare(
         ),
     ] = None,
 ) -> None:
-    """Decode a song, transcribe it with tsumugi, fit its steady tempo grid, take its melody and
-    generate its cover.
+    """Decode a song, transcribe it with tsumugi, fit its steady tempo grid, take its melody,
+    generate its cover and measure its separated stems into a table.
 
     A file already in OUT_DIR is reused, so a stopped run picks up where it stopped.
     """
@@ -202,9 +235,16 @@ def prepare(
         out_dir.mkdir(parents=True, exist_ok=True)
     except OSError as exc:
         raise _fail(str(exc)) from exc
-    wav, transcription, source, melody, cover = (
+    wav, transcription, source, melody, cover, table = (
         out_dir / name
-        for name in ("song.wav", "transcription.mid", "source.mid", "melody.mid", "cover.mid")
+        for name in (
+            "song.wav",
+            "transcription.mid",
+            "source.mid",
+            "melody.mid",
+            "cover.mid",
+            "stems.npz",
+        )
     )
     _refuse_input(wav, [audio], "--out-dir")
     install = tsumugi.Install.from_env()
@@ -233,6 +273,9 @@ def prepare(
                 )
             if not _reusing(cover):
                 _generate(install, source, cover, scratch)
+            # Last, so a failure or a stop here loses nothing the arranging already had.
+            if not _reusing(table):
+                _stems(install, wav, table, scratch)
     except (tsumugi.TsumugiError, OSError) as exc:
         raise _fail(str(exc)) from exc
-    _summary(wav, source, melody, cover)
+    _summary(wav, source, melody, cover, table)

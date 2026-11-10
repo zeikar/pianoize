@@ -1,6 +1,6 @@
 # Preparing a song
 
-How pianoize makes a song's arranging inputs from its recording. `pianoize setup` installs tsumugi and tsumugi-piano-cover once, pinned, outside the repository. `pianoize prepare` decodes the recording, transcribes it with tsumugi, fits a steady tempo grid to the transcription, takes its melody and generates its piano cover: `transcription.mid`, `source.mid`, `melody.mid` and `cover.mid`. [docs/arranging.md](arranging.md) starts from the last three. An instrumental has no melody, and `melody.mid` is then left out or taken from the track `--melody-track` names. Both models run as separately installed tools, each with its own interpreter; pianoize imports neither. The reasons are in [docs/decisions.md](decisions.md#preparing-a-song).
+How pianoize makes a song's arranging inputs from its recording. `pianoize setup` installs tsumugi and tsumugi-piano-cover once, pinned, outside the repository. `pianoize prepare` decodes the recording, transcribes it with tsumugi, fits a steady tempo grid to the transcription, takes its melody, generates its piano cover and measures the recording's separated stems into a table: `transcription.mid`, `source.mid`, `melody.mid`, `cover.mid` and `stems.npz`. [docs/arranging.md](arranging.md) starts from `source.mid`, `melody.mid` and `cover.mid`, and its `check-line` reads the table. An instrumental has no melody, and `melody.mid` is then left out or taken from the track `--melody-track` names. Both models run as separately installed tools, each with its own interpreter; pianoize imports neither. The reasons are in [docs/decisions.md](decisions.md#preparing-a-song).
 
 ```
 pianoize setup
@@ -90,7 +90,7 @@ Each prints `error: …` and exits 1:
 ### Requirements
 
 - **git and uv** on `PATH`.
-- **FFmpeg's shared libraries**, which tsumugi's torchcodec loads to read the audio; `prepare` needs them, not setup. On macOS, Homebrew's (`brew install ffmpeg`). tsumugi's locked torchcodec 0.16 has no rpath to them, so pianoize sets `DYLD_FALLBACK_LIBRARY_PATH=/opt/homebrew/lib` for the worker's process only, unless it is set already. Homebrew's FFmpeg is a GPL build, loaded only inside tsumugi's process, as [the license decisions](decisions.md#licenses) record.
+- **FFmpeg's shared libraries**, which tsumugi's torchcodec loads to read the audio, in the transcription's process and in the stem splitter's; `prepare` needs them, not setup. On macOS, Homebrew's (`brew install ffmpeg`). tsumugi's locked torchcodec 0.16 has no rpath to them, so pianoize sets `DYLD_FALLBACK_LIBRARY_PATH=/opt/homebrew/lib` for those two processes only, unless it is set already. Homebrew's FFmpeg is a GPL build, loaded only inside tsumugi's process, as [the license decisions](decisions.md#licenses) record.
 - **The network,** for setup's first run. `prepare` downloads nothing.
 
 ### Removing it
@@ -113,8 +113,10 @@ Where the variables above are set, remove the home and the hub cache's `models--
 | `source.mid` | pianoize, from `transcription.mid` | the transcription on a steady tempo grid ([below](#the-tempo-grid)), or a byte copy of it when the fit is not applied |
 | `melody.mid` | pianoize, from `source.mid` | an unnamed first track with `source.mid`'s tempo changes and time signatures, no chord markers, then its `melody` track, or the track `--melody-track` names. An instrumental has no `melody` track, and then no `melody.mid` |
 | `cover.mid` | tsumugi-piano-cover's generator, `piano_cover.generate`, from `source.mid` | the piano cover, seed 0 |
+| `stems.npz` | tsumugi's stem splitter, then pianoize's worker, from `song.wav` | the stem table ([below](#the-stem-table)); made last |
 | `transcribe.log` | the transcription | tsumugi's output |
 | `generate.log` | the generation | the generator's output |
+| `stems.log` | the stem table | the splitter's output, then the worker's |
 
 A made-up run prints:
 
@@ -125,16 +127,30 @@ tempo grid: 128.00 bpm, first downbeat at 0.512 s, 91% of 5210 attacks within a 
 tempo grid: tsumugi also ran 24% of its seconds at 64.00 bpm; the grid takes 128.00, the octave it held longer; check the bars by ear
 generating the cover with tsumugi-piano-cover, about a third of the song's length on an Apple-silicon Mac; log: /…/work/a-made-up-song/generate.log
 generate: 68 s
+separating the stems with tsumugi's stem splitter and measuring them, about the song's length on an Apple-silicon Mac; log: /…/work/a-made-up-song/stems.log
+stems: 214 s
 song.wav: 212.4 s
 source.mid: 8 tracks: Predicted Tempo Map 0, Predicted Chords 0, (unnamed) 0, piano 1210, electric_bass 640, strings 455, melody 398, drums 1302
 melody.mid: 398 notes
 cover.mid: 2214 notes, 210.9 s
+stems.npz: 212.4 s, guitar, other, piano, vocals
 ```
 
 - **Each tool step** prints a line as it starts, naming its log, and its wall time in seconds when it ends. The decode and the melody print nothing. Every path printed is absolute.
 - **The grid** prints one `tempo grid:` line when `source.mid` is made: the fit, or why it is not applied ([below](#the-tempo-grid)).
-- **The summary** is the last four lines: `song.wav`'s length in seconds; `source.mid`'s tracks, each with its notes, in the file's order, a track without a name as `(unnamed)`; `melody.mid`'s notes, or on an instrumental `melody.mid: none: no track named 'melody'; --melody-track NAME takes a track as the melody`; `cover.mid`'s notes and its length in seconds. A note is a note-on with a velocity above 0. Every run that succeeds prints it, from reused files too.
+- **The summary** is the last five lines: `song.wav`'s length in seconds; `source.mid`'s tracks, each with its notes, in the file's order, a track without a name as `(unnamed)`; `melody.mid`'s notes, or on an instrumental `melody.mid: none: no track named 'melody'; --melody-track NAME takes a track as the melody`; `cover.mid`'s notes and its length in seconds; `stems.npz`'s length in seconds and the stems it measures. A note is a note-on with a velocity above 0. Every run that succeeds prints it, from reused files too.
 - **The logs** hold each tool's output and errors in order, written a line at a time, so `tail -f` follows a run, and a progress bar's redraws come as lines of their own. The `@@` lines the worker streams to Cover Studio's page are left out. tsumugi's log names the device as it loads each model (`Loading … on mps`). A step that runs again starts its log afresh; a failed step's log stays.
+
+### The stem table
+
+`stems.npz` is what [`check-line`](arranging.md#checking-a-line-against-the-audio) compares a transcribed line with. The last step runs tsumugi's stem splitter on a two-channel copy of `song.wav` (the recording itself when it has two channels; a mono one doubled, a wider one cut to its first two, as tsumugi's own pipeline does), into the scratch directory, then pianoize's worker (`src/pianoize/workers/stem_worker.py`) reads four of the six stems and writes the table. The stems themselves are never kept: the scratch directory is removed, and only the table is renamed into place.
+
+The stems are separated a second time because Cover Studio's worker deletes the stems of the transcription's run and has no option to keep them, and pianoize runs it as installed. A step of its own also gives the table to a folder prepared before it. It runs last, so a failure or a stop there loses nothing the arranging already had.
+
+- **Format.** An npz file written with `numpy.savez_compressed`, read with `allow_pickle=False`, a few megabytes for a five-minute song. `version` is 1; frame i is centred on i × `frame_seconds` (512/44100 s) and every per-frame array has the same frame count.
+- **`guitar`, `other`, `piano`:** uint8, 72 rows by frames, one row per semitone from `low_pitch` (36, C2) to B7. A cell is the loudest of its semitone's three constant-Q bins (36 bins an octave from a third of a semitone under C2, hop 512 at 44.1 kHz, the channels averaged), in half-dB steps under the stem's loudest cell: 255 is 0 dB, 0 is -127.5 dB or less.
+- **`vocals_pitch`:** float32 per frame, `librosa.pyin`'s pitch as a fractional MIDI number (the stem at 22.05 kHz, hop 256, frame 2048, A2 to C6), NaN where unvoiced; `vocals_low` 45 and `vocals_high` 84 are that range's MIDI pitches. `vocals_level`: uint8 per frame, the stem's RMS on the same scale under its loudest frame.
+- **Not measured:** `bass` and `drums`. Semitone resolution in the bass register needs windows over a second long, which smear where a note starts and ends, and drums have no pitch. `check-line` refuses a track that reads against them.
 
 ### The tempo grid
 
@@ -163,7 +179,7 @@ tsumugi's tempo map comes from a beat tracker, which can run at half speed over 
 
 ### Devices and time
 
-tsumugi runs on CUDA, else MPS, else the CPU; the generator on CUDA, else the CPU. On an Apple-silicon Mac, the transcription takes about twice the song's length, on MPS, and the cover about a third of it, on the CPU: in M1, 496 s and 75 s for a 251 s song.
+tsumugi runs on CUDA, else MPS, else the CPU; the generator on CUDA, else the CPU. On an Apple-silicon Mac, the transcription takes about twice the song's length, on MPS, and the cover about a third of it, on the CPU: in M1, 496 s and 75 s for a 251 s song. The stem table takes about the song's length: the separation, then the worker's measuring, whose pitch tracking is most of the step's memory, a peak of about 2.6 GB for five minutes of stems.
 
 ### Reusing outputs
 
@@ -175,20 +191,22 @@ A step whose output is already in `DIR` is skipped, with `reusing <path>`, and t
 
   | to redo | delete |
   | --- | --- |
-  | `song.wav` | all five: `song.wav`, `transcription.mid`, `source.mid`, `melody.mid` and `cover.mid` |
+  | `song.wav` | all six: `song.wav`, `transcription.mid`, `source.mid`, `melody.mid`, `cover.mid` and `stems.npz` |
   | `transcription.mid` | it and the three made from it: `source.mid`, `melody.mid` and `cover.mid`. A new transcription is a new draw |
   | `source.mid` | it, `melody.mid` and `cover.mid`: it is gridded again from `transcription.mid`, which is transcribed first if there is none |
   | `melody.mid` | `melody.mid` alone |
   | `cover.mid` | `cover.mid` alone |
+  | `stems.npz` | `stems.npz` alone: the stems are separated again from `song.wav` |
 
+- **A directory from before the table** has no `stems.npz`; running `prepare` again makes it from `song.wav` and reuses the rest, so the two stem calls are all it runs.
 - **A directory from before the grid** has a raw `source.mid` and no `transcription.mid`. It is reused as it is and runs no tool; nothing is migrated. To grid its draw, copy `source.mid` to `transcription.mid`, then delete `source.mid`, `melody.mid` and `cover.mid`. This applies to a directory made before 2026-10-14.
 - **`--melody-track`.** A known name reuses an existing `melody.mid`, whichever track it was made from; delete `melody.mid` to take another track. An unknown name is refused before `melody.mid` is reused.
 
-The install is checked before any step, so even a run that would reuse all five needs it.
+The install is checked before any step, so even a run that would reuse all six needs it.
 
 ### Writing
 
-Each output appears whole or not at all. `song.wav`, `source.mid` and `melody.mid` are written by pianoize to a scratch file beside their destination and renamed into place. The tools write `transcription.mid` and `cover.mid` into a scratch directory, `.prepare-*` in `DIR`, from which each is renamed into place once its step succeeds. The scratch directory also holds tsumugi's stems while it runs, and is removed when the run ends, whether it succeeds, fails or is [stopped](#stopping). A run killed outright, by SIGKILL (`kill -9`) or a crash, leaves its `.prepare-*` directory behind, and later runs don't sweep it: delete it by hand. Either way, a failed or stopped step leaves no output, never a partial one, and a file `prepare` reuses is a finished one.
+Each output appears whole or not at all. `song.wav`, `source.mid` and `melody.mid` are written by pianoize to a scratch file beside their destination and renamed into place. The tools write `transcription.mid`, `cover.mid` and `stems.npz` into a scratch directory, `.prepare-*` in `DIR`, from which each is renamed into place once its step succeeds. The scratch directory also holds tsumugi's stems, and the two-channel copy of a recording that isn't stereo, while it runs, and is removed when the run ends, whether it succeeds, fails or is [stopped](#stopping). A run killed outright, by SIGKILL (`kill -9`) or a crash, leaves its `.prepare-*` directory behind, and later runs don't sweep it: delete it by hand. Either way, a failed or stopped step leaves no output, never a partial one, and a file `prepare` reuses is a finished one.
 
 ### Stopping
 
@@ -207,20 +225,24 @@ error: tsumugi transcribe: a stage failed: <the warning line>; log: <DIR>/transc
 error: <DIR>/song.wav: cannot read audio: <reason>
 error: melody: <reason>
 error: tsumugi-piano-cover generate failed (<exit code>): <reason>; log: <DIR>/generate.log
+error: stem-splitter separate failed (<exit code>): <reason>; log: <DIR>/stems.log
+error: stem worker measure failed (<exit code>): <reason>; log: <DIR>/stems.log
+error: <DIR>/stems.npz: <reason>
 ```
 
 - **Not installed** is checked first. Each missing piece is named with its path, tsumugi's checkpoints among them: `tsumugi at a700b8c (…)`, `the tsumugi-piano-cover weights (…)`.
 - **decode** refuses a format libsndfile doesn't read, an m4a for one (`Format not recognised`). Converting it locally keeps the audio on the machine: `ffmpeg -i song.m4a song.flac`.
-- **A tool's failure** quotes, as its reason, the output's last line naming a Python exception (`RuntimeError: …`), else its last non-blank line that isn't an `@@` line, cut to 200 characters. Read the log for the rest. A tool that exits 0 without its file fails as `tsumugi transcribe wrote no …; log: …` or `tsumugi-piano-cover generate wrote no …; log: …`, and an interpreter that won't start as `cannot run <interpreter>: …`.
+- **A tool's failure** quotes, as its reason, the output's last line naming a Python exception (`RuntimeError: …`), else its last non-blank line that isn't an `@@` line, cut to 200 characters. Read the log for the rest. A tool that exits 0 without its file fails as `tsumugi transcribe wrote no …; log: …`, `tsumugi-piano-cover generate wrote no …; log: …`, `stem-splitter separate wrote no <stem WAV>; log: …` or `stem worker measure wrote no …; log: …`, and an interpreter that won't start as `cannot run <interpreter>: …`.
 - **melody** fails on a `source.mid` without a tempo map. A missing `melody` track is no error: an instrumental has no `melody.mid`. A missing track named by `--melody-track` is a usage error, above.
 - **A file in `DIR` that isn't MIDI**, reused as `transcription.mid`, `source.mid`, `melody.mid` or `cover.mid`, fails as `<path>: cannot read MIDI: …`. A corrupt `transcription.mid` fails every rerun that needs it; delete it to transcribe again.
+- **A `stems.npz` that can't be read** (one reused, or one just made) fails as `<path>: <reason>`: `not an npz file`, `version N`, with the one pianoize reads, `missing array …`, `arrays of unequal frame counts: …` or `no frames`. Delete it to measure again. A `song.wav` that can't be read fails as `<path>: cannot read audio: <reason>`.
 - **A `DIR` that can't be made**, or an output that can't be moved into place, prints the system's error.
 
-A failed step keeps every output made before it, and its log.
+A failed step keeps every output made before it, and its log; a failed stem step leaves the five other outputs and no table.
 
 ### Determinism
 
-tsumugi's transcription is one draw, not a result a second run repeats ([decision](decisions.md#preparing-a-song)), so `transcription.mid` is kept and reused rather than made again. The grid is deterministic: the same `transcription.mid` gives a byte-identical `source.mid`. The cover is generated with seed 0. On the development Mac the same `source.mid` gave a byte-identical `cover.mid` on the CPU; this page claims no more for other machines.
+tsumugi's transcription is one draw, not a result a second run repeats ([decision](decisions.md#preparing-a-song)), so `transcription.mid` is kept and reused rather than made again. The grid is deterministic: the same `transcription.mid` gives a byte-identical `source.mid`. The stem table is one draw like the transcription: the separation and the pitch tracker run on whatever device is there, so `stems.npz` is kept and reused rather than made again, and this page claims no byte-identical rerun. The cover is generated with seed 0. On the development Mac the same `source.mid` gave a byte-identical `cover.mid` on the CPU; this page claims no more for other machines.
 
 ## Running the skill
 

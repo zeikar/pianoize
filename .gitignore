@@ -33,6 +33,8 @@ work/
 *.m4a
 *.ogg
 *.aac
+# The stem table prepare measures from a recording
+*.npz
 # Arrangements and videos made from those recordings
 *.mid
 *.midi
