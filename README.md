@@ -59,9 +59,10 @@ pianoize is developed on an Apple-silicon Mac.
 
 ## How it works
 
-**prepare** (transcription, melody, cover) → **arrange** (Claude writes the score) → **build and check** (two-hand MIDI) → **play** (audio, the viewer, an MP4)
+**prepare** (transcription, melody, cover, stem table) → **arrange** (Claude writes the score) → **build and check** (two-hand MIDI) → **play** (audio, the viewer, an MP4)
 
 - **An agent writes the arrangement, code builds and checks it.** The arranger dumps the song bar by bar and writes a per-bar score for two hands into `work/`. pianoize turns the score into MIDI on the song's tempo grid, every note at one velocity, and checks that it is playable, unless it is a full arrangement written for listening, and that it fits the harmony ([decision](docs/decisions.md#an-agent-writes-the-arrangement)).
+- **The audio check.** The arranger can't hear, so `check-line` compares a transcribed line with the stem table and lists the notes the recording doesn't support and the stretches it sounds with no note. tsumugi still transcribes everything: the list is evidence to weigh, never flagged ([decision](docs/decisions.md#the-audio-check)).
 - **Three paths.** M1 compared the audio-to-piano models that run on a Mac; tsumugi-piano-cover kept the most harmony and sounded best, and its cover was the first starting point ([decision](docs/decisions.md#the-arrangement-starts-from-tsumugi-piano-cover)); it is now the path taken when you ask for it. An instrumental is arranged from tsumugi's transcription of the band alone ([decision](docs/decisions.md#the-transcription-only-arrangement)), and a sung song from the transcription and its melody, the band's parts over a pianist's left hand ([decision](docs/decisions.md#the-vocal-arrangement)). Neither reads the cover, so neither carries its non-commercial terms.
 - **Polishing the cover, the earlier path.** A [chordotomy](https://github.com/zeikar/chordotomy) timeline gives beats, chords, bass and key; tsumugi's transcription gives another reading. Each gets things wrong, so none is the answer key: an agent weighs them against each other and against the notes, and writes one refined harmony timeline. chordotomy itself stays an analyzer. Code then lists the places in the cover that may need work: chords that disagree with the refined harmony, notes that sound like slips, awkward voice leading and stumbling timing. An agent judges each one and writes a correction spec, and code applies it to a copy of the cover ([docs/polishing.md](docs/polishing.md)). It works, but at the listening gate an arrangement an agent wrote sounded better, so polishing is no longer the main path.
 - **Falling notes.** A piano roll drawn over time needs no bar lines or time signature. One web page draws every frame, so the browser preview and the MP4 can't disagree ([docs/rendering.md](docs/rendering.md)).
@@ -74,11 +75,11 @@ Every step runs, from a link to a video, and the first full-song arrangement and
 | --- | --- | --- |
 | M1 | a trial of the audio-to-piano models, scored against the original's harmony ([scripts](experiments/m1/README.md)) | `evaluate`, `render`, `melody-clashes` |
 | M2 | polishing the cover, with the [`polish-cover`](skills/polish-cover/SKILL.md) skill | `harmony-evidence`, `refine-timeline`, `find-candidates`, `apply-corrections` |
-| M3 | an arrangement an agent writes, with the arranging skills | `regrid`, `build-grid`, `dump-bars`, `build-arrangement`, `check-arrangement` |
+| M3 | an arrangement an agent writes, with the arranging skills | `regrid`, `build-grid`, `dump-bars`, `check-line`, `build-arrangement`, `check-arrangement` |
 | M4 | the falling-notes viewer and video | `export-arrangement`, `preview-video`, `render-video` |
 | | song preparation, with the [`prepare-song`](skills/prepare-song/SKILL.md) skill | `setup`, `prepare` |
 
-`prepare` fits a steady tempo grid to the transcription, and prepares instrumentals, which have no melody unless `--melody-track` names one.
+`prepare` fits a steady tempo grid to the transcription, measures the recording's separated stems into a table, `stems.npz`, and prepares instrumentals, which have no melody unless `--melody-track` names one.
 
 ## Rules
 
@@ -108,6 +109,7 @@ Requires [uv](https://docs.astral.sh/uv/). The viewer also needs [Node.js](https
 uv sync --extra dev
 uv run pianoize --version
 uv run pytest
+uv run pytest -m tsumugi   # opt in: the stem worker in tsumugi's environment, needs `pianoize setup`
 uv run ruff check . && uv run ruff format --check .
 (cd viewer && npm ci && npm test)
 ```
@@ -129,7 +131,7 @@ uv run pianoize render-video arranged.mid --cards cards.txt -o video.mp4
 - `experiments/`: [M1 model trial](experiments/m1/README.md) scripts; the scripts and their environments lived in `work/m1/`; the tsumugi install moved to the pianoize home
 - `docs/`: the pages listed under [Documentation](#documentation)
 - `skills/`: the Claude Code skills; [`prepare-song`](skills/prepare-song/SKILL.md) makes a song's inputs, [`polish-cover`](skills/polish-cover/SKILL.md) drives the M2 polishing commands, [`arrange-vocal`](skills/arrange-vocal/SKILL.md) the M3 arranging commands from the transcription and the melody, the default for a sung song, [`arrange-transcription`](skills/arrange-transcription/SKILL.md) the same from the transcription alone, the default for an instrumental, [`arrange-cover`](skills/arrange-cover/SKILL.md) the same from the cover, and [`make-video`](skills/make-video/SKILL.md) renders the video and writes its upload
-- `arranging/`: the rule files the arranging skills share: reading the dump, the common rules, a file per right and left hand, a front end per input, exceptions for improvised solos and sections the piano leads, the arranger's workflow and the main session's steps
+- `arranging/`: the rule files the arranging skills share: reading the dump, the common rules, a file per right and left hand, a front end per input, the audio check, exceptions for improvised solos and sections the piano leads, the arranger's workflow and the main session's steps
 - `agents/`: the Claude Code subagent [`arranger`](agents/arranger.md), which the arranging skills dispatch to write the score and loop its build and check
 - `.claude-plugin/`: the manifests that make the repository a Claude Code plugin and its own marketplace
 - `.github/workflows/`: `pages.yml`, which publishes the viewer to GitHub Pages
