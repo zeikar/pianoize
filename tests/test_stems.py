@@ -1,8 +1,11 @@
+import mido
 import numpy as np
 import pytest
+from typer.testing import CliRunner
 
 from pianoize import stems
 from pianoize.bars import Meter
+from pianoize.cli import app
 from pianoize.notes import Note
 
 FS = 512 / 44100  # seconds a frame
@@ -545,3 +548,181 @@ def test_a_table_12_db_quieter_gives_the_same_report(reported):
     report = reported(line, band=band)
     assert report.count("\n") == 2
     assert reported(line, band=band, shift=12) == report
+
+
+# check-line
+
+TICKS_PER_SECOND = 960  # 480 ticks a beat at 120 bpm
+
+
+def write_midi(path, tracks, *, kind=1):
+    """A MIDI file of named tracks from (onset, offset, pitch) in seconds, and a conductor first
+    when it has several."""
+    midi = mido.MidiFile(type=kind, ticks_per_beat=480)
+    for name, line in tracks.items():
+        events = [(0, 0, mido.MetaMessage("track_name", name=name))] if name else []
+        for onset, offset, pitch in line:
+            events.append((round(onset * TICKS_PER_SECOND), 1, mido.Message("note_on", note=pitch)))
+            events.append(
+                (round(offset * TICKS_PER_SECOND), 0, mido.Message("note_off", note=pitch))
+            )
+        track, now = mido.MidiTrack(), 0
+        for tick, _, message in sorted(events, key=lambda event: event[:2]):
+            track.append(message.copy(time=tick - now))
+            now = tick
+        midi.tracks.append(track)
+    midi.save(path)
+    return path
+
+
+@pytest.fixture
+def check_line(tmp_path, stem_table):
+    """Runs `check-line` on a cover and a file of named tracks, with a table of a voice or a band
+    as `other`, and `args` after them."""
+
+    def run(tracks, *args, voice=None, band=None, kind=1):
+        cover = write_midi(tmp_path / "cover.mid", {"": [(0.0, 0.1, 60)]})
+        line = write_midi(tmp_path / "line.mid", tracks, kind=kind)
+        voice = voice or Voice()
+        levels = None if band is None else {"other": band.rows}
+        table = stem_table(FRAMES, levels, voice.pitch, voice.level)
+        argv = ["check-line", str(line), "--cover", str(cover), "--stems", str(table), *args]
+        return CliRunner().invoke(app, argv)
+
+    return run
+
+
+def pairs(line):
+    return [(note.onset, note.offset, note.pitch) for note in line]
+
+
+def test_check_line_prints_the_report_of_a_melody_file(check_line):
+    line, voice = report_song()
+    result = check_line({"melody": pairs(line)}, voice=voice)
+    assert result.exit_code == 0  # a line is listed, never flagged
+    assert result.output == (
+        "bar 2 pos 2  0:02.25  pitch  E5 (2)  audio D5 100%\n"
+        "bar 2 pos 4  0:02.50  octave  E5 (2)  audio E4 100%\n"
+        "bar 2 pos 8  0:03.00  silent  G5 (4)  audio - 0%\n"
+        "bar 3 pos 0  0:03.99  pitch  G5 (2)  audio F5 100%\n"
+        "bar 3 pos 8  0:05.00  untranscribed  A4 (4)  +0 dB\n"
+        "audio check: vocals, 4 of 5 notes unsupported, 1 untranscribed\n"
+    )
+
+
+def test_check_line_reads_a_track_of_a_source_beside_the_others_of_its_stem(check_line):
+    line, band = levels_song()
+    source = {
+        "drums": [(0.0, 0.1, 36)],
+        "electric_bass": [(0.0, 0.5, 76)],
+        "strings": pairs(line),
+        "synth_pad": [(1.6, 2.1, 76)],
+    }
+    result = check_line(source, "--track", "strings", band=band)
+    assert result.exit_code == 0
+    assert result.output == (
+        "bar 1 pos 5.5  0:00.69  octave  C4 (3.5)  audio C5 100%\n"
+        "bar 1 pos 14  0:01.74  untranscribed  E5 (4.5)  -3 dB  also synth_pad E5\n"
+        "audio check: other, 1 of 3 notes unsupported, 1 untranscribed\n"
+    )
+
+
+def test_check_line_stem_overrides_the_track_name(check_line):
+    line, voice = report_song()
+    result = check_line({"strings": pairs(line)}, "--stem", "vocals", voice=voice)
+    assert result.exit_code == 0
+    assert result.output.endswith(
+        "audio check: vocals, 4 of 5 notes unsupported, 1 untranscribed\n"
+    )
+
+
+def test_check_line_bars_keeps_what_lies_in_them(check_line):
+    line, voice = report_song()
+    result = check_line({"melody": pairs(line)}, "--bars", "2-2", voice=voice)
+    assert result.exit_code == 0
+    assert result.output == (
+        "bar 2 pos 2  0:02.25  pitch  E5 (2)  audio D5 100%\n"
+        "bar 2 pos 4  0:02.50  octave  E5 (2)  audio E4 100%\n"
+        "bar 2 pos 8  0:03.00  silent  G5 (4)  audio - 0%\n"
+        "audio check: vocals, 3 of 3 notes unsupported, 0 untranscribed\n"
+    )
+    result = check_line({"melody": pairs(line)}, "--bars", "3-3", voice=voice)
+    assert result.exit_code == 0
+    assert result.output.splitlines()[-1] == (
+        "audio check: vocals, 1 of 1 notes unsupported, 1 untranscribed"
+    )
+
+
+def test_check_line_bars_keeps_a_downbeat_of_its_first_bar_and_not_of_the_next(check_line):
+    line = [(2.0, 2.5, 72), (4.0, 4.5, 72)]  # on the downbeats of bars 2 and 3, over silence
+    result = check_line({"melody": line}, "--bars", "2-2")
+    assert result.exit_code == 0
+    assert result.output == (
+        "bar 2 pos 0  0:02.00  silent  C5 (4)  audio - 0%\n"
+        "audio check: vocals, 1 of 1 notes unsupported, 0 untranscribed\n"
+    )
+
+
+@pytest.mark.parametrize(
+    ("tracks", "args", "message"),
+    [
+        (
+            {"melody": [(1.0, 1.5, 72)], "choir": [(1.0, 1.5, 60)]},
+            [],
+            "2 tracks have notes; name one with --track; tracks named: 'melody', 'choir'",
+        ),
+        (
+            {"melody": [(1.0, 1.5, 72)]},
+            ["--track", "choir"],
+            "no track named 'choir'; tracks named: 'melody'",
+        ),
+        (
+            {"": [(1.0, 1.5, 72)]},
+            [],
+            "no stem for an unnamed track; name one with --stem: guitar, other, piano, vocals",
+        ),
+        (
+            {"melody": [(1.0, 1.5, 72)], "choir": [(1.0, 1.5, 60)], "": [(0.0, 0.1, 60)]},
+            [],
+            "3 tracks have notes; name one with --track; tracks named: 'melody', 'choir'",
+        ),
+        (
+            {"kazoo": [(1.0, 1.5, 72)]},
+            [],
+            "no stem for track 'kazoo'; name one with --stem: guitar, other, piano, vocals",
+        ),
+        (
+            {"electric_bass": [(1.0, 1.5, 40)]},
+            [],
+            "stem 'bass' is not measured; name one with --stem: guitar, other, piano, vocals",
+        ),
+        (
+            {"melody": [(1.0, 1.5, 72)]},
+            ["--stem", "brass"],
+            "stem 'brass' is not in the table; name one with --stem: guitar, other, piano, vocals",
+        ),
+    ],
+)
+def test_check_line_names_a_line_or_stem_it_cannot_read(
+    tmp_path, check_line, tracks, args, message
+):
+    result = check_line(tracks, *args)
+    assert result.exit_code == 1
+    assert result.output == f"error: {tmp_path / 'line.mid'}: {message}\n"
+
+
+def test_check_line_refuses_an_unreadable_table(tmp_path):
+    table = tmp_path / "stems.npz"
+    table.write_text("not a table")
+    cover = write_midi(tmp_path / "cover.mid", {"": [(0.0, 0.1, 60)]})
+    line = write_midi(tmp_path / "line.mid", {"melody": [(1.0, 1.5, 72)]})
+    argv = ["check-line", str(line), "--cover", str(cover), "--stems", str(table)]
+    result = CliRunner().invoke(app, argv)
+    assert result.exit_code == 1
+    assert result.output == f"error: {table}: not an npz file\n"
+
+
+def test_check_line_refuses_a_type_2_file(check_line):
+    result = check_line({"melody": [(1.0, 1.5, 72)]}, kind=2)
+    assert result.exit_code == 1
+    assert "a type 2 MIDI file" in result.output

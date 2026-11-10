@@ -23,10 +23,26 @@ from . import (
     notes,
     playability,
     regrid,
+    stems,
 )
 from .cli import _fail, _read_midi, _refuse_input, app
 
 _RANGE = re.compile(r"(\d+)-(\d+)")
+
+
+def _parse_bars(bar_range: str | None) -> tuple[int, int] | None:
+    """The bars A to B of a `--bars A-B`, or None without it."""
+    if bar_range is None:
+        return None
+    match = _RANGE.fullmatch(bar_range)
+    if not match:
+        raise typer.BadParameter(f"{bar_range!r} is not A-B", param_hint="--bars")
+    selected = int(match[1]), int(match[2])
+    if not 1 <= selected[0] <= selected[1]:
+        raise typer.BadParameter(
+            f"{bar_range!r}: bars count from 1 and A is at most B", param_hint="--bars"
+        )
+    return selected
 
 
 def _read_timed(path: Path) -> mido.MidiFile:
@@ -245,16 +261,7 @@ def dump_bars(
         raise typer.BadParameter(
             "needs --source, whose instrument lines it prints", param_hint="--every-note"
         )
-    selected = None
-    if bar_range is not None:
-        match = _RANGE.fullmatch(bar_range)
-        if not match:
-            raise typer.BadParameter(f"{bar_range!r} is not A-B", param_hint="--bars")
-        selected = int(match[1]), int(match[2])
-        if not 1 <= selected[0] <= selected[1]:
-            raise typer.BadParameter(
-                f"{bar_range!r}: bars count from 1 and A is at most B", param_hint="--bars"
-            )
+    selected = _parse_bars(bar_range)
     midi = _read_midi(cover)
     melody = None if melody_path is None else _read_timed(melody_path)
     source = None if source_path is None else _read_timed(source_path)
@@ -264,6 +271,126 @@ def dump_bars(
         raise _fail(f"{cover}: {exc}") from exc
     for line in found:
         typer.echo(line)
+
+
+def _line_stem(
+    midi: mido.MidiFile, track: str | None, stem: str | None, table: stems.Table
+) -> tuple[list[notes.Note], dict[str, list[notes.Note]], str]:
+    """The line's notes, the other tracks reading against the same stem by name, and the stem
+    the line is read against."""
+    if track is None:
+        with_notes = [
+            (named.name, found)
+            for i, named in enumerate(midi.tracks)
+            if (found := notes.read(midi, [i]))
+        ]
+        if len(with_notes) != 1:
+            names = ", ".join(
+                repr(name) for name in dict.fromkeys(t.name for t in midi.tracks if t.name)
+            )
+            raise evidence.EvidenceError(
+                f"{len(with_notes)} tracks have notes; name one with --track; "
+                f"tracks named: {names or 'none'}"
+            )
+        track, line = with_notes[0]
+    else:
+        line = evidence.track_notes(midi, track)
+    chosen = stem or stems.STEM_OF.get(track)
+    if chosen is None:
+        which = f"track {track!r}" if track else "an unnamed track"
+        raise stems.StemsError(
+            f"no stem for {which}; name one with --stem: {', '.join(table.stems)}"
+        )
+    if chosen not in table.stems:
+        reason = "is not measured" if chosen in stems.STEM_OF.values() else "is not in the table"
+        raise stems.StemsError(
+            f"stem {chosen!r} {reason}; name one with --stem: {', '.join(table.stems)}"
+        )
+    others = {}
+    for other in midi.tracks:
+        reads_chosen = other.name != track and stems.STEM_OF.get(other.name) == chosen
+        if reads_chosen and (found := evidence.track_notes(midi, other.name)):
+            others[other.name] = found
+    return line, others, chosen
+
+
+@app.command("check-line")
+def check_line(
+    line_path: Annotated[Path, typer.Argument(metavar="LINE.mid", exists=True, dir_okay=False)],
+    cover: Annotated[
+        Path,
+        typer.Option(
+            "--cover",
+            metavar="COVER.mid",
+            help="The cover whose meter and tempo map place the report on bars.",
+            exists=True,
+            dir_okay=False,
+        ),
+    ],
+    stems_path: Annotated[
+        Path,
+        typer.Option(
+            "--stems",
+            metavar="STEMS.npz",
+            help="The stem table `prepare` wrote.",
+            exists=True,
+            dir_okay=False,
+        ),
+    ],
+    track: Annotated[
+        str | None,
+        typer.Option(
+            "--track",
+            metavar="NAME",
+            help="The track of LINE.mid to check. Default: its one track with notes.",
+        ),
+    ] = None,
+    stem: Annotated[
+        str | None,
+        typer.Option(
+            "--stem",
+            metavar="STEM",
+            help="The stem to read the line against. Default: the one the track's name reads "
+            "against.",
+        ),
+    ] = None,
+    bar_range: Annotated[
+        str | None,
+        typer.Option("--bars", metavar="A-B", help="List only what lies in bars A to B."),
+    ] = None,
+) -> None:
+    """List where a transcribed line and the recording's stem disagree.
+
+    The notes the stem doesn't support and the stretches it sounds with no note are listed, never
+    flagged: the exit code is 0 whatever is listed.
+    """
+    selected = _parse_bars(bar_range)
+    midi = _read_midi(cover)
+    if midi.type == 2:
+        raise _fail(f"{cover}: a type 2 MIDI file's tracks share no timeline to place notes on")
+    try:
+        meter = bars.meter(midi)
+    except bars.MeterError as exc:
+        raise _fail(f"{cover}: {exc}") from exc
+    tempo_map = notes.tempo_map(midi)
+    line_midi = _read_timed(line_path)
+    try:
+        table = stems.load(stems_path)
+    except stems.StemsError as exc:
+        raise _fail(f"{stems_path}: {exc}") from exc
+    try:
+        line, others, chosen = _line_stem(line_midi, track, stem, table)
+    except (evidence.EvidenceError, stems.StemsError) as exc:
+        raise _fail(f"{line_path}: {exc}") from exc
+
+    def in_range(seconds: float) -> bool:
+        if selected is None:
+            return True
+        tick = notes.tick_in(tempo_map, meter.ticks_per_beat, seconds)
+        return selected[0] <= bars.nearest(meter, tick)[0] <= selected[1]
+
+    found, read = stems.items(table, chosen, line, others, in_range)
+    typer.echo(stems.report(found, read, chosen, meter, tempo_map))
 
 
 @app.command("regrid")
