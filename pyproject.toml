@@ -38,8 +38,9 @@ select = ["E", "F", "I", "B", "UP", "SIM"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-q"
+addopts = '-q -m "not tsumugi"'
 markers = [
   "fluidsynth: renders with the real FluidSynth; needs it on PATH and PIANOIZE_SOUNDFONT",
   "video: captures with the installed Chrome, node and ffmpeg; slow",
+  "tsumugi: runs in the installed tsumugi environment; needs pianoize setup",
 ]

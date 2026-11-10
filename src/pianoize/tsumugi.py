@@ -1,5 +1,5 @@
 """Where the tsumugi tools live, which versions pianoize pins, what is missing, the setup that
-installs them, and the transcription and the generation that run them."""
+installs them, and the transcription, the stem measuring and the generation that run them."""
 
 import hashlib
 import os
@@ -12,7 +12,12 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
+from .stems import LEVEL_STEMS, PITCH_STEM
+
 HOME_ENV = "PIANOIZE_HOME"
+
+# Measures the separated stems into the stem table, run by tsumugi's interpreter.
+STEM_WORKER = Path(__file__).parent / "workers" / "stem_worker.py"
 
 # The pins and the weights' license are the rows for tsumugi and tsumugi-piano-cover in
 # docs/decisions.md; change them together.
@@ -353,14 +358,20 @@ def setup(install: Install, echo: Echo) -> None:
 
 
 def _run(
-    tool: str, step: str, argv: list[str | Path], log: Path, cwd: Path, env: Mapping[str, str]
+    tool: str,
+    step: str,
+    argv: list[str | Path],
+    log: Path,
+    cwd: Path,
+    env: Mapping[str, str],
+    append: bool = False,
 ) -> None:
-    """Run a model step with its stdout and stderr, in order, copied into `log`, except the `@@`
-    lines Cover Studio's worker streams for its UI. A failure quotes the output's last exception
-    line, else its last line, and names the log."""
+    """Run a model step with its stdout and stderr, in order, copied into `log`, or appended to it
+    with `append`, except the `@@` lines Cover Studio's worker streams for its UI. A failure
+    quotes the output's last exception line, else its last line, and names the log."""
     error = last = ""
     # Line-buffered, so `tail -f` follows the run.
-    with log.open("w", encoding="utf-8", buffering=1) as out:
+    with log.open("a" if append else "w", encoding="utf-8", buffering=1) as out:
         try:
             # Unbuffered, or a Python child's piped output reaches the log in blocks. Text mode
             # reads universal newlines, so a progress bar's carriage-return redraws come as lines.
@@ -401,6 +412,18 @@ def _run(
         raise TsumugiError(f"{tool} {step} failed ({code}): {(error or last)[:200]}; log: {log}")
 
 
+def _tsumugi_env(install: Install) -> dict[str, str]:
+    """The environment of a run in tsumugi's env: the stem splitter's weights where setup put
+    them, and on macOS the FFmpeg its torchcodec loads."""
+    env = {**os.environ, "STEM_SPLITTER_CACHE": str(install.stem_cache)}
+    if sys.platform == "darwin":
+        # tsumugi's locked torchcodec 0.16 has no rpath to Homebrew's FFmpeg. The variable reaches
+        # it because the env's interpreter is not a protected binary, whose DYLD_ variables macOS
+        # strips.
+        env.setdefault("DYLD_FALLBACK_LIBRARY_PATH", "/opt/homebrew/lib")
+    return env
+
+
 def transcribe(install: Install, wav: Path, out: Path, log: Path) -> None:
     """Transcribe `wav` into the multi-track MIDI `out` with tsumugi, through the cover's worker
     as Cover Studio runs it, the transcription the cover model was trained on. The worker's stems
@@ -413,13 +436,7 @@ def transcribe(install: Install, wav: Path, out: Path, log: Path) -> None:
         "--tsumugi-dir", install.tsumugi_dir,
         "--audio", wav.resolve(), "--out", out, "--work", out.parent / "work",
     ]  # fmt: skip
-    env = {**os.environ, "STEM_SPLITTER_CACHE": str(install.stem_cache)}
-    if sys.platform == "darwin":
-        # tsumugi's locked torchcodec 0.16 has no rpath to Homebrew's FFmpeg. The variable reaches
-        # it because the env's interpreter is not a protected binary, whose DYLD_ variables macOS
-        # strips.
-        env.setdefault("DYLD_FALLBACK_LIBRARY_PATH", "/opt/homebrew/lib")
-    _run("tsumugi", "transcribe", argv, log, install.tsumugi_dir, env)
+    _run("tsumugi", "transcribe", argv, log, install.tsumugi_dir, _tsumugi_env(install))
     # tsumugi and its worker only warn, and exit 0, when instrument refinement, velocity or
     # beat/chord estimation fails inside; the MIDI then lacks what the cover model was trained on.
     for line in log.read_text(encoding="utf-8", errors="replace").splitlines():
@@ -427,6 +444,34 @@ def transcribe(install: Install, wav: Path, out: Path, log: Path) -> None:
             raise TsumugiError(f"tsumugi transcribe: a stage failed: {line}; log: {log}")
     if not out.is_file():
         raise TsumugiError(f"tsumugi transcribe wrote no {out}; log: {log}")
+
+
+def measure(install: Install, wav: Path, out: Path, log: Path) -> None:
+    """Separate the two-channel `wav` with tsumugi's stem splitter and measure its stems into the
+    stem table `out`, both runs' output in `log`. The stems go to `stems` beside `out`; both are
+    the caller's scratch paths, written in place, and left for the caller to remove."""
+    # Absolute, because both run in the tsumugi clone.
+    wav, out = wav.resolve(), out.resolve()
+    work = out.parent / "stems"
+    env = _tsumugi_env(install)
+    argv = [
+        install.tsumugi_python, "-X", "utf8", "-m", "stem_splitter.cli", wav,
+        # tsumugi's own pipeline separates one chunk at a time.
+        "--out-dir", work, "--batch-size", "1",
+    ]  # fmt: skip
+    _run("stem-splitter", "separate", argv, log, install.tsumugi_dir, env)
+    # The splitter writes <out-dir>/<name>/<name>_<stem>.wav.
+    stems = work / wav.stem
+    for stem in (*LEVEL_STEMS, PITCH_STEM):
+        path = stems / f"{wav.stem}_{stem}.wav"
+        if not path.is_file():
+            raise TsumugiError(f"stem-splitter separate wrote no {path}; log: {log}")
+    argv = [
+        install.tsumugi_python, "-X", "utf8", STEM_WORKER, "--stems", stems, "--out", out,
+    ]  # fmt: skip
+    _run("stem worker", "measure", argv, log, install.tsumugi_dir, env, append=True)
+    if not out.is_file():
+        raise TsumugiError(f"stem worker measure wrote no {out}; log: {log}")
 
 
 def generate(install: Install, source: Path, out_dir: Path, log: Path) -> Path:

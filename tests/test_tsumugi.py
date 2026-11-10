@@ -6,10 +6,13 @@ import sys
 from pathlib import Path
 
 import mido
+import numpy as np
 import pytest
+import soundfile
+from conftest import FAKE_TABLE_FRAMES
 from typer.testing import CliRunner
 
-from pianoize import tsumugi
+from pianoize import stems, tsumugi
 from pianoize.cli import app
 from pianoize.tsumugi import Install
 
@@ -411,6 +414,84 @@ def test_generate_names_an_interpreter_it_cannot_run(fake_install, tmp_path):
         tsumugi.generate(
             fake_install.install, tmp_path / "source.mid", tmp_path / "cover", tmp_path / "g.log"
         )
+
+
+def _stereo_wav(tmp_path: Path) -> Path:
+    wav = tmp_path / "song.wav"
+    soundfile.write(wav, np.zeros((4410, 2), np.float32), 44100)
+    return wav
+
+
+def test_measure_separates_then_measures_into_one_log(fake_install, monkeypatch, tmp_path):
+    install = fake_install.install
+    monkeypatch.setattr(sys, "platform", "darwin")
+    monkeypatch.chdir(tmp_path)
+    _stereo_wav(tmp_path)
+    (tmp_path / "scratch").mkdir()
+
+    tsumugi.measure(install, Path("song.wav"), Path("scratch/stems.npz"), Path("stems.log"))
+
+    out, work = tmp_path / "scratch" / "stems.npz", tmp_path / "scratch" / "stems"
+    assert stems.load(out).stems == ("guitar", "other", "piano", "vocals")
+    splitter, worker = fake_install.records()
+    assert splitter["argv"] == [
+        str(install.tsumugi_python), "-X", "utf8", "-m", "stem_splitter.cli",
+        str(tmp_path / "song.wav"), "--out-dir", str(work), "--batch-size", "1",
+    ]  # fmt: skip
+    assert worker["argv"] == [
+        str(install.tsumugi_python), "-X", "utf8", str(tsumugi.STEM_WORKER),
+        "--stems", str(work / "song"), "--out", str(out),
+    ]  # fmt: skip
+    for record in (splitter, worker):
+        assert record["cwd"] == str(install.tsumugi_dir)
+        assert record["env"] == {
+            "PYTHONUNBUFFERED": "1",
+            "STEM_SPLITTER_CACHE": str(install.stem_cache),
+            "DYLD_FALLBACK_LIBRARY_PATH": "/opt/homebrew/lib",
+        }
+    stem_names = ("bass", "drums", "other", "vocals", "guitar", "piano")
+    assert (tmp_path / "stems.log").read_text(encoding="utf-8").splitlines() == [
+        *(f"{stem}: {work / 'song' / f'song_{stem}.wav'}" for stem in stem_names),
+        f"{out}: {FAKE_TABLE_FRAMES} frames",
+    ]
+
+
+def test_a_failing_splitter_names_its_error_and_its_log(fake_install, tmp_path):
+    fake_install.log.with_name("stems-fail").touch()
+    out, log = tmp_path / "stems.npz", tmp_path / "stems.log"
+
+    with pytest.raises(tsumugi.TsumugiError) as info:
+        tsumugi.measure(fake_install.install, _stereo_wav(tmp_path), out, log)
+
+    assert str(info.value) == f"stem-splitter separate failed (1): [ERROR] boom; log: {log}"
+    assert len(fake_install.records()) == 1  # the worker never ran
+    assert not out.exists()
+
+
+def test_measure_names_a_stem_the_splitter_did_not_write(fake_install, tmp_path):
+    fake_install.install.tsumugi_python.write_text("#!/bin/sh\necho 'separated'\n")
+    log = tmp_path / "stems.log"
+
+    with pytest.raises(tsumugi.TsumugiError) as info:
+        tsumugi.measure(fake_install.install, _stereo_wav(tmp_path), tmp_path / "stems.npz", log)
+
+    expected = tmp_path / "stems" / "song" / "song_guitar.wav"
+    assert str(info.value) == f"stem-splitter separate wrote no {expected}; log: {log}"
+
+
+def test_measure_names_the_table_the_worker_did_not_write(fake_install, tmp_path):
+    fake_install.log.with_name("no-table").touch()
+    out, log = tmp_path / "stems.npz", tmp_path / "stems.log"
+
+    with pytest.raises(tsumugi.TsumugiError) as info:
+        tsumugi.measure(fake_install.install, _stereo_wav(tmp_path), out, log)
+
+    assert str(info.value) == f"stem worker measure wrote no {out}; log: {log}"
+    assert len(fake_install.records()) == 2  # the splitter, then the worker
+
+
+def test_the_stem_worker_is_in_the_package():
+    assert tsumugi.STEM_WORKER.is_file()
 
 
 def test_an_interrupted_transcribe_stops_the_worker(

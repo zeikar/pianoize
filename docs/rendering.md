@@ -170,7 +170,7 @@ Two renders of the same inputs with the same Chrome and ffmpeg gave identical fr
 - **Tests.** `cd viewer && npm ci && npm test` runs the Node tests. They need no browser.
 - **The npm cache** is npm's default, `~/.npm`.
 
-The Python tests are `tests/test_roll.py`, `tests/test_video.py` and `tests/test_serve.py`. `uv run --frozen pytest -m "not video"` skips the slow ones that capture in Chrome and encode. The sync test also needs `PIANOIZE_SOUNDFONT` and FluidSynth.
+The Python tests are `tests/test_roll.py`, `tests/test_video.py` and `tests/test_serve.py`. `uv run --frozen pytest -m "not video and not tsumugi"` skips the slow ones that capture in Chrome and encode; an `-m` of your own replaces the default's `not tsumugi`, so it is named again. The sync test also needs `PIANOIZE_SOUNDFONT` and FluidSynth.
 
 ### On GitHub Pages
 

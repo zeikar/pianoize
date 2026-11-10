@@ -256,6 +256,7 @@ args = sys.argv[1:]
 
 
 FAKE_CHECKPOINT = "checkpoint"
+FAKE_TABLE_FRAMES = 100
 
 
 class FakePython:
@@ -292,9 +293,16 @@ def fake_python(tmp_path, monkeypatch) -> FakePython:
     file to --out instead, and with a file
     `no-melody` there it leaves out the melody track.
     As `-m piano_cover.generate` it checks the checkpoint holds the cover model and writes a
-    one-track cover to OUT_DIR/SOURCE_STEM_ch0_0.mid."""
+    one-track cover to OUT_DIR/SOURCE_STEM_ch0_0.mid.
+    As `-m stem_splitter.cli WAV --out-dir DIR` it checks WAV has two channels and writes the six
+    stems, a hundredth of a second each, to DIR/NAME/NAME_STEM.wav, printing a line for each; with
+    a file `stems-fail` beside the calls log it prints `[ERROR] boom` and exits 1 instead. Given
+    the stem worker, it checks the four stems it reads are in --stems and copies a table of
+    FAKE_TABLE_FRAMES frames, written with write_stem_table, to --out; with a file `no-table`
+    beside the calls log it exits 0 without writing it."""
     monkeypatch.setenv("HF_HUB_CACHE", str(tmp_path / "hub"))
     log = tmp_path / "calls.jsonl"
+    table = write_stem_table(tmp_path / "fake-stems.npz", FAKE_TABLE_FRAMES)
     script = tmp_path / "fake-python"
     script.write_text(
         f"#!{sys.executable}\n"
@@ -381,6 +389,27 @@ elif args[:2] == ["-m", "piano_cover.generate"]:
     midi.tracks.append(track("Piano", mido.MetaMessage("set_tempo", tempo=500000), *notes(0, 60)))
     midi.save(cover)
     print(f"{{cover}}: 1 note")
+elif "stem_splitter.cli" in args:
+    import numpy as np
+    import soundfile
+    wav = Path(args[args.index("stem_splitter.cli") + 1])
+    assert wav.is_file() and soundfile.info(wav).channels == 2, args
+    if (here / "stems-fail").exists():
+        print("[ERROR] boom", file=sys.stderr)
+        sys.exit(1)
+    for stem in ("bass", "drums", "other", "vocals", "guitar", "piano"):
+        path = Path(option("--out-dir")) / wav.stem / f"{{wav.stem}}_{{stem}}.wav"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        soundfile.write(path, np.zeros((441, 2), np.float32), 44100)
+        print(f"{{stem}}: {{path}}")
+elif any(Path(arg).name == "stem_worker.py" for arg in args):
+    stems = Path(option("--stems"))
+    for stem in ("guitar", "other", "piano", "vocals"):
+        assert (stems / f"{{stems.name}}_{{stem}}.wav").is_file(), (stem, args)
+    if (here / "no-table").exists():
+        sys.exit(0)
+    shutil.copyfile({str(table)!r}, option("--out"))
+    print(f"{{option('--out')}}: {FAKE_TABLE_FRAMES} frames")
 else:
     sys.exit(f"fake python: unexpected arguments {{args}}")
 """,
