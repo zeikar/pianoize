@@ -14,9 +14,11 @@ stem's loud level or against the line's own notes. On a line's notes, in seconds
   vocals frame also needs a pitch;
 - the notes read last playability.SUNG_MIN or more and sit inside the table's time and the
   pitches the stem was measured over: vocals_low to vocals_high on the vocals, low_pitch and the
-  rows above it on a levels stem. Another note is not read and not counted. A note's frames are
-  those centred in it, and its level the mean, over them, of the vocals level or of its own
-  semitone;
+  rows above it on a levels stem. On a levels stem only the top line of those is read: a note
+  higher ones of them sound over in more than UNDER_SHARE of its frames is not, since the lead
+  reads a line and a chord's inner notes and a pad's lower notes sit under it. The vocals' melody
+  is one voice already. Another note is not read and not counted. A note's frames are those
+  centred in it, and its level the mean, over them, of the vocals level or of its own semitone;
 - a note is `silent` when under SILENT_SHARE of its frames sound. Else it is judged frame by
   frame, never by a median, which can land on a pitch no frame sounds: a sounding vocals frame
   agrees within AGREE_SEMITONES of the note, a sounding levels frame carries the note when its
@@ -24,17 +26,19 @@ stem's loud level or against the line's own notes. On a line's notes, in seconds
   sounding frames agree or carry it. Else the audio's reading is the commonest rounded pitch, or
   lead, among the sounding frames that don't, a tie going lower: `octave` when it is the note an
   octave either side, else `pitch`;
-- a stretch, `untranscribed`, is a run of one pitch over the sounding frames no note of the line
-  covers: the rounded pitch on the vocals, on a levels stem the lead between the lowest and the
-  highest note read. Two runs of a pitch under JOIN_SECONDS apart are one. An onset is the first
-  of consecutive frames of a run each RISE_DB or more over its level RISE_SECONDS earlier, so a
-  fading tail never has one. Each onset starts a stretch, to the next onset or the run's end, and
-  the frames ahead of the first start none: a quiet lead-in and the pickup after it are two
-  stretches, the pickup printed at its rise. A stretch is listed only when it lasts STRETCH_MIN;
-  when it is no slide, ending within SLIDE_SECONDS of the start of a note of the line within
-  SLIDE_SEMITONES of it, its loudest frame in its last SLIDE_SECONDS; and when its mean level is
-  not under every one of the notes read around it, NEIGHBOURS before it and NEIGHBOURS after. A
-  stretch's level is that of the vocals or of its own semitone."""
+- a stretch, `untranscribed`, is a run of one pitch over the sounding frames no note covers, of
+  the line, read or not, or of another track that reads the stem, since a sound another track
+  transcribed is no note the line misses: the rounded pitch on the vocals, on a levels stem the
+  lead between the lowest and the highest note read. Two runs of a pitch under JOIN_SECONDS
+  apart are one. An onset is the first of consecutive frames of a run each RISE_DB or more over
+  its level RISE_SECONDS earlier, so a fading tail never has one. Each onset starts a stretch, to
+  the next onset or the run's end, and the frames ahead of the first start none: a quiet lead-in
+  and the pickup after it are two stretches, the pickup printed at its rise. A stretch is listed
+  only when it lasts STRETCH_MIN; when it is no slide, ending within SLIDE_SECONDS of the start
+  of the next note of any track of the stem within SLIDE_SEMITONES of it, its loudest frame in
+  its last SLIDE_SECONDS; and when its mean level is not under every one of the line's notes
+  read around it, NEIGHBOURS before it and NEIGHBOURS after. A stretch's level is that of the
+  vocals or of its own semitone."""
 
 import zipfile
 import zlib
@@ -62,6 +66,7 @@ SILENT_SHARE = 0.3  # the experiment's voiced share: a note fewer of whose frame
 AGREE_SEMITONES = 0.7  # the experiment's: within it a sung pitch is the note, vibrato and all
 CARRY_DB = 10  # the experiment saw an instrument line stand 10 dB over the rest of its register
 LEAD_SEMITONES = 12  # an octave either side: the register a note's lead is sought in
+UNDER_SHARE = 0.5  # a note higher ones sound over most of is under the line, not on it
 SUPPORTED_SHARE = 0.5  # half the sounding frames, so a held note under a moving line is not passed
 RISE_DB = 6  # a doubling: a note starting; a held note's tail only fades
 RISE_SECONDS = 0.050  # the rise is measured across the experiment's joining gap
@@ -251,12 +256,12 @@ def items(
     table: Table,
     stem: str,
     line: list[Note],
-    others: dict[str, list[Note]],
+    others: list[Note],
     in_range: Callable[[float], bool],
 ) -> tuple[list[Item], int]:
     """The items of a line read against a stem of the table, by time, and the count of its notes
-    read that `in_range` keeps. `others` are the other tracks reading against the stem, their
-    notes by track name, each named on a stretch it has a note over; `in_range` keeps the notes
+    read that `in_range` keeps. `others` are the notes of the other tracks reading against the
+    stem, which cover frames and take slides as the line's notes do; `in_range` keeps the notes
     and the stretches starting at the seconds it accepts."""
     seconds = table.frame_seconds
     centres = np.arange(len(table.vocals_level)) * seconds
@@ -301,22 +306,34 @@ def items(
             carried = sounding & (level(note.pitch)[span] >= loudest - CARRY_DB)
             return _judged(note, sounding, carried, leads)
 
-    read = sorted(
-        (
+    read = [
+        note
+        for note in line
+        if note.offset - note.onset >= SUNG_MIN
+        and note.offset <= table.seconds
+        and low <= note.pitch <= high
+    ]
+    if stem != PITCH_STEM:
+        # The lead reads a line: a chord's inner notes and a pad's lower notes sit under it.
+        top = np.full(len(centres), -1)
+        for note in read:
+            span = frames(note.onset, note.offset)
+            top[span] = np.maximum(top[span], note.pitch)
+        read = [
             note
-            for note in line
-            if note.offset - note.onset >= SUNG_MIN
-            and note.offset <= table.seconds
-            and low <= note.pitch <= high
-        ),
-        key=lambda note: (note.onset, note.pitch),
-    )
+            for note in read
+            if (top[frames(note.onset, note.offset)] > note.pitch).mean() <= UNDER_SHARE
+        ]
+    read.sort(key=lambda note: (note.onset, note.pitch))
     if not read:  # no note to read a stretch's level against
         return [], 0
     found = [item for note in read if in_range(note.onset) and (item := judge(note)) is not None]
 
+    # A sound another track of the stem transcribed, or a slide into it, is no note the line
+    # misses.
+    transcribed = [*line, *others]
     covered = np.zeros(len(centres), dtype=bool)
-    for note in line:
+    for note in transcribed:
         covered[frames(note.onset, note.offset)] = True
     # Each frame's pitch for a stretch, -1 where none can be.
     if stem == PITCH_STEM:
@@ -338,7 +355,7 @@ def items(
         ends_rising = piece[run_level[piece].argmax()] * seconds >= end - SLIDE_SECONDS
         if ends_rising and any(
             abs(note.onset - end) <= SLIDE_SECONDS and abs(note.pitch - pitch) <= SLIDE_SEMITONES
-            for note in line
+            for note in transcribed
         ):
             return None
         mean = float(run_level[piece].mean())
@@ -348,13 +365,6 @@ def items(
         if all(mean < other for other in around_levels):
             return None
         detail = f"{round(mean - float(np.median(around_levels))):+d} dB"
-        also = [
-            f"{name} {' '.join(pitch_name(p) for p in sorted(over))}"
-            for name, notes in others.items()
-            if (over := {n.pitch for n in notes if n.onset < end and n.offset > start})
-        ]
-        if also:
-            detail += "  also " + ", ".join(also)
         return Item("untranscribed", start, end, pitch, detail)
 
     back = round(RISE_SECONDS / seconds)
@@ -385,7 +395,7 @@ def report(
     `audio check: STEM, K of N notes unsupported, J untranscribed`. A note's detail is `audio
     READING SHARE`, the share of its frames that give the reading, or that sound for `silent`,
     whose reading is `-`; a stretch's is its mean level against the median of the notes around
-    it, `+N dB`, and `also TRACK PITCH, …` for the other tracks with a note over it."""
+    it, `+N dB`."""
     lines = []
     for item in found:
         on, off = (tick_in(tempo_map, meter.ticks_per_beat, s) for s in (item.onset, item.offset))

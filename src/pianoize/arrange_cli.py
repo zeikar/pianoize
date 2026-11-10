@@ -275,9 +275,9 @@ def dump_bars(
 
 def _line_stem(
     midi: mido.MidiFile, track: str | None, stem: str | None, table: stems.Table
-) -> tuple[list[notes.Note], dict[str, list[notes.Note]], str]:
-    """The line's notes, the other tracks reading against the same stem by name, and the stem
-    the line is read against."""
+) -> tuple[list[notes.Note], list[notes.Note], str]:
+    """The line's notes, the notes of the other tracks reading against the same stem, and the
+    stem the line is read against."""
     if track is None:
         with_notes = [
             (named.name, found)
@@ -306,11 +306,12 @@ def _line_stem(
         raise stems.StemsError(
             f"stem {chosen!r} {reason}; name one with --stem: {', '.join(table.stems)}"
         )
-    others = {}
-    for other in midi.tracks:
-        reads_chosen = other.name != track and stems.STEM_OF.get(other.name) == chosen
-        if reads_chosen and (found := evidence.track_notes(midi, other.name)):
-            others[other.name] = found
+    names = {
+        other.name
+        for other in midi.tracks
+        if other.name != track and stems.STEM_OF.get(other.name) == chosen
+    }
+    others = [note for name in sorted(names) for note in evidence.track_notes(midi, name)]
     return line, others, chosen
 
 

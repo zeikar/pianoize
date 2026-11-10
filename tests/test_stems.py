@@ -73,7 +73,7 @@ def audio(stem_table):
         else:
             path = stem_table(FRAMES, levels={"other": band.rows - shift})
             stem = "other"
-        return stems.items(stems.load(path), stem, line, others or {}, in_range)
+        return stems.items(stems.load(path), stem, line, others or [], in_range)
 
     return run
 
@@ -277,9 +277,41 @@ def test_a_note_an_octave_under_a_lead_over_10_db_louder_is_listed_octave(listed
 
 
 @pytest.mark.parametrize(("under", "found"), [(6, []), (12, [("pitch", 76, "audio C5 100%")])])
-def test_a_chord_note_within_10_db_of_the_lead_is_supported(listed, under, found):
+def test_a_note_within_10_db_of_a_louder_lead_is_supported(listed, under, found):
     band = Band().play(100, 140, 72).play(100, 140, 76, -under)
-    assert listed([note(100, 140, 72), note(100, 140, 76)], band=band) == (found, 2)
+    assert listed([note(100, 140, 76)], band=band) == (found, 1)
+
+
+def test_only_the_top_note_of_a_chord_is_read(listed):
+    # The inner notes, 15 dB under the top, would be listed with it as their reading.
+    band = Band().play(100, 140, 67).play(100, 140, 64, -15).play(100, 140, 60, -15)
+    line = [note(100, 140, 60), note(100, 140, 64), note(100, 140, 67)]
+    assert listed(line, band=band) == ([], 1)
+
+
+def test_a_held_note_under_a_moving_top_line_is_not_read(listed):
+    band = Band().play(100, 140, 60, -20).play(100, 120, 72).play(120, 140, 74)
+    line = [note(100, 140, 60), note(100, 120, 72), note(120, 140, 74)]
+    assert listed(line, band=band) == ([], 2)
+
+
+@pytest.mark.parametrize(("under", "read"), [(10, 2), (15, 2), (20, 1)])
+def test_a_note_is_read_unless_a_higher_one_overlaps_more_than_half_of_it(listed, under, read):
+    # C4 starts alone; C5 sounds over its last third, half or two thirds.
+    band = Band().play(100, 130, 60, -15).play(130 - under, 130, 72)
+    line = [note(100, 130, 60), note(130 - under, 130, 72)]
+    assert listed(line, band=band)[1] == read
+
+
+def test_two_notes_of_one_pitch_overlapping_are_both_read(listed):
+    band = Band().play(100, 160, 72)
+    assert listed([note(100, 140, 72), note(120, 160, 72)], band=band) == ([], 2)
+
+
+def test_the_vocals_read_every_note_however_they_overlap(listed):
+    voice = Voice().sing(100, 140, 76)
+    line = [note(100, 140, 64), note(100, 140, 76)]
+    assert listed(line, voice=voice) == ([("octave", 64, "audio E5 100%")], 2)
 
 
 @pytest.mark.parametrize("away", [-13, 13])
@@ -408,6 +440,17 @@ def test_a_scoop_a_tone_or_less_under_the_next_note_is_not_listed(listed, below,
     assert [(kind, pitch) for kind, pitch, _ in items] == [("untranscribed", 72 - below)] * found
 
 
+@pytest.mark.parametrize(("others", "found"), [([note(150, 190, 72)], 0), ([], 1)])
+def test_a_scoop_into_a_note_of_another_track_of_the_stem_is_not_listed(listed, others, found):
+    # As the scoop above, a semitone under, into a backing voice's note; with no such note it is
+    # a stretch.
+    line = [note(10, 50, 69), note(250, 290, 72)]
+    voice = Voice().sing(10, 50, 69).sing(150, 190, 72).sing(250, 290, 72, -20)
+    voice.sing(120, 150, 71, np.linspace(-12, 0, 30))
+    items, _ = listed(line, voice=voice, others=others)
+    assert [(kind, pitch) for kind, pitch, _ in items] == [("untranscribed", 71)] * found
+
+
 @pytest.mark.parametrize(
     ("end", "ramp"),
     [(150 - round(0.1 / FS), (-12, 0)), (150, (0, -12))],
@@ -461,14 +504,17 @@ def test_a_levels_stretch_is_the_lead_inside_the_register_of_the_notes_read(list
     assert listed(line, band=band) == ([("untranscribed", 76, "+0 dB")], 2)
 
 
-def test_a_stretch_names_the_other_tracks_with_a_note_over_it(listed):
-    others = {
-        "vocal_harmony": [note(160, 170, 69), note(170, 180, 72), note(400, 440, 60)],
-        "choir": [note(400, 440, 64)],
-        "lead_vocal_double": [note(140, 151, 65)],
-    }
-    found, _ = listed(AROUND, voice=around().sing(150, 190, 76), others=others)
-    assert found == [("untranscribed", 76, "+0 dB  also vocal_harmony A4 C5, lead_vocal_double F4")]
+@pytest.mark.parametrize(
+    ("others", "found"),
+    [
+        ([], [("untranscribed", 76, "+0 dB")]),
+        ([note(150, 190, 64)], []),
+        ([note(100, 140, 64), note(200, 240, 60)], [("untranscribed", 76, "+0 dB")]),
+    ],
+    ids=["no other track", "another track's note over it", "other tracks' notes beside it"],
+)
+def test_a_stretch_is_where_no_track_of_the_stem_has_a_note(listed, others, found):
+    assert listed(AROUND, voice=around().sing(150, 190, 76), others=others) == (found, 2)
 
 
 def test_in_range_keeps_the_notes_and_stretches_starting_in_it_and_counts_their_notes(audio):
@@ -514,13 +560,14 @@ def report_song() -> tuple[list[Note], Voice]:
 
 def test_the_report_prints_each_line_shape_by_bar_position_and_time(reported):
     line, voice = report_song()
-    others = {"vocal_harmony": [timed(5.1, 5.4, 69)], "choir": [timed(1.0, 1.5, 60)]}
+    # Another track of the stem, its notes beside the stretch, names nothing on it.
+    others = [timed(5.5, 6.0, 69), timed(1.0, 1.5, 60)]
     assert reported(line, voice=voice, others=others) == (
         "bar 2 pos 2  0:02.25  pitch  E5 (2)  audio D5 100%\n"
         "bar 2 pos 4  0:02.50  octave  E5 (2)  audio E4 100%\n"
         "bar 2 pos 8  0:03.00  silent  G5 (4)  audio - 0%\n"
         "bar 3 pos 0  0:03.99  pitch  G5 (2)  audio F5 100%\n"
-        "bar 3 pos 8  0:05.00  untranscribed  A4 (4)  +0 dB  also vocal_harmony A4\n"
+        "bar 3 pos 8  0:05.00  untranscribed  A4 (4)  +0 dB\n"
         "audio check: vocals, 4 of 5 notes unsupported, 1 untranscribed"
     )
 
@@ -611,18 +658,20 @@ def test_check_line_prints_the_report_of_a_melody_file(check_line):
 
 
 def test_check_line_reads_a_track_of_a_source_beside_the_others_of_its_stem(check_line):
+    # A second sounding stretch, at 3.71 s: synth_pad, on `other` too, has a note over it, and
+    # electric_bass, on `bass`, one over the first.
     line, band = levels_song()
     source = {
         "drums": [(0.0, 0.1, 36)],
-        "electric_bass": [(0.0, 0.5, 76)],
+        "electric_bass": [(1.6, 2.4, 76)],
         "strings": pairs(line),
-        "synth_pad": [(1.6, 2.1, 76)],
+        "synth_pad": [(3.6, 4.3, 76)],
     }
-    result = check_line(source, "--track", "strings", band=band)
+    result = check_line(source, "--track", "strings", band=band.play(320, 360, 76, -3))
     assert result.exit_code == 0
     assert result.output == (
         "bar 1 pos 5.5  0:00.69  octave  C4 (3.5)  audio C5 100%\n"
-        "bar 1 pos 14  0:01.74  untranscribed  E5 (4.5)  -3 dB  also synth_pad E5\n"
+        "bar 1 pos 14  0:01.74  untranscribed  E5 (4.5)  -3 dB\n"
         "audio check: other, 1 of 3 notes unsupported, 1 untranscribed\n"
     )
 
