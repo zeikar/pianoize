@@ -116,6 +116,55 @@ def synth() -> np.ndarray:
     return (0.5 * np.sin(2 * np.pi * 440 * t)).astype(np.float32)
 
 
+def write_stem_table(
+    path: Path,
+    frames: int,
+    levels: dict[str, np.ndarray] | None = None,
+    pitch: np.ndarray | None = None,
+    level: np.ndarray | None = None,
+) -> Path:
+    """Writes a stem table of `frames` frames to `path` as prepare's worker does and returns the
+    path: `levels` maps a levels stem to its 72 semitone rows from C2 by frames, `pitch` is the
+    vocals' fractional MIDI pitch per frame, NaN where unvoiced, and `level` their level per frame.
+    Levels are in dB, scaled to the table's bytes; a stem left out is at the scale's floor, and
+    the vocals unvoiced."""
+
+    def scaled(decibels, shape: tuple[int, ...]) -> np.ndarray:
+        """dB as the table's bytes, the half-dB steps under 0 dB, broadcast to `shape`."""
+        steps = np.clip(np.round(255 + 2 * np.asarray(decibels)), 0, 255)
+        return np.broadcast_to(steps, shape).astype(np.uint8)
+
+    floor = -127.5
+    levels = levels or {}
+    unvoiced = np.float32(np.nan)
+    np.savez_compressed(
+        path,
+        version=1,
+        frame_seconds=512 / SAMPLE_RATE,
+        low_pitch=36,
+        **{
+            stem: scaled(levels.get(stem, floor), (72, frames))
+            for stem in ("guitar", "other", "piano")
+        },
+        vocals_pitch=np.asarray(unvoiced if pitch is None else pitch, np.float32)
+        + np.zeros(frames, np.float32),
+        vocals_low=45,
+        vocals_high=84,
+        vocals_level=scaled(floor if level is None else level, (frames,)),
+    )
+    return path
+
+
+@pytest.fixture
+def stem_table(tmp_path: Path) -> Callable[..., Path]:
+    """write_stem_table to tmp_path/stems.npz."""
+
+    def write(frames: int, levels=None, pitch=None, level=None) -> Path:
+        return write_stem_table(tmp_path / "stems.npz", frames, levels, pitch, level)
+
+    return write
+
+
 class FakeFluidSynth:
     def __init__(self) -> None:
         self.calls: list[dict] = []
