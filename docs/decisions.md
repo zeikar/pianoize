@@ -188,6 +188,10 @@ Its left hand follows `arranging/left-hand-accompaniment.md`: a bass on the stro
 
 A sung song's distorted guitar solo was transcribed note for note, moved an octave up, thinned to its contour and left out, and the user rejected all four by ear. What the user liked best was a passage written for the piano: chord-tone arpeggios that rise, fall and breathe where the solo does, keeping only its peaks and landing notes. So `arranging/instrumental-solos.md` replaces the rule to keep a lead's notes and rhythm for an improvised solo, and leaves it standing for a riff, a hook or a composed line. It is a separate file because it is an exception that most songs don't reach. It rests on one song so far, and published piano arrangements treat guitar solos in several ways, so it is the first thing to try, and the ear still decides.
 
+### A section the piano leads keeps the piano's part
+
+A band transcription has no pianist's part, so the arranging rules write one from the band: on a sung song, a left hand of bass and chord built new. Where the band's own piano carries a section, that throws away the best material: on a piano-led song, the user preferred the transcribed piano wherever it leads, and heard it as thin in the choruses, where the band carries the song. So `arranging/piano-led-sections.md` takes that piano's notes and rhythm into both hands, section by section, and leaves the other sections to the hand files. It applies on the transcription paths only: the cover path has its own front end, and the rule is untested there. It rests on one song so far, so it is the first thing to try, and the ear still decides.
+
 ## Rendering
 
 ### MIDI is rendered with FluidSynth

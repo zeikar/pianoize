@@ -31,6 +31,7 @@ A piano cover already has a pianistic accompaniment; a band transcription has no
 - **`C` is the attacks of the grid's tracks, the band's piano and bass.** It is what the band plays, not a pianist's part.
 - **`C`'s notes and the markers come from different models of the transcriber,** so where they agree, that is two readings, not one.
 - **The bass line is `electric_bass`'s `I` line:** check your chords against it.
+- **Before step 3 of the workflow, where the source has a piano or keyboard track, read `piano-led-sections.md`:** it says which sections take that part in place of your hand files.
 - **A bar without drums**, an intro or a breakdown, takes its accompaniment from the strums, the band piano's figure in `C`, or the bass.
 - **The band piano's stabs and pushes**, from `C`: chord tones under the melody where the band piano strikes short, or ahead of the bar line, a push written as "Keep the feel" in `arranging-rules.md` says.
 - **A hit** is where the crash and the instruments strike together, written as "Keep the feel" says.
