@@ -32,7 +32,7 @@ All in `<out>`, written by the arranger and the commands it runs. Your `SKILL.md
 | file | written by | holds |
 | --- | --- | --- |
 | `bars.txt` | `dump-bars` | `C`, the melody, and with a source the drums and the instrument lines, bar by bar |
-| `notes.md` | the arranger | the skill and the rule files it was dispatched with, the inputs and the grid's tracks where the front end records them, the sections, the chords, the melody, the band and what was taken from it, the figures, the hits and stops, every inferred, filled or copied place, the comparison with the band, the vocal notes left out, the harmony backing, the gaps, and the revisions |
+| `notes.md` | the arranger | the skill and the rule files it was dispatched with, the inputs and the grid's tracks where the front end records them, the sections, the chords, the melody, the band and what was taken from it, the figures, the hits and stops, every inferred, filled or copied place, the comparison with the band, the vocal notes left out, the audio check on the transcription paths, the harmony backing, the gaps, and the revisions |
 | `score.txt` | the arranger | the two-hand score, format version 1 |
 | `arranged.mid` | `build-arrangement` | the two-hand MIDI on the tempo grid the front end made |
 | `arranged.wav` | `render` | the render for the user to listen to |

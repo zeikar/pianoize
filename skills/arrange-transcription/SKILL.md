@@ -13,14 +13,15 @@ tsumugi-piano-cover's weights are CC BY-NC 4.0, so its cover and anything made f
 
 ## Rules
 
-- **Clean room.** The only inputs are tsumugi's transcription and tsumugi's melody MIDI. Never give the arranger tsumugi-piano-cover's cover MIDI or anything made from it, a polished cover, a refined timeline, or an `arrange-cover` or `polish-cover` run's files. If the user offers one, decline it and say why: it would bring the cover's notes, and its terms, into an arrangement that must have neither.
+- **Clean room.** The only inputs are tsumugi's transcription, tsumugi's melody MIDI and the stem table `prepare` measures from the recording. Never give the arranger tsumugi-piano-cover's cover MIDI or anything made from it, a polished cover, a refined timeline, or an `arrange-cover` or `polish-cover` run's files. If the user offers one, decline it and say why: it would bring the cover's notes, and its terms, into an arrangement that must have neither.
 
 ## Inputs
 
-Ask the user for any input that is missing and stop until you have it. The `prepare-song` skill (`../prepare-song/SKILL.md`) makes them, `pianoize prepare` writing `source.mid` and `melody.mid` (where the song has one) into the song's directory; when they are missing, offer that skill and stop.
+Ask the user for any input that is missing and stop until you have it. The `prepare-song` skill (`../prepare-song/SKILL.md`) makes them, `pianoize prepare` writing `source.mid`, `melody.mid` (where the song has one) and `stems.npz` into the song's directory; when they are missing, offer that skill and stop.
 
 - `<source>`: tsumugi's transcription of the whole band, `source.mid`: a track per instrument, the drums among them, a tempo map and chord markers.
 - `<melody>`, optional: tsumugi's melody MIDI, the transcriber's lead vocal track. An instrumental has none, unless `prepare --melody-track` named an instrument's track.
+- `<stems>`, optional: the stem table `prepare` measures from the recording's separated stems, `stems.npz` beside `source.mid`, for the arranger's audio check. A song prepared before the table has none: offer the `prepare-song` skill again on the song's directory, which adds `stems.npz` in about the song's length and reuses the rest, or go on without it, `Stems: none`.
 - `<out>`: an output directory under `work/` of its own, named by the user (`work/<song>-transcription/`). If it holds `cover.regrid.mid` or an `arrange-cover` or `polish-cover` run's files, ask for another.
 - `<mode>`: `full`, the default, for listening: the band's parts layer by layer, no limits on the hands; or `playable`, when the user asks for one both hands can play.
 - For the render at the end: FluidSynth on `PATH` and a piano SoundFont, `<sf2>`, unless `$PIANOIZE_SOUNDFONT` names one. Without either, the arranger exports anyway and gives the MIDI in place of the WAV.
@@ -47,6 +48,7 @@ Command line: <the command line>
 Docs: <the docs directory>
 Source: '<source>'
 Melody: '<melody>' (or: none)
+Stems: '<stems>' (or: none)
 Out: '<out>'
 SoundFont: '<sf2>' (or: $PIANOIZE_SOUNDFONT, or: none)
 Task: arrange
@@ -66,4 +68,5 @@ All in `<out>`. The front end adds these two; the rest are under "Output files" 
 - **`../../arranging/main-session.md` and `../../arranging/workflow.md`:** the two sides. Yours: the command line, the rules, the steps from dispatch to approval, and the output files. The arranger's: its rules, commands, steps, `notes.md` outline and report, and the rule files it reads beside it, how to read the dump and the arranging rules every arrangement shares.
 - **`../../arranging/front-end-transcription.md`:** the arranger's clean room, the grid and its regrid, how to read `C` and the melody without a cover.
 - **`../../arranging/right-hand-full.md`, `../../arranging/left-hand-band-layers.md`, `../../arranging/right-hand-playable.md` and `../../arranging/left-hand-accompaniment.md`:** the hands, paired as "Modes" pairs them: a full arrangement's for listening, the band's parts layer by layer; a playable one's within the check's limits, the left as a pianist's accompaniment.
+- **`../../arranging/audio-check.md`:** the arranger's audio check: `check-line` on the melody and each section's tune, how to weigh what it lists against the transcription, and the lines it can't cover.
 - **pianoize's `agents/arranger.md` and `docs/arranging.md`:** the subagent's definition, its tools limited to the shell and the files; the score format, every command, the check's limits and the output formats.

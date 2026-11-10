@@ -271,6 +271,21 @@ def test_the_clean_room_skills_read_no_cover(skill):
         assert CLEAN_ROOM_RULE.findall(_text(ROOT / "skills" / other / "SKILL.md")) == [rule], other
 
 
+def test_the_clean_room_skills_give_the_stem_table_for_the_audio_check():
+    # Only the transcription paths check a line against the recording; the cover's has no table.
+    for skill in ARRANGING_SKILLS:
+        prompt = _prompt(_text(ROOT / "skills" / skill / "SKILL.md"), skill)
+        stems = [line for line in prompt.splitlines() if line.startswith("Stems:")]
+        expected = ["Stems: '<stems>' (or: none)"] if skill in CLEAN_ROOM_SKILLS else []
+        assert stems == expected, skill
+    assert "`audio-check.md`" in _text(SHARED / "front-end-transcription.md")
+    check = _text(SHARED / "audio-check.md")
+    # A bare `pianoize check-line` names the command; a command line carries its options.
+    lines = [flags for name, flags in _command_lines(check) if name == "check-line" and flags]
+    assert lines and all("--stems" in flags for flags in lines)
+    assert re.search(r"^## A line the check can't cover$", check, re.MULTILINE)
+
+
 def test_the_notes_record_the_dispatch_for_a_later_session():
     # A revision in a new conversation dispatches what wrote the score, whichever skill loaded.
     blocks = FENCED.findall(_text(SHARED / "workflow.md"))

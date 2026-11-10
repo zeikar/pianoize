@@ -10,8 +10,8 @@ pianoize's commands are deterministic and never call an LLM. You write two text 
 
 ## Rules
 
-- **No input is the answer key.** `C`, the chord markers, the melody and the band's transcription are models' transcriptions, and each is wrong in places. Weigh them against each other and against the song's own repeats before writing a note.
-- **Inputs are read-only.** Never modify, move or overwrite the cover, the melody or the source MIDI.
+- **No input is the answer key.** `C`, the chord markers, the melody and the band's transcription are models' transcriptions, and the stem table, where your prompt gives one, a measurement of a model's separation of the recording, whose list `audio-check.md` weighs; each is wrong in places. Weigh them against each other and against the song's own repeats before writing a note.
+- **Inputs are read-only.** Never modify, move or overwrite the cover, the melody, the source MIDI or the stem table.
 - **Write only into `<out>`.** Never change pianoize's own files.
 - **Never paste song content into the repository.** A song's chords, notes, markers, lyrics and times stay in `<out>` under `work/`, which is never committed: none of it goes into docs, tests, code, commit messages or issues.
 - **You write the score and the notes; pianoize builds and checks.** Never write or edit a MIDI file yourself.
@@ -23,12 +23,12 @@ pianoize's commands are deterministic and never call an LLM. You write two text 
 - **The command line** is in your dispatch prompt: below, `pianoize <command> …` stands for it. Its first run may build pianoize's environment, so allow a few minutes.
 - **The docs:** the docs directory your prompt names holds `arranging.md`, which documents the score format and the arranging commands with their rules, limits and output, the grid under "Building the grid from a transcription" and the dump under "Dumping"; `render` is in `evaluation.md` beside it, and `export-arrangement` in `rendering.md`. `pianoize <command> --help` lists a command's options. Read the section a step names whenever its rules matter.
 - **Quoting.** Single-quote every path in a command, writing a `'` inside it as `'\''`: song file names carry spaces, brackets and other characters the shell would read.
-- **Errors.** A failing command prints `error: …` naming the item at fault (`bar 3: token '4:H4:2': bad note 'H4'`). Fix that item and run the same command again. Exit 2 is a usage error: report its message. An error naming the cover, the melody or the source (a type 2 file, a meter change, ticks per beat that don't divide by 4) can't be fixed, since the inputs are read-only: stop, and report it. The one exception is a missing track: where `build-grid` refuses a track the source lacks, one of its defaults or one a `--track` names, or `check-arrangement` refuses a `--piano-track` or `--bass-track` name the source lacks, its error lists the tracks the source names, and the right names fix it. `check-arrangement` also exits 1 while its report flags a finding: that is work for step 7, not an error.
+- **Errors.** A failing command prints `error: …` naming the item at fault (`bar 3: token '4:H4:2': bad note 'H4'`). Fix that item and run the same command again. Exit 2 is a usage error: report its message. An error naming the cover, the melody or the source (a type 2 file, a meter change, ticks per beat that don't divide by 4) can't be fixed, since the inputs are read-only: stop, and report it. There are two exceptions. A missing track: where `build-grid` refuses a track the source lacks, one of its defaults or one a `--track` names, or `check-arrangement` refuses a `--piano-track` or `--bass-track` name the source lacks, its error lists the tracks the source names, and the right names fix it. And a line the audio check can't cover: where `check-line` refuses a stem it doesn't measure or a track without a stem, that is no stop, and `audio-check.md` says what to do. `check-arrangement` also exits 1 while its report flags a finding: that is work for step 7, not an error.
 - **The score format.** Every score starts with the line `format 1`. If pianoize refuses that line and expects another version, the skill and pianoize are out of step: stop, and report it.
 
 ## Steps
 
-`<melody>`, `<source>` and `<out>` are the paths your prompt gives, with `<cover>` where your front end reads one; `<melody>` may be none, and `<source>` where your front end allows it. After step 1, `'<cover>'` is the cover your front end makes.
+`<melody>`, `<source>` and `<out>` are the paths your prompt gives, with `<cover>` where your front end reads one and `<stems>` where your prompt has a `Stems:` line; `<melody>` and `<stems>` may be none, and `<source>` where your front end allows it. After step 1, `'<cover>'` is the cover your front end makes.
 
 1. **Front end:** start `<out>/notes.md` with a "Dispatch" section holding your prompt's `Skill:`, `Front end:`, `Right hand:` and `Left hand:` lines, each path written as `<root>/arranging/<file>`: a later session reads it to dispatch the same combination. Then follow your front-end file's steps. They make `'<cover>'`, the cover of every later command, and record what they must in `notes.md`.
 2. **Dump:** `pianoize dump-bars '<cover>' --melody '<melody>' --source '<source>' --every-bar --drums > '<out>/bars.txt'`. Leave out `--melody '<melody>'` without a melody, and `--source '<source>' --every-bar --drums` without a source. Add `--every-note` when your right-hand file asks for it: `pianoize dump-bars '<cover>' --melody '<melody>' --source '<source>' --every-bar --every-note --drums > '<out>/bars.txt'`. Each bar gets a header with its time and the chord markers, a `C` line of attacks, read as your front end says, and a `V` line of the melody, positions and durations in sixteenths; with a source, a `D` line of the drums and an `I` line per instrument that plays in the bar, its top line, or with `--every-note` its every note, sung bars included ("Dumping" in the docs). Bar N of the dump is bar N of the score. To read a section closely, run the same dump with `--bars A-B`, its first and last bars, and without the redirect: it prints to the screen and leaves `bars.txt` as it is.
@@ -75,6 +75,7 @@ pianoize's commands are deterministic and never call an LLM. You write two text 
     - the files: `<out>/arranged.wav` (or, without a render, `<out>/arranged.mid`) and `<out>/arranged.json`;
     - the check's last line, the count of vocal notes left out and the harmony backing count;
     - the places `notes.md` lists as inferred, filled, copied from the cover, copied from an earlier section or changed at step 8, each by bar and time (the dump's header gives a bar's time), and the gaps it records;
+    - the places `notes.md` lists under "Audio check" as taken from the recording, each by bar and time, and each line not checked against it;
     - each regridded span: the user listens to the song there and counts its bars, since `regrid` can take a real tempo change for a hiccup;
     - the repeats a change to a copied-from bar or a section's figure changed (step 5);
     - each section's figures, where `notes.md` records them, named from "Figures" and "Left-hand figures", for the user to call too thin, too busy or right;
@@ -92,7 +93,7 @@ pianoize's commands are deterministic and never call an LLM. You write two text 
 - Right hand: <root>/arranging/right-hand-full.md
 - Left hand: <root>/arranging/left-hand-band-layers.md
 ## Clean room
-- inputs: '<source>' (and '<melody>' if any) only; no cover, nothing made from one
+- inputs: '<source>' (and '<melody>' and '<stems>' if any) only; no cover, nothing made from one
 ## Grid tracks
 - piano, electric_bass (the default)
 ## Regridded spans
@@ -107,6 +108,9 @@ pianoize's commands are deterministic and never call an LLM. You write two text 
 - intro, bars 1-4: the brass riff carries the tune
 ## Melody left out
 - bar 30, position 6: E5, a grace note of the transcription
+## Audio check
+- bar 20, position 6: A4 added on `M`, an untranscribed stretch at the line's level (-1 dB), in both choruses
+- intro, bars 1-8: the tune on electric_bass, written from the transcription; not checked against the recording, its stem is not measured
 ## The band
 - verse: a synth pulses eighths; a guitar fill in the voice's gap at bar 8
 - chorus: a backing vocal a third under the lead, taken on `R`

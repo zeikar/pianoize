@@ -4,7 +4,7 @@ What you arrange from when this is your front end: tsumugi's transcription of th
 
 ## Clean room
 
-The only inputs are tsumugi's transcription, tsumugi's melody MIDI, and what pianoize makes from them in `<out>`. Never read, dump, copy from or compare against any of these, in `<out>` or anywhere else:
+The only inputs are tsumugi's transcription, tsumugi's melody MIDI, the stem table `prepare` measured from the recording, and what pianoize makes from them in `<out>`. Never read, dump, copy from or compare against any of these, in `<out>` or anywhere else:
 
 - tsumugi-piano-cover's cover MIDI, or anything made from it;
 - a polished cover;
@@ -15,7 +15,7 @@ If `<out>` holds `cover.regrid.mid` or such a run's files, stop and report it: t
 
 ## Inputs
 
-`<source>` and `<melody>` are the paths your prompt gives; `<melody>` may be none.
+`<source>`, `<melody>` and `<stems>` are the paths your prompt gives; `<melody>` and `<stems>` may be none. `<stems>` is the stem table, which only `check-line` reads.
 
 ## Grid and regrid
 
@@ -41,4 +41,5 @@ A piano cover already has a pianistic accompaniment; a band transcription has no
 - **The melody is `V` alone**, kept to one voice as `check-arrangement --melody` keeps it: of notes sung together the highest, each ending where the next begins. Skip its strays as "Skip the strays" in `reading-the-dump.md` says.
 - **Choose its octave to fit the hands**, not off a cover. The melody stays the top right-hand note and above the left hand, so a vocal that sits in the accompaniment's register goes up an octave. Choose one octave per section and record it under "Melody" in `notes.md`.
 - **Without a melody** every `V` line is empty. The tune is the `I` line that carries it, chosen per section from the dump's instrument lines and recorded under "Melody" in `notes.md`, with its octave.
-- **Where `V` is wrong or silent** while someone surely sings, check it against `vocal_harmony`'s `I` line, an instrument doubling the tune, and the section's repeats. `I melody` is `V`'s own track, so it can't confirm `V`. Write what the others agree on, and record the choice.
+- **Before step 3 of the workflow, where your prompt has a `Stems:` line, read `audio-check.md`:** it checks the melody and each section's tune against the recording, and says how to weigh what it lists.
+- **Where `V` is wrong or silent** while someone surely sings, check it against `vocal_harmony`'s `I` line, an instrument doubling the tune, the section's repeats and, with a stem table, the audio check. `I melody` is `V`'s own track, so it can't confirm `V`. Write what the others agree on, and record the choice.

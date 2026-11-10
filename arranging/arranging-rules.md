@@ -32,6 +32,7 @@ bar 2 | 0:Dm7 7:Bb | pedal=0,7,x8
 In a section without vocal, an intro, an interlude, a bridge or an ending, an instrument carries the tune, and such a section sounds weaker than the sung ones.
 
 - **The right hand takes the instrument line that carries the tune**, from its `I` line ("The instrument lines" in `reading-the-dump.md`): a brass or synth riff, a guitar or flute lead. Keep its rhythm and its notes, and write it as `M`, in the octave where it sits above the accompaniment, rather than `C`'s top note. Where the lead is an improvised solo that leans on bends and sustain, follow `instrumental-solos.md` instead.
+- **A known line is written as the song has it.** A riff, a hook or a composed line keeps its leaps, its repeated notes and its uneven rhythm, not smoothed into a more pianistic one: smoothed, it is further from the song than the transcription's errors left it. Where your prompt gives a stem table, `audio-check.md` says how the recording settles a doubtful note.
 - **The left hand** plays there as your left-hand file says, as in the sung sections.
 
 ## Take from the band
