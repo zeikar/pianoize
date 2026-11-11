@@ -199,7 +199,7 @@ A step whose output is already in `DIR` is skipped, with `reusing <path>`, and t
   | `stems.npz` | `stems.npz` alone: the stems are separated again from `song.wav` |
 
 - **A directory from before the table** has no `stems.npz`; running `prepare` again makes it from `song.wav` and reuses the rest, so the two stem calls are all it runs.
-- **A directory from before the grid** has a raw `source.mid` and no `transcription.mid`. It is reused as it is and runs no tool; nothing is migrated. To grid its draw, copy `source.mid` to `transcription.mid`, then delete `source.mid`, `melody.mid` and `cover.mid`. This applies to a directory made before 2026-10-14.
+- **A directory from before the grid** has a raw `source.mid` and no `transcription.mid`. Its `source.mid` is reused as it is and nothing is migrated; only the stem table it lacks is measured. To grid its draw, copy `source.mid` to `transcription.mid`, then delete `source.mid`, `melody.mid` and `cover.mid`. This applies to a directory made before 2026-10-14.
 - **`--melody-track`.** A known name reuses an existing `melody.mid`, whichever track it was made from; delete `melody.mid` to take another track. An unknown name is refused before `melody.mid` is reused.
 
 The install is checked before any step, so even a run that would reuse all six needs it.
