@@ -16,9 +16,13 @@ stem's loud level or against the line's own notes. On a line's notes, in seconds
   pitches the stem was measured over: vocals_low to vocals_high on the vocals, low_pitch and the
   rows above it on a levels stem. On a levels stem only the top line of those is read: a note
   higher ones of them sound over in more than UNDER_SHARE of its frames is not, since the lead
-  reads a line and a chord's inner notes and a pad's lower notes sit under it. The vocals' melody
-  is one voice already. Another note is not read and not counted. A note's frames are those
-  centred in it, and its level the mean, over them, of the vocals level or of its own semitone;
+  reads a line and a chord's inner notes and a pad's lower notes sit under it. On the vocals the
+  line is first made one voice, as melody.monophonic does for check-arrangement --melody (of
+  notes starting within 30 ms of each other the highest stays, and each note ends where the
+  next begins), and a note's length, read and printed, is its length as that voice. Another
+  note is not read and not counted. A note's frames are those
+  centred in it, and its level the mean, over them, of the vocals level or of its own
+  semitone;
 - a note is `silent` when under SILENT_SHARE of its frames sound. Else it is judged frame by
   frame, never by a median, which can land on a pitch no frame sounds: a sounding vocals frame
   agrees within AGREE_SEMITONES of the note, a sounding levels frame carries the note when its
@@ -51,7 +55,8 @@ import numpy as np
 
 from .bars import Meter, halves, nearest
 from .finding import clock
-from .melody import pitch_name
+from .melody import Note as Voiced
+from .melody import monophonic, pitch_name
 from .notes import Note, tick_in
 from .playability import SUNG_MIN
 
@@ -235,7 +240,7 @@ def _share(count: int, total: int) -> str:
 
 
 def _judged(
-    note: Note, sounding: np.ndarray, kept: np.ndarray, readings: np.ndarray
+    note: Note | Voiced, sounding: np.ndarray, kept: np.ndarray, readings: np.ndarray
 ) -> Item | None:
     """The item of a note from its frames: which sound, which of those agree with it or carry it,
     and each frame's reading; None when it is supported."""
@@ -278,7 +283,7 @@ def items(
         def level(pitch: int) -> np.ndarray:
             return table.vocals_level
 
-        def judge(note: Note) -> Item | None:
+        def judge(note: Note | Voiced) -> Item | None:
             span = frames(note.onset, note.offset)
             sounding = pitched[span]
             agree = sounding & (np.abs(table.vocals_pitch[span] - note.pitch) <= AGREE_SEMITONES)
@@ -299,16 +304,23 @@ def items(
             window = rows[first - low : last - low + 1, span]
             return window.argmax(axis=0) + first, window.max(axis=0)
 
-        def judge(note: Note) -> Item | None:
+        def judge(note: Note | Voiced) -> Item | None:
             span = frames(note.onset, note.offset)
             leads, loudest = lead(note.pitch - LEAD_SEMITONES, note.pitch + LEAD_SEMITONES, span)
             sounding = _sounds(loudest, loud)
             carried = sounding & (level(note.pitch)[span] >= loudest - CARRY_DB)
             return _judged(note, sounding, carried, leads)
 
+    # The vocals' melody is one voice, as the arranger's rule reads it: a note's frames end where
+    # the next begins, so a tail over the next note's attack is not judged against it.
+    sung = (
+        monophonic([Voiced(n.onset, n.offset, n.pitch) for n in line])
+        if stem == PITCH_STEM
+        else line
+    )
     read = [
         note
-        for note in line
+        for note in sung
         if note.offset - note.onset >= SUNG_MIN
         and note.offset <= table.seconds
         and low <= note.pitch <= high

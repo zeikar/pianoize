@@ -308,10 +308,15 @@ def test_two_notes_of_one_pitch_overlapping_are_both_read(listed):
     assert listed([note(100, 140, 72), note(120, 160, 72)], band=band) == ([], 2)
 
 
-def test_the_vocals_read_every_note_however_they_overlap(listed):
+def test_the_vocals_read_of_notes_starting_together_the_highest(listed):
     voice = Voice().sing(100, 140, 76)
     line = [note(100, 140, 64), note(100, 140, 76)]
-    assert listed(line, voice=voice) == ([("octave", 64, "audio E5 100%")], 2)
+    assert listed(line, voice=voice) == ([], 1)
+
+
+def test_a_vocals_note_ends_where_the_next_begins(listed):
+    voice = Voice().sing(100, 120, 69).sing(120, 160, 72)
+    assert listed([note(100, 160, 69), note(120, 160, 72)], voice=voice) == ([], 2)
 
 
 @pytest.mark.parametrize("away", [-13, 13])
