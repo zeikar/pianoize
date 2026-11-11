@@ -67,9 +67,9 @@ pianoize plays every note at one velocity, with no dynamics, so weight comes fro
 
 ## Pedal
 
-- `chord`, the default, changes the pedal at each chord: right for most bars.
-- A list where the hits need it: `0,7,x8` changes at the downbeat and at a hit at 7, then lifts at 8 for a dry stop.
-- `none` for stop-time and for passages that must sound dry.
+- `chord`, the default, changes the pedal at each chord: right for most bars. It lifts at the bar line too, so a bar on the same harmony as the bar before lifts there for nothing, and a passage written that way sounds empty. Let the harmony ring: give such a bar `hold`, which lifts nowhere in it, so the pedal changes only where the harmony does. A bar that changes chord partway through isn't held, since a held bar never lifts: write its positions as a list, `8` for one that keeps the harmony up to a change at 8. And `hold` rings only after a bar whose pedal ends down, `chord` or a list whose last position presses again: after a stop or a `none` bar it stays up, so the bar after a stop starts the pedal again with `chord`.
+- A list where the hits need it: `0,7,x8` changes at the downbeat and at a hit at 7, then lifts at 8 for a dry stop. A hit or a stop inside a held stretch still keeps its own pedal, as "Keep the feel" says: give that bar a list, since `hold` itself can't lift.
+- `none` for stop-time and for passages that must sound dry, and for short detached chords repeated on one harmony, as a band's piano often plays a pre-chorus: they are played dry, and pedalling each one holds what the player lets go.
 - pianoize itself lifts the pedal where a note would ring a semitone or a minor ninth against one the pedal is holding; leave that to it.
 
 ## Chords and passing tones

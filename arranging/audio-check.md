@@ -31,7 +31,7 @@ audio check: vocals, 3 of 361 notes unsupported, 1 untranscribed
 - **`untranscribed`:** the audio sounds a pitch where no track of the file on that stem has a note, from the printed place, where its level rises, for the length printed. The level, `-7 dB`, is its loudness against the line's notes around it: near 0 it sounds like the line itself; ten dB or more under, it is more likely a held note's fading tail, a slide into the next note, a breath, reverb or a voice behind the lead; well over it, another part of the stem the transcription missed. The melody's file has one track, so its list can hold what the backing vocal sings: read the dump's `vocal_harmony` `I` line at that bar.
 - **The last line** names the stem and counts the notes read, those it lists and the stretches. Where it lists most of the line's notes, the line isn't what that stem sounds: another instrument of the stem, or another track, carries it. Write that line as "A line the check can't cover" says rather than rewrite it from the list.
 
-An empty list is no confirmation: a swell without an attack is never listed, and a legato pickup a tone from the next note of any track of the stem is read as a slide into it.
+An empty list is no confirmation: a swell without an attack is never listed, a legato pickup a tone from the next note of any track of the stem is read as a slide into it, and a short different pitch at the end of a held transcribed note isn't listed, since most of the note's frames agree and the note covers it, so a line that turns just before its next note can be missed.
 
 ## Weighing it
 

@@ -173,6 +173,65 @@ def test_the_pedal_follows_each_bars_setting(built):
         assert pedal(track) == expected
 
 
+def test_a_held_bar_keeps_the_pedal_down_through_its_bar_line(built):
+    midi = built(
+        "bar 1 | C",
+        "  L 0:C3:16",
+        "bar 2 | C | pedal=hold",
+        "  L 0:C3:16",
+        "bar 3 | G",
+        "  L 0:G2:16",
+    )
+    # No lift at bar 2's 1920: down from bar 1's chord to bar 3's at 3840.
+    for track in midi.tracks:
+        assert pedal(track) == [(30, 3840), (3870, 6240)]
+
+
+def test_a_held_bar_doesnt_lift_at_a_chord_change_inside_it(built):
+    midi = built(
+        "bar 1 | C",
+        "  L 0:C3:16",
+        "bar 2 | 0:C 8:G | pedal=hold",
+        "  L 0:C3:8 8:G2:8",
+        "bar 3 | C",
+        "  L 0:C3:16",
+    )
+    # No lift at bar 2's G at 2880 either.
+    assert pedal(midi.tracks[0]) == [(30, 3840), (3870, 6240)]
+
+
+def test_a_held_bar_keeps_the_pedal_up_after_none(built):
+    midi = built(
+        "bar 1 | C | pedal=none",
+        "  L 0:C3:16",
+        "bar 2 | C | pedal=hold",
+        "  L 0:C3:16",
+        "bar 3 | G",
+        "  L 0:G2:16",
+    )
+    assert pedal(midi.tracks[0]) == [(3870, 6240)]
+
+
+def test_a_held_first_bar_leaves_the_pedal_up(built):
+    midi = built("bar 1 | C | pedal=hold", "  L 0:C3:16", "bar 2 | G", "  L 0:G2:16")
+    assert pedal(midi.tracks[0]) == [(1950, 4320)]
+
+
+def test_a_semitone_inside_a_held_bar_still_lifts_the_pedal(built):
+    midi = built(
+        "bar 1 | C",
+        "  M 0:C5:4",
+        "  L 0:C3:16",
+        "bar 2 | C | pedal=hold",
+        "  M 8:B4:4",
+        "  L 0:C3:16",
+        "bar 3 | C",
+        "  L 0:C3:4",
+    )
+    # B4 at 2880 rubs against C5, held since bar 1; bar 2's line has no lift of its own.
+    assert pedal(midi.tracks[0]) == [(30, 2880), (2910, 3840), (3870, 4800)]
+
+
 def test_a_semitone_against_a_held_note_lifts_the_pedal_at_the_attack(built):
     midi = built("bar 1 | C", "  M 0:C5:4 8:B4:4 12:E5:4", "  L 0:C3:16", "bar 2 | C", "  L 0:C3:4")
     # The pedal still holds C5, released at 480, when B4 comes at 960; E5 rubs against nothing.

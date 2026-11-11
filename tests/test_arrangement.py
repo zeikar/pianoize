@@ -138,6 +138,12 @@ def test_pedal_defaults(read):
     ]
 
 
+def test_pedal_hold_is_a_bar_setting_and_a_section_default(read):
+    score = read("== verse | pedal=hold", "bar 1 | C", "bar 2 | C | pedal=chord", "bar 3 | C")
+    assert [bar.pedal for bar in score.bars] == ["hold", "chord", "hold"]
+    assert read("bar 1 | C", "bar 2 | C | pedal=hold").bars[1].pedal == "hold"
+
+
 @pytest.mark.parametrize(
     ("tick", "symbol"),
     [
@@ -298,6 +304,17 @@ def test_an_override_keeps_the_section_and_pedal_of_the_bar_it_replaces(read):
     ]
 
 
+def test_a_copy_and_an_override_of_a_held_bar_keep_hold(read):
+    score = read(
+        "bar 1 | C",
+        "bar 2 | C | pedal=hold",
+        "== chorus | pedal=none",
+        "bars 3-4 = 1-2",
+        "bar 4 | G",  # overrides the copy of bar 2
+    )
+    assert [bar.pedal for bar in score.bars] == ["chord", "hold", "chord", "hold"]
+
+
 def test_a_copy_owns_its_chords_and_lines(read):
     score = read(*SOURCE, "bars 3-4 = 1-2")
     score.bars[0].chords.append((12.0, "Am"))
@@ -374,6 +391,8 @@ def test_a_score_needs_its_format_line_and_a_bar(text, message):
         (["== verse | pedl=none"], "line 2: unknown setting 'pedl'"),
         (["bar 1 | C | pedl=none"], "bar 1: unknown setting 'pedl'"),
         (["bar 1 | C | pedal=sometimes"], "bar 1: pedal 'sometimes': bad position 'sometimes'"),
+        (["bar 1 | C | pedal=held"], "bar 1: pedal 'held': bad position 'held'"),
+        (["bar 1 | C | pedal=hold,8"], "bar 1: pedal 'hold,8': bad position 'hold'"),
         (["bar 1 | C | pedal=0,x16"], "bar 1: pedal '0,x16': position 16 is outside the bar"),
         (
             ["bar 1 | C | pedal=0,x8,4"],

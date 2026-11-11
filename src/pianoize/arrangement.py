@@ -63,7 +63,7 @@ class ScoreNote:
 class Bar:
     number: int
     chords: list[tuple[float, str]]  # (sixteenths into the bar, symbol), ascending
-    pedal: str  # chord | none | positions, x for a lift only: "0,x8,12"
+    pedal: str  # chord | none | hold | positions, x for a lift only: "0,x8,12"
     lines: dict[str, list[str]]  # role -> its pos:notes:dur tokens as written
     section: str
 
@@ -177,7 +177,7 @@ def _pedal(settings: list[str], default: str, sixteenths_per_bar: int) -> str:
             raise ArrangementError(f"unknown setting {key!r}")
         if pedal is not None:
             raise ArrangementError("setting 'pedal' given twice")
-        if value not in ("chord", "none"):
+        if value not in ("chord", "none", "hold"):
             with _within(f"pedal {value!r}"):
                 places = value.split(",")
                 positions = [_position(p.removeprefix("x"), sixteenths_per_bar) for p in places]

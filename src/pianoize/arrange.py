@@ -70,6 +70,8 @@ def _pedal_points(bar: Bar) -> list[tuple[float, bool]]:
     """(sixteenths into the bar, whether the pedal goes down again) of each lift in the bar."""
     if bar.pedal == "none":
         return [(0.0, False)]
+    if bar.pedal == "hold":  # the pedal stays as the bar before left it
+        return []
     if bar.pedal == "chord":
         return [(place, True) for place, _ in bar.chords]
     # parse has checked the positions.

@@ -160,7 +160,7 @@ At M2's listening gate the user compared one excerpt arranged several ways. The 
 - **Pop chord symbols with their own table, not Harte labels.** The agent writes the symbols as a chord chart spells them: flats, tensions in parentheses, slash basses, `N.C.`. `chords.py`'s Harte labels have no flats and no tensions. A quality the table lacks is written as the nearest one and recorded as a gap; the table can gain it.
 - **The version is a header line,** `format 1`. `tests/test_skills.py` ties it to `arrangement.FORMAT_VERSION` in the skill and the docs, as it ties the spec version to `corrections.SPEC_VERSION`.
 - **Repeats are copies with whole-bar overrides.** A copy takes its source as it stands at the copy line, and a `bar N` block replaces a copied bar whole: one rule, and a bar can be changed without touching the rest. Overrides per hand line were the alternative.
-- **The pedal comes from the score:** per chord by default, a list of positions or none per bar. The build lifts and presses again where an attack would ring a semitone or a minor ninth against a note the pedal holds.
+- **The pedal comes from the score:** per chord by default, a list of positions, none or held per bar. Every other mode lifts somewhere in its bar, so `hold` lets a harmony held across a bar line ring through it. The build lifts and presses again where an attack would ring a semitone or a minor ninth against a note the pedal holds.
 - **A pitch struck again in one hand cuts its earlier note short,** so a falling-notes view draws two notes.
 - **The check builds in memory.** It takes the score and the cover, not a MIDI, so it checks exactly what the build plays.
 
