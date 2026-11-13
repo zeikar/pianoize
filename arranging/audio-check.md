@@ -1,6 +1,6 @@
 # The audio check
 
-You can't hear the song, and its transcription is wrong in places: a ghost note, a note held on after it stopped sounding, a note a step off. Copying those errors is one way to go wrong; smoothing the line into a more pianistic one is the other, and lands further from the song. `pianoize check-line` compares a transcribed line with the stem table `pianoize prepare` measured from the recording's separated stems, and lists where the two disagree. This file says when to run it, how to read its list and how to weigh it. The command's rules and output are in pianoize's `docs/arranging.md`, under "Checking a line against the audio".
+You can't hear the song, and its transcription is wrong in places: a ghost note, a note held on after it stopped sounding, a note a step off. Copying those errors is one way to go wrong; smoothing the line into a more pianistic one is the other, and lands further from the song. `pianoize check-line` compares a transcribed line with the stem table `pianoize prepare` measured from the recording's separated stems, and lists where the two disagree. `pianoize read-stem` prints the table's own reading of a few bars, for a bar that list can't cover. This file says when to run them, how to read what they print and how to weigh it. The commands' rules and output are in pianoize's `docs/arranging.md`, under "Checking a line against the audio".
 
 It applies where your prompt's `Stems:` line names a table, `<stems>`. With `Stems: none` nothing can be checked: read "A line the check can't cover" alone. A prompt with no `Stems:` line, from the cover, has no audio check.
 
@@ -45,6 +45,22 @@ The list is evidence, never the answer key. The table has errors of its own: an 
 - **Don't smooth the line.** A note the audio supports stays as it is, so the line keeps its leaps, its repeated notes and its uneven rhythm, as "Where no one sings" in `arranging-rules.md` says. The errors "Leave out the transcription's errors" names still go; nothing else is evened out.
 - **The other rule files still hold.** An improvised solo keeps `instrumental-solos.md`: its passage is written new, so the list only confirms the peaks and landings it keeps. In a section the piano leads (`piano-led-sections.md`), check the tune as anywhere. On an instrument's stem a top note more than 10 dB under a chord tone within an octave of it is listed `pitch` with that tone as its reading: weigh only the listed notes that are the tune's.
 
+## Reading a stem
+
+`check-line` lists a sound only where no track of the stem has a note. So a phrase the transcription lost under a strummed chord or a held pad is never listed: the bar looks as if the lead rests. `pianoize read-stem '<stems>' --cover '<cover>' --stem STEM --bars A-B` prints what the stem itself sounds there, sixteenth by sixteenth. `STEM` is `guitar`, `other`, `piano` or `vocals`: the one `check-line`'s last line names when it reads the track.
+
+```
+=== bar 40  1:18.00
+guitar  0:E5(-2),B4(-6)  1:E5(-3)  4:D5(-2),A4(-9),F#4(-11)  6:E5(-4)
+```
+
+Each sixteenth that sounds prints up to three pitches, loudest first, each with its level in dB against the stem's loud level.
+
+- **Run it only on a bar already in doubt,** a few bars at a time: where a lead stops mid-phrase while its track goes on ("A strum and a lead on one track" in `reading-the-dump.md`), or where a listed note's reading makes no sense alone. Most of what it prints is the chords you already have, so over a whole section it tells you nothing.
+- **Trust the pitch names over the octaves.** An instrument's overtones can outweigh its note, a distorted guitar's most of all, and a reading then sits an octave or two over what is played. Take the names, and write them in the octave of the line you write around them, the register "Where no one sings" in `arranging-rules.md` gives.
+- **The line is what moves.** Pitches that stay from sixteenth to sixteenth through the bar are the chord, which the dump already shows. A pitch that changes while they stay, a step or a third at a time, in the phrase's rhythm, is the line the transcription lost.
+- **Write it only where it reads as a line** that joins the phrase before and after it. Where the readings scatter, leave the bar as transcribed. Either way record the bar under "Audio check" in `notes.md`: the readings you took and what you wrote, or that nothing could be read, and name it in your report for the user to listen to.
+
 ## A line the check can't cover
 
 Neither of these is an error to stop on:
@@ -54,7 +70,7 @@ Neither of these is an error to stop on:
 
 Don't name a stem with `--stem` to make it run: the line isn't in that stem, and the list would read another instrument. Record the line and the reason under "Audio check" in `notes.md`, write it from the transcription as the other rule files say, and name it in your report as not checked against the recording.
 
-Where your prompt gives `Stems: none`, the song was prepared before the table existed: run nothing, record one line under "Audio check", `no stem table: nothing checked against the recording`, rather than one per line of the song, write every line from the transcription, and say so once in your report. The same holds for a note the list doesn't read, outside the pitches the table measures: a sung note under A2 or over C6, an instrument's outside C2 to B7. On an instrument's stem only a track's top line is read, so a tune that sits under another part of its track, a line under the chords it strums, say, isn't checked either.
+Where your prompt gives `Stems: none`, the song was prepared before the table existed: run nothing, record one line under "Audio check", `no stem table: nothing checked against the recording`, rather than one per line of the song, write every line from the transcription, and say so once in your report. The same holds for a note the list doesn't read, outside the pitches the table measures: a sung note under A2 or over C6, an instrument's outside C2 to B7. On an instrument's stem only a track's top line is read, so a tune that sits under another part of its track, a line under the chords it strums, say, isn't checked either: "Reading a stem" above reads such a bar.
 
 ## Recording it
 

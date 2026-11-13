@@ -42,8 +42,18 @@ stem's loud level or against the line's own notes. On a line's notes, in seconds
   of the next note of any track of the stem within SLIDE_SEMITONES of it, its loudest frame in
   its last SLIDE_SECONDS; and when its mean level is not under every one of the line's notes
   read around it, NEIGHBOURS before it and NEIGHBOURS after. A stretch's level is that of the
-  vocals or of its own semitone."""
+  vocals or of its own semitone.
 
+A stem is also read with no line beside it, sixteenth by sixteenth, for a bar whose transcription
+is in doubt where it has notes, which no stretch covers. A sixteenth's frames are those centred
+in it. On a levels stem each semitone's level is its mean over them, and the sixteenth sounds
+when the loudest is within SOUNDING_DB of the stem's loud level; its readings are the peaks, a
+semitone louder than the one under it and no quieter than the one over it, within CARRY_DB of
+the loudest, the SLOT_PITCHES loudest of them, a tie going lower. On the vocals it sounds when
+half its frames or more do, and its one reading is their commonest rounded pitch, a tie going
+lower. A reading's level is against the stem's loud level."""
+
+import itertools
 import zipfile
 import zlib
 from collections import Counter
@@ -57,7 +67,7 @@ from .bars import Meter, halves, nearest
 from .finding import clock
 from .melody import Note as Voiced
 from .melody import monophonic, pitch_name
-from .notes import Note, tick_in
+from .notes import Note, seconds_at, tick_in
 from .playability import SUNG_MIN
 
 VERSION = 1
@@ -80,6 +90,7 @@ STRETCH_MIN = 0.100  # the experiment listed stretches this long; a shorter one 
 SLIDE_SEMITONES = 2  # a tone: a scoop into a note starts this near it
 SLIDE_SECONDS = 0.050  # a scoop ends at its note and is loudest just before it
 NEIGHBOURS = 4  # the notes either side a stretch's level is read against, a bar or so of a line
+SLOT_PITCHES = 3  # a sixteenth's readings: a line, a voice beside it and one more
 
 _FLOOR = -127.5  # dB, the byte scale's 0: this or less is nothing measured
 
@@ -171,6 +182,14 @@ class Table:
     @property
     def seconds(self) -> float:
         return len(self.vocals_level) * self.frame_seconds
+
+    def measured(self, stem: str) -> None:
+        """Raise StemsError unless the table holds `stem`."""
+        if stem not in self.stems:
+            reason = "is not measured" if stem in STEM_OF.values() else "is not in the table"
+            raise StemsError(
+                f"stem {stem!r} {reason}; name one with --stem: {', '.join(self.stems)}"
+            )
 
 
 def _decibels(scaled: np.ndarray) -> np.ndarray:
@@ -422,4 +441,75 @@ def report(
         f"audio check: {stem}, {len(found) - stretches} of {read} notes unsupported, "
         f"{stretches} untranscribed"
     )
+    return "\n".join(lines)
+
+
+def heard(table: Table, stem: str, spans: list[tuple[float, float]]) -> list[list[tuple[int, int]]]:
+    """What a stem sounds over each span of seconds, loudest first: each reading's pitch and its
+    level in dB against the stem's loud level, rounded. A span that doesn't sound has none."""
+    centres = np.arange(len(table.vocals_level)) * table.frame_seconds
+    found: list[list[tuple[int, int]]] = []
+    if stem == PITCH_STEM:
+        loud = _loud(table.vocals_level)
+        pitched = ~np.isnan(table.vocals_pitch) & _sounds(table.vocals_level, loud)
+        rounded = np.rint(np.nan_to_num(table.vocals_pitch)).astype(int)
+        for start, end in spans:
+            span = slice(*np.searchsorted(centres, [start, end]))
+            sung = rounded[span][pitched[span]]
+            if not len(sung) or 2 * len(sung) < span.stop - span.start:
+                found.append([])
+                continue
+            counts = Counter(sung.tolist())
+            pitch = min(counts, key=lambda p: (-counts[p], p))
+            level = table.vocals_level[span][pitched[span] & (rounded[span] == pitch)].mean()
+            found.append([(pitch, round(float(level) - loud))])
+        return found
+    rows = table.levels[stem]
+    loud = _loud(rows.max(axis=0))
+    for start, end in spans:
+        span = slice(*np.searchsorted(centres, [start, end]))
+        if span.start == span.stop:
+            found.append([])
+            continue
+        levels = rows[:, span].mean(axis=1)
+        loudest = float(levels.max())
+        if loudest < loud - SOUNDING_DB or loudest <= _FLOOR:
+            found.append([])
+            continue
+        under = np.concatenate([[-np.inf], levels[:-1]])
+        over = np.concatenate([levels[1:], [-np.inf]])
+        peaks = np.flatnonzero((levels > under) & (levels >= over) & (levels >= loudest - CARRY_DB))
+        ranked = sorted(peaks.tolist(), key=lambda row: (-levels[row], row))[:SLOT_PITCHES]
+        found.append([(row + table.low_pitch, round(float(levels[row]) - loud)) for row in ranked])
+    return found
+
+
+def reading(
+    table: Table,
+    stem: str,
+    meter: Meter,
+    tempo_map: list[tuple[int, float, int]],
+    bars: tuple[int, int],
+) -> str:
+    """Two lines per bar of `bars`, as the dump heads a bar: `=== bar N  m:ss.ss`, then `STEM`
+    and each sixteenth that sounds as `POSITION:PITCH(LEVEL)`, its readings comma-separated."""
+    lines = []
+    for bar in range(bars[0], bars[1] + 1):
+        ticks = [
+            (bar - 1) * meter.bar_ticks + i * meter.sixteenth_ticks
+            for i in range(meter.sixteenths_per_bar + 1)
+        ]
+        edges = [seconds_at(tempo_map, meter.ticks_per_beat, tick) for tick in ticks]
+        slots = heard(table, stem, list(itertools.pairwise(edges)))
+        lines.append(f"=== bar {bar}  {clock(edges[0])}")
+        lines.append(
+            "  ".join(
+                [stem]
+                + [
+                    f"{i}:" + ",".join(f"{pitch_name(p)}({level:+d})" for p, level in slot)
+                    for i, slot in enumerate(slots)
+                    if slot
+                ]
+            )
+        )
     return "\n".join(lines)

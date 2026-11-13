@@ -301,11 +301,7 @@ def _line_stem(
         raise stems.StemsError(
             f"no stem for {which}; name one with --stem: {', '.join(table.stems)}"
         )
-    if chosen not in table.stems:
-        reason = "is not measured" if chosen in stems.STEM_OF.values() else "is not in the table"
-        raise stems.StemsError(
-            f"stem {chosen!r} {reason}; name one with --stem: {', '.join(table.stems)}"
-        )
+    table.measured(chosen)
     names = {
         other.name
         for other in midi.tracks
@@ -392,6 +388,49 @@ def check_line(
 
     found, read = stems.items(table, chosen, line, others, in_range)
     typer.echo(stems.report(found, read, chosen, meter, tempo_map))
+
+
+@app.command("read-stem")
+def read_stem(
+    stems_path: Annotated[
+        Path,
+        typer.Argument(
+            metavar="STEMS.npz", help="The stem table `prepare` wrote.", exists=True, dir_okay=False
+        ),
+    ],
+    cover: Annotated[
+        Path,
+        typer.Option(
+            "--cover",
+            metavar="COVER.mid",
+            help="The cover whose meter and tempo map place the readings on bars.",
+            exists=True,
+            dir_okay=False,
+        ),
+    ],
+    stem: Annotated[str, typer.Option("--stem", metavar="STEM", help="The stem to read.")],
+    bar_range: Annotated[str, typer.Option("--bars", metavar="A-B", help="The bars to read.")],
+) -> None:
+    """Print what a stem of the recording sounds in bars A to B, sixteenth by sixteenth.
+
+    The table's own reading, with no transcription beside it: evidence for a bar already in
+    doubt, never the answer key.
+    """
+    selected = _parse_bars(bar_range)
+    assert selected is not None
+    midi = _read_midi(cover)
+    if midi.type == 2:
+        raise _fail(f"{cover}: a type 2 MIDI file's tracks share no timeline to place notes on")
+    try:
+        meter = bars.meter(midi)
+    except bars.MeterError as exc:
+        raise _fail(f"{cover}: {exc}") from exc
+    try:
+        table = stems.load(stems_path)
+        table.measured(stem)
+    except stems.StemsError as exc:
+        raise _fail(f"{stems_path}: {exc}") from exc
+    typer.echo(stems.reading(table, stem, meter, notes.tempo_map(midi), selected))
 
 
 @app.command("regrid")

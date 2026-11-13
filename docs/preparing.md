@@ -143,14 +143,14 @@ stems.npz: 212.4 s, guitar, other, piano, vocals
 
 ### The stem table
 
-`stems.npz` is what [`check-line`](arranging.md#checking-a-line-against-the-audio) compares a transcribed line with. The last step runs tsumugi's stem splitter on a two-channel copy of `song.wav` (the recording itself when it has two channels; a mono one doubled, a wider one cut to its first two, as tsumugi's own pipeline does), into the scratch directory, then pianoize's worker (`src/pianoize/workers/stem_worker.py`) reads four of the six stems and writes the table. The stems themselves are never kept: the scratch directory is removed, and only the table is renamed into place.
+`stems.npz` is what [`check-line`](arranging.md#checking-a-line-against-the-audio) compares a transcribed line with, and what [`read-stem`](arranging.md#reading-a-stem) prints a few bars of. The last step runs tsumugi's stem splitter on a two-channel copy of `song.wav` (the recording itself when it has two channels; a mono one doubled, a wider one cut to its first two, as tsumugi's own pipeline does), into the scratch directory, then pianoize's worker (`src/pianoize/workers/stem_worker.py`) reads four of the six stems and writes the table. The stems themselves are never kept: the scratch directory is removed, and only the table is renamed into place.
 
 The stems are separated a second time because Cover Studio's worker deletes the stems of the transcription's run and has no option to keep them, and pianoize runs it as installed. A step of its own also gives the table to a folder prepared before it. It runs last, so a failure or a stop there loses nothing the arranging already had.
 
 - **Format.** An npz file written with `numpy.savez_compressed`, read with `allow_pickle=False`, a few megabytes for a five-minute song. `version` is 1; frame i is centred on i × `frame_seconds` (512/44100 s) and every per-frame array has the same frame count.
 - **`guitar`, `other`, `piano`:** uint8, 72 rows by frames, one row per semitone from `low_pitch` (36, C2) to B7. A cell is the loudest of its semitone's three constant-Q bins (36 bins an octave from a third of a semitone under C2, hop 512 at 44.1 kHz, the channels averaged), in half-dB steps under the stem's loudest cell: 255 is 0 dB, 0 is -127.5 dB or less.
 - **`vocals_pitch`:** float32 per frame, `librosa.pyin`'s pitch as a fractional MIDI number (the stem at 22.05 kHz, hop 256, frame 2048, A2 to C6), NaN where unvoiced; `vocals_low` 45 and `vocals_high` 84 are that range's MIDI pitches. `vocals_level`: uint8 per frame, the stem's RMS on the same scale under its loudest frame.
-- **Not measured:** `bass` and `drums`. Semitone resolution in the bass register needs windows over a second long, which smear where a note starts and ends, and drums have no pitch. `check-line` refuses a track that reads against them.
+- **Not measured:** `bass` and `drums`. Semitone resolution in the bass register needs windows over a second long, which smear where a note starts and ends, and drums have no pitch. `check-line` refuses a track that reads against them, and `read-stem` the stems.
 
 ### The tempo grid
 

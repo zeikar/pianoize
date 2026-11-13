@@ -780,3 +780,146 @@ def test_check_line_refuses_a_type_2_file(check_line):
     result = check_line({"melody": [(1.0, 1.5, 72)]}, kind=2)
     assert result.exit_code == 1
     assert "a type 2 MIDI file" in result.output
+
+
+# read-stem
+
+
+def heard(stem_table, first, last, voice=None, band=None):
+    """The readings of frames first to last - 1 of a voice, as `vocals`, or a band, as `other`."""
+    if band is None:
+        table, stem = stem_table(FRAMES, pitch=voice.pitch, level=voice.level), "vocals"
+    else:
+        table, stem = stem_table(FRAMES, levels={"other": band.rows}), "other"
+    [found] = stems.heard(stems.load(table), stem, [(t(first), t(last))])
+    return found
+
+
+def test_a_span_reads_its_semitones_loudest_first_against_the_loud_level(stem_table):
+    band = Band().play(100, 120, 67, -6).play(100, 120, 72).play(100, 120, 60, -10)
+    assert heard(stem_table, 100, 120, band=band) == [(72, 0), (67, -6), (60, -10)]
+
+
+def test_a_semitone_over_10_db_under_the_loudest_is_not_a_reading(stem_table):
+    band = Band().play(100, 120, 72).play(100, 120, 67, -11)
+    assert heard(stem_table, 100, 120, band=band) == [(72, 0)]
+
+
+def test_a_reading_is_a_peak_among_its_neighbours_a_tie_going_lower(stem_table):
+    smeared = Band().play(100, 120, 72).play(100, 120, 71, -3).play(100, 120, 73, -3)
+    assert heard(stem_table, 100, 120, band=smeared) == [(72, 0)]
+    level = Band().play(100, 120, 72).play(100, 120, 73)
+    assert heard(stem_table, 100, 120, band=level) == [(72, 0)]
+
+
+def test_a_span_reads_three_semitones_at_most(stem_table):
+    band = Band()
+    for pitch, db in ((60, -4), (64, -3), (67, -2), (72, 0)):
+        band.play(100, 120, pitch, db)
+    assert heard(stem_table, 100, 120, band=band) == [(72, 0), (67, -2), (64, -3)]
+
+
+def test_a_spans_level_is_its_mean_over_its_frames(stem_table):
+    band = Band().play(0, 100, 60).play(100, 110, 72).play(110, 120, 72, -8)
+    assert heard(stem_table, 100, 120, band=band) == [(72, -4)]
+
+
+@pytest.mark.parametrize(("under", "found"), [(30, [(72, -30)]), (31, [])])
+def test_a_span_over_30_db_under_the_loud_level_does_not_sound(stem_table, under, found):
+    band = Band().play(0, 100, 60).play(100, 120, 72, -under)
+    assert heard(stem_table, 100, 120, band=band) == found
+
+
+def test_a_span_with_no_frame_has_no_reading(stem_table):
+    table = stems.load(stem_table(FRAMES, levels={"other": Band().play(0, FRAMES, 60).rows}))
+    assert stems.heard(table, "other", [(table.seconds + 1, table.seconds + 2)]) == [[]]
+
+
+@pytest.mark.parametrize(("sung", "found"), [(10, [(64, 0)]), (9, [])])
+def test_a_vocals_span_sounds_when_half_its_frames_do(stem_table, sung, found):
+    voice = Voice().sing(100, 100 + sung, 64.3)
+    assert heard(stem_table, 100, 120, voice=voice) == found
+
+
+def test_a_vocals_span_reads_its_commonest_pitch_a_tie_going_lower(stem_table):
+    voice = Voice().sing(0, 50, 60).sing(100, 108, 62, -3).sing(108, 120, 64, -6)
+    assert heard(stem_table, 100, 120, voice=voice) == [(64, -6)]
+    tied = Voice().sing(100, 110, 64).sing(110, 120, 62)
+    assert heard(stem_table, 100, 120, voice=tied) == [(62, 0)]
+
+
+@pytest.fixture
+def read_stem(tmp_path, stem_table):
+    """Runs `read-stem` on a table of a band as `other` and a cover at 120 bpm in 4/4, whose
+    sixteenth is 125 ms, with `args` after them."""
+
+    def run(*args, band=None):
+        cover = write_midi(tmp_path / "cover.mid", {"": [(0.0, 0.1, 60)]})
+        table = stem_table(FRAMES, {"other": (band or Band()).rows})
+        return CliRunner().invoke(app, ["read-stem", str(table), "--cover", str(cover), *args])
+
+    return run
+
+
+def test_read_stem_prints_each_bars_sixteenths_that_sound(read_stem):
+    # Bar 2 starts at 2 s; its positions 4 and 5 are 2.5 s to 2.75 s.
+    band = Band().play(frame(2.5), frame(2.75), 72).play(frame(2.5), frame(2.625), 67, -5)
+    result = read_stem("--stem", "other", "--bars", "1-2", band=band)
+    assert result.exit_code == 0
+    assert result.output == (
+        "=== bar 1  0:00.00\nother\n=== bar 2  0:02.00\nother  4:C5(+0),G4(-5)  5:C5(+0)\n"
+    )
+
+
+@pytest.mark.parametrize(
+    ("stem", "message"),
+    [
+        ("bass", "stem 'bass' is not measured; name one with --stem: guitar, other, piano, vocals"),
+        (
+            "brass",
+            "stem 'brass' is not in the table; name one with --stem: guitar, other, piano, vocals",
+        ),
+    ],
+)
+def test_read_stem_names_a_stem_it_cannot_read(tmp_path, read_stem, stem, message):
+    result = read_stem("--stem", stem, "--bars", "1-1")
+    assert result.exit_code == 1
+    assert result.output == f"error: {tmp_path / 'stems.npz'}: {message}\n"
+
+
+def test_read_stem_needs_its_bars(read_stem):
+    result = read_stem("--stem", "other")
+    assert result.exit_code == 2
+    assert "--bars" in result.output
+
+
+def test_two_peaks_of_one_level_read_the_lower_first(stem_table):
+    band = Band().play(100, 120, 72).play(100, 120, 60)
+    assert heard(stem_table, 100, 120, band=band) == [(60, 0), (72, 0)]
+
+
+def test_read_stem_prints_a_bar_past_the_tables_end_with_no_reading(read_stem):
+    # 800 frames end near 9.3 s, in bar 5.
+    result = read_stem("--stem", "other", "--bars", "6-6", band=Band().play(0, FRAMES, 60))
+    assert result.exit_code == 0
+    assert result.output == "=== bar 6  0:10.00\nother\n"
+
+
+def test_read_stem_refuses_an_unreadable_table_and_a_type_2_cover(tmp_path, stem_table):
+    cover = write_midi(tmp_path / "cover.mid", {"": [(0.0, 0.1, 60)]})
+    bad = tmp_path / "bad.npz"
+    bad.write_text("not a table")
+    argv = ["read-stem", str(bad), "--cover", str(cover), "--stem", "other", "--bars", "1-1"]
+    result = CliRunner().invoke(app, argv)
+    assert (result.exit_code, result.output) == (1, f"error: {bad}: not an npz file\n")
+    table = stem_table(FRAMES)
+    two = write_midi(tmp_path / "two.mid", {"": [(0.0, 0.1, 60)]}, kind=2)
+    argv = ["read-stem", str(table), "--cover", str(two), "--stem", "other", "--bars", "1-1"]
+    result = CliRunner().invoke(app, argv)
+    assert result.exit_code == 1
+    assert "a type 2 MIDI file" in result.output
+
+
+def test_read_stem_refuses_bars_that_are_no_range(read_stem):
+    result = read_stem("--stem", "other", "--bars", "3")
+    assert result.exit_code == 2
