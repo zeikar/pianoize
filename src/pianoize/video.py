@@ -21,6 +21,8 @@ FALL_SECONDS = 3.0  # style.js's fall.seconds: how long a note is on screen befo
 # as the music starts.
 INTRO_SECONDS = FALL_SECONDS
 THUMBNAIL_SIZE = (1280, 720)  # YouTube's
+# The pictures a background may be: what Chrome decodes and serve.py names the type of.
+BACKGROUND_SUFFIXES = (".jpg", ".jpeg", ".png", ".webp")
 MOMENT_STEP = 0.25  # seconds between the music times a thumbnail is chosen from
 # The viewer is page assets, not Python, so it stays at the checkout's top level rather than
 # inside the package; pianoize runs from a checkout.
@@ -97,12 +99,19 @@ def pad(wav_in: Path, wav_out: Path, timeline: Timeline) -> None:
     soundfile.write(wav_out, out, rate, subtype=info.subtype)
 
 
-def manifest(card_lines: dict[str, list[str]], timeline: Timeline, thumbnail: dict) -> dict:
-    """What the page reads from /run/manifest.json: the names of the run's files, the cards'
-    lines, the timeline's seconds and the thumbnail's moment."""
+def manifest(
+    card_lines: dict[str, list[str]],
+    timeline: Timeline,
+    thumbnail: dict,
+    background: str | None = None,
+) -> dict:
+    """What the page reads from /run/manifest.json: the names of the run's files, the background
+    picture's among them or null, the cards' lines, the timeline's seconds and the thumbnail's
+    moment."""
     return {
         "arrangement": "arrangement.json",
         "audio": "audio.wav",
+        "background": background,
         "cards": card_lines,
         "timeline": {
             "music_start": timeline.music_start,
@@ -119,9 +128,18 @@ def prepare(
     soundfont: Path,
     run_dir: Path,
     gain: float,
+    background: Path | None = None,
 ) -> tuple[Timeline, float]:
-    """Fill `run_dir` with what the page needs; return the timeline and the render's peak."""
+    """Fill `run_dir` with what the page needs, `background` copied in as the picture behind the
+    roll; return the timeline and the render's peak."""
     card_lines = cards(cards_text)
+    picture = None
+    if background is not None:
+        suffix = background.suffix.lower()
+        if suffix not in BACKGROUND_SUFFIXES:
+            raise VideoError(f"{background}: a background must be a JPEG, PNG or WebP picture")
+        picture = f"background{suffix}"
+        shutil.copyfile(background, run_dir / picture)
     data = roll.export(midi)
     (run_dir / "arrangement.json").write_text(roll.dump(data), encoding="utf-8")
     rendered = run_dir / "render.wav"
@@ -133,7 +151,7 @@ def prepare(
     rendered.unlink()
     shown = thumbnail_moment(data["notes"], music_seconds)
     (run_dir / "manifest.json").write_text(
-        json.dumps(manifest(card_lines, moments, shown), indent=2) + "\n", encoding="utf-8"
+        json.dumps(manifest(card_lines, moments, shown, picture), indent=2) + "\n", encoding="utf-8"
     )
     return moments, peak
 
@@ -243,9 +261,10 @@ def render_video(
     soundfont: Path,
     out: Path,
     gain: float,
+    background: Path | None = None,
 ) -> tuple[Timeline, float]:
-    """Render the falling-notes MP4 to `out` and its thumbnail beside it (thumbnail_path); return
-    the timeline and the render's peak."""
+    """Render the falling-notes MP4 to `out` and its thumbnail beside it (thumbnail_path), with
+    `background` behind the roll if given; return the timeline and the render's peak."""
     if out == thumbnail_path(out):
         raise VideoError(f"{out}: a video's name must not end in .jpg, which its thumbnail takes")
     # Checked now, since the replace that would fail comes after the whole capture.
@@ -257,7 +276,7 @@ def render_video(
     # failed render leaves any existing destination as it was.
     with tempfile.TemporaryDirectory(dir=out.parent, prefix=".video-") as tmp:
         run_dir = Path(tmp)
-        moments, peak = prepare(midi, cards_text, soundfont, run_dir, gain)
+        moments, peak = prepare(midi, cards_text, soundfont, run_dir, gain, background)
         partial, still = run_dir / "out.mp4", run_dir / "out.jpg"
         server = serve.start(VIEWER, run_dir)
         try:

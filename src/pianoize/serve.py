@@ -17,6 +17,10 @@ class _Handler(SimpleHTTPRequestHandler):
         ".js": "text/javascript",
         ".mjs": "text/javascript",
         ".json": "application/json",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".png": "image/png",
+        ".webp": "image/webp",
     }
 
     def __init__(self, *args, viewer_dir: Path, run_dir: Path, **kwargs) -> None:

@@ -11,6 +11,7 @@ pianoize renders an approved two-hand arrangement as a falling-notes video. This
 
 - **Credits are facts, with a source.** The song's title, the work it comes from, its composer and its rights holder come from the user, the arrangement's `notes.md` or a source you name. Write nothing you can't source. A credit found only on a fan wiki or the like is marked unconfirmed in `upload.md`, and you name it to the user.
 - **The terms follow the arrangement.** An arrangement made from tsumugi-piano-cover's cover, an `arrange-cover` run whose folder holds `cover.regrid.mid`, is treated as non-commercial: monetization off, and the credit "Arrangement based on tsumugi-piano-cover (CC BY-NC 4.0)". One from the transcription alone, an `arrange-vocal` or `arrange-transcription` run whose `notes.md` records "Clean room", carries no such terms. Either way the song's own rights holder decides: where the song is under a creator's fan-work guidelines, follow them (pianoize's `docs/decisions.md`, "What goes into a video").
+- **A background picture is credited** in the description, with its source, when the video has one. It is the user's choice and stays in `work/`.
 - **The SoundFont's credit line goes in every description:** "Piano sound: Salamander Grand Piano V3 by Alexander Holm (CC BY 3.0), via FreePats" for the default, or another SoundFont's own required credit.
 - **Never paste song content into the repository.** The title card, the video and `upload.md` stay in `<out>` under `work/`, which is never committed.
 - **Audio never leaves the machine.** Upload nothing: the user uploads.
@@ -41,7 +42,7 @@ Ask the user for any input that is missing and stop until you have it.
    A Made-up Song
    A Made-up Game OST
    ```
-3. **Render:** `pianoize render-video '<out>/arranged.mid' --cards '<out>/cards.txt' -o '<out>/arranged.mp4'`, adding `--soundfont '<sf2>'` when you have one, in the background: it takes a few times the song's length. It prints the peak, the frame count, the length and the thumbnail's path, `<out>/arranged.jpg`. If it warns that the peak could clip, render again with a lower `--gain`.
+3. **Render:** `pianoize render-video '<out>/arranged.mid' --cards '<out>/cards.txt' -o '<out>/arranged.mp4'`, adding `--soundfont '<sf2>'` when you have one, and `--background '<picture>'` when the user gives a picture for behind the notes ("The background" in the docs), in the background: it takes a few times the song's length. It prints the peak, the frame count, the length and the thumbnail's path, `<out>/arranged.jpg`. If it warns that the peak could clip, render again with a lower `--gain`.
 4. **Look at the thumbnail,** `<out>/arranged.jpg`: the title readable, not cut, not shrunk to a small size. A first line too long for the band shrinks to fit: shorten the card's lines and render again.
 5. **Write `<out>/upload.md`** following **`references/upload.md`**.
 6. **Report** in the user's language: the video, the thumbnail and `upload.md`; the monetization the terms allow; the playlist, saying if it is a new one; every credit marked unconfirmed; and that they watch the video before uploading it. Stop until they answer.

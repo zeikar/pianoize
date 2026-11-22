@@ -11,6 +11,12 @@ export const style = {
   roll: {
     top: "#0c0e11",
     bottom: "#1c1f27",
+    // The same light laid over a background picture, see-through enough to show it and dark
+    // enough to keep the notes and their glow standing out.
+    over: {
+      top: "rgba(12, 14, 17, 0.8)",
+      bottom: "rgba(28, 31, 39, 0.66)",
+    },
     // A faint line up from each C, so the eye finds the octaves.
     octaveLine: "rgba(255, 255, 255, 0.05)",
     octaveLineWidth: 1,

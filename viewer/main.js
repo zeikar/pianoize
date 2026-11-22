@@ -1,7 +1,7 @@
 import { style } from "./style.js";
 import { keyLayout } from "./keyboard.js";
 import { load } from "./roll.js";
-import { drawFrame, drawThumbnail } from "./draw.js";
+import { coverCrop, drawFrame, drawThumbnail } from "./draw.js";
 import { picker } from "./picker.js";
 import { transport } from "./transport.js";
 import { effectsPanel, tune } from "./effects.js";
@@ -38,7 +38,9 @@ async function start() {
   }
   document.body.classList.add("run");
   const manifest = await checked(response).json();
-  show(load(await (await get(`run/${manifest.arrangement}`)).json()), manifest);
+  const notes = load(await (await get(`run/${manifest.arrangement}`)).json());
+  const background = manifest.background ? await picture(`run/${manifest.background}`) : null;
+  show(notes, manifest, background);
   await document.fonts.ready;
 
   const query = new URLSearchParams(location.search);
@@ -71,7 +73,7 @@ function theme() {
   set("keyboard", `${(style.keyboard.height / style.height) * 100}%`);
 }
 
-function show(notes, { cards, timeline, thumbnail: moment }) {
+function show(notes, { cards, timeline, thumbnail: moment }, background = null) {
   const { height } = style.keyboard;
   data = {
     notes,
@@ -79,7 +81,28 @@ function show(notes, { cards, timeline, thumbnail: moment }) {
     cards,
     timeline,
     thumbnail: moment,
+    background,
   };
+}
+
+// The run's background picture, decoded and scaled to the roll once, before the first frame is
+// drawn, rather than scaled down from its own size on every frame.
+async function picture(path) {
+  const image = new Image();
+  image.src = path;
+  try {
+    await image.decode();
+  } catch {
+    throw new Error(`${path}: the browser can't decode this picture`);
+  }
+  const roll = document.createElement("canvas");
+  roll.width = style.width;
+  roll.height = style.height - style.keyboard.height;
+  const ctx = roll.getContext("2d");
+  ctx.imageSmoothingQuality = "high";
+  const { x, y, w, h } = coverCrop(image.width, image.height, roll.width, roll.height);
+  ctx.drawImage(image, x, y, w, h, 0, 0, roll.width, roll.height);
+  return roll;
 }
 
 // The controls under the picture: the player and the effects panel.

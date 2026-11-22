@@ -62,6 +62,14 @@ def preview_video(
         Path | None,
         typer.Option(help="The SoundFont; defaults to $PIANOIZE_SOUNDFONT."),
     ] = None,
+    background: Annotated[
+        Path | None,
+        typer.Option(
+            help="A JPEG, PNG or WebP picture drawn dimmed behind the falling notes.",
+            exists=True,
+            dir_okay=False,
+        ),
+    ] = None,
     gain: Annotated[float, typer.Option(help="FluidSynth's master gain.")] = 0.5,
 ) -> None:
     """Serve the falling-notes video as a page to watch in a browser."""
@@ -74,7 +82,7 @@ def preview_video(
         # in work/.
         with tempfile.TemporaryDirectory(dir=midi_path.parent, prefix=".preview-") as tmp:
             run_dir = Path(tmp)
-            _, peak = video.prepare(midi, cards_text, soundfont, run_dir, gain)
+            _, peak = video.prepare(midi, cards_text, soundfont, run_dir, gain, background)
             _report_peak(peak)
             server = serve.start(video.VIEWER, run_dir)
             typer.echo(f"preview: {serve.url(server)}")
@@ -99,18 +107,27 @@ def render_video(
         Path | None,
         typer.Option(help="The SoundFont; defaults to $PIANOIZE_SOUNDFONT."),
     ] = None,
+    background: Annotated[
+        Path | None,
+        typer.Option(
+            help="A JPEG, PNG or WebP picture drawn dimmed behind the falling notes.",
+            exists=True,
+            dir_okay=False,
+        ),
+    ] = None,
     gain: Annotated[float, typer.Option(help="FluidSynth's master gain.")] = 0.5,
 ) -> None:
     """Render the falling-notes video to an MP4, captured in Chrome and encoded with ffmpeg,
     with its thumbnail (.jpg) beside it."""
     _stop_on_signals()
     soundfont = _soundfont_path(soundfont)
+    inputs = [p for p in (midi_path, cards, soundfont, background) if p is not None]
     for path in (out, video.thumbnail_path(out)):
-        _refuse_input(path, [midi_path, cards, soundfont], "--out")
+        _refuse_input(path, inputs, "--out")
     midi = _read_midi(midi_path)
     cards_text = _read_cards(cards)
     try:
-        moments, peak = video.render_video(midi, cards_text, soundfont, out, gain)
+        moments, peak = video.render_video(midi, cards_text, soundfont, out, gain, background)
     except (roll.RollError, video.VideoError, RenderError, OSError) as exc:
         raise _fail(str(exc)) from exc
     _report_peak(peak)

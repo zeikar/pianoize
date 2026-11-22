@@ -4,8 +4,8 @@ How pianoize turns a two-hand arrangement into a falling-notes video: the notes 
 
 ```
 pianoize export-arrangement ARRANGED.mid -o ARRANGED.json
-pianoize preview-video ARRANGED.mid --cards CARDS.txt
-pianoize render-video ARRANGED.mid --cards CARDS.txt -o OUT.mp4
+pianoize preview-video ARRANGED.mid --cards CARDS.txt [--background PICTURE]
+pianoize render-video ARRANGED.mid --cards CARDS.txt -o OUT.mp4 [--background PICTURE]
 ```
 
 ## The arrangement JSON
@@ -60,9 +60,18 @@ Piano sound: a made-up credit line
 - **Trimming.** Each line loses its trailing spaces, and the title card loses its blank lines at the start and the end. A blank line inside it stays, and takes a line's room. Its first line is drawn large, the rest smaller.
 - **Errors.** An empty title card is refused with `error: …` and exit 1. A cards file that can't be read as UTF-8 is refused the same way.
 
+## The background
+
+`--background PICTURE`, on `preview-video` and `render-video`, draws a picture behind the falling notes: a JPEG, PNG or WebP (`.jpg`, `.jpeg`, `.png`, `.webp`). Without it the roll is its dark gradient, as before.
+
+- **Fit.** The picture fills the roll, the frame above the keys, without stretching: scaled to cover it, and its middle kept where it is wider or taller than the roll. A square picture loses its top and bottom, so its subject should sit in its middle band.
+- **Dimmed.** The roll's light goes over it, see-through: `style.js`'s `roll.over`, darker at the top. The octave lines, the notes and their light are drawn over both. The thumbnail shows it too, since it is drawn from a frame.
+- **Where it lives.** The picture is the user's, like the cards file: it stays in `work/` and is copied into the run's directory, never into the repository. Its credit goes in the upload's description.
+- **Errors.** A file with another suffix is refused with `error: …` and exit 1, before anything renders. A picture Chrome can't decode stops the page, so `render-video` ends with `node failed`. A `--background` that does not exist, or an `-o` that is the picture, is a usage error.
+
 ## Previewing
 
-`pianoize preview-video ARRANGED.mid --cards CARDS.txt [--soundfont SF2] [--gain G]` serves the video as a page to watch in a browser. `--soundfont` defaults to `$PIANOIZE_SOUNDFONT`, and `--gain` to 0.5, as in `render`.
+`pianoize preview-video ARRANGED.mid --cards CARDS.txt [--background PICTURE] [--soundfont SF2] [--gain G]` serves the video as a page to watch in a browser. `--soundfont` defaults to `$PIANOIZE_SOUNDFONT`, and `--gain` to 0.5, as in `render`.
 
 ```
 peak 0.412
@@ -81,9 +90,9 @@ It exports the notes, renders the audio with FluidSynth, pads it to the video's 
 
 ## Rendering the video
 
-`pianoize render-video ARRANGED.mid --cards CARDS.txt -o OUT.mp4 [--soundfont SF2] [--gain G]` writes the MP4, and beside it `OUT.jpg`, its [thumbnail](#the-thumbnail). One run does this, in order:
+`pianoize render-video ARRANGED.mid --cards CARDS.txt -o OUT.mp4 [--background PICTURE] [--soundfont SF2] [--gain G]` writes the MP4, and beside it `OUT.jpg`, its [thumbnail](#the-thumbnail). One run does this, in order:
 
-1. Exports the notes, checks the cards and picks the thumbnail's moment.
+1. Exports the notes, checks the cards, copies the background if there is one and picks the thumbnail's moment.
 2. Renders the audio with FluidSynth and pads it to the timeline.
 3. Starts the local server on 127.0.0.1.
 4. Captures the page in Chrome, a PNG per frame.
@@ -127,13 +136,13 @@ The audio's end is FluidSynth's release tail; the MIDI's end is its last tick. T
 
 ### Errors
 
-Usage errors exit 2: an `-o` that is the MIDI, the cards file or the SoundFont (`would overwrite an input`), a MIDI or cards file that does not exist, and no `--soundfont` with `$PIANOIZE_SOUNDFONT` unset. Everything else prints `error: …` and exits 1:
+Usage errors exit 2: an `-o` that is the MIDI, the cards file, the SoundFont or the background (`would overwrite an input`), a MIDI, cards file or background that does not exist, and no `--soundfont` with `$PIANOIZE_SOUNDFONT` unset. Everything else prints `error: …` and exits 1:
 
 - an `-o` that is a directory, before anything renders;
 - `node not found on PATH; install Node.js`;
 - `ffmpeg not found on PATH; install ffmpeg`;
 - `playwright-core is not installed; run npm ci in …/viewer`;
-- the arrangement and cards errors above, a SoundFont FluidSynth can't load, a missing FluidSynth, and a failed ffmpeg, whose last lines are printed;
+- the arrangement, cards and background errors above, a SoundFont FluidSynth can't load, a missing FluidSynth, and a failed ffmpeg, whose last lines are printed;
 - `node failed (N); its error is above`, when Chrome did not start or the page did not load.
 
 Ctrl-C and `kill` stop the capture and ffmpeg, close Chrome, and leave no scratch directory.
@@ -155,16 +164,16 @@ Two renders of the same inputs with the same Chrome and ffmpeg gave identical fr
 | `sparks.js` | The light where a note meets its key: the flare, the beam and the sparks, each a function of the time alone. |
 | `effects.js` | The effects panel under the player, and `tune()`, which scales the glow, the flare, the beam and the sparks by its levels. |
 | `roll.js` | The data: `FORMAT_VERSION`, loading the notes, the title card's opacity at a time, which keys are pressed, and the falling notes' rectangles. |
-| `draw.js` | Draws one frame at a time `t` on the canvas: the roll's background, the falling notes under the keyboard and the light over both, or a card. |
+| `draw.js` | Draws one frame at a time `t` on the canvas: the roll's background, over the run's picture if it has one, the falling notes under the keyboard and the light over both, or a card. |
 | `picker.js` | The file picker: takes the chosen or dropped files, checks the JSON and the audio, and shows what is missing and what went wrong. It draws nothing. |
 | `transport.js` | The player: play and pause, the time, the seek bar, and the click and keys for them, over the `<audio>` element. |
 | `main.js` | Loads the manifest and the notes, and runs the page in one of its three modes. |
 | `capture.mjs` | Loads the page in Chrome and writes a PNG per frame to stdout, with Chrome's fast PNG encoder. |
 | `social.png` | The page's link preview (`og:image`), which is also the README's hero and the repository's social preview: a 1920×960 frame the viewer drew from made-up notes, beside the name and the tagline. |
 | `social.html`, `social.mjs` | Draw `social.png`. The page holds the notes, the text and its layout, with the colours and the font from `style.js`; `node social.mjs` captures it in Chrome, without the GPU so that a run with nothing changed writes the same bytes. Run it again when the look changes. |
-| `test/` | Node tests of the layout, the data, the sparks and the effects' tuning. |
+| `test/` | Node tests of the layout, the data, the sparks, the effects' tuning and the background's fit. |
 
-- **The manifest.** The run's directory is served at `/run/`. `/run/manifest.json` names the run's `arrangement.json` and `audio.wav`, and holds the cards' lines and the timeline's `music_start`, `music_end` and `end`.
+- **The manifest.** The run's directory is served at `/run/`. `/run/manifest.json` names the run's `arrangement.json` and `audio.wav`, and its background picture or `null`, and holds the cards' lines and the timeline's `music_start`, `music_end` and `end`.
 - **Three modes.** With a run and no query, the page is the preview: the canvas fills the window above the player, and a frame is drawn at the audio's time on every animation frame. With `?capture` only the canvas shows, at its own size, and the page draws nothing by itself; `capture.mjs` calls `window.pianoize.drawAt(t)` for frame `i` at `t = i / FPS` and screenshots it. Where `run/manifest.json` is a 404, as on GitHub Pages, it is the home page. It fetches the run's files by relative paths, so it works below a path too.
 - **The sync rule.** A key lights while `on <= tMusic < off`, where `tMusic` is the video's time minus `music_start`. A note's key lights on the first frame at or after its onset, so within one frame (1/60 s) of the sound's start. The sync test measured the key lighting on the onset's frame, while the Salamander piano's attack passes −40 dBFS (0.01) about 20 ms later. The flare, the beam and the sparks start at the note-on too, and none reaches the keys' bottom 40 pixels, which the test reads.
 - **Tests.** `cd viewer && npm ci && npm test` runs the Node tests. They need no browser.

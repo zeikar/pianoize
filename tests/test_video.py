@@ -2,10 +2,12 @@ import json
 import math
 import os
 import shutil
+import struct
 import subprocess
 import sys
 import tempfile
 import time
+import zlib
 from pathlib import Path
 
 import numpy as np
@@ -131,6 +133,44 @@ def test_prepare_fills_the_run_directory(tmp_path, fake_fluidsynth, hands_midi):
     assert peak == pytest.approx(0.5, abs=0.01)
     assert fake_fluidsynth.calls[0]["gain"] == 0.25
     assert soundfile.info(run / "audio.wav").frames == round(moments.end * SAMPLE_RATE)
+    assert json.loads((run / "manifest.json").read_text())["background"] is None
+
+
+def test_prepare_copies_the_background_and_names_it(tmp_path, fake_fluidsynth, hands_midi):
+    run = tmp_path / "run"
+    run.mkdir()
+    picture = tmp_path / "Key Visual.PNG"
+    picture.write_bytes(b"png")
+
+    video.prepare(
+        hands_midi([(0, 480, 72, 80)], [(0, 480, 48, 80)]),
+        "Title\n",
+        tmp_path / "font.sf2",
+        run,
+        0.5,
+        picture,
+    )
+
+    assert (run / "background.png").read_bytes() == b"png"
+    assert json.loads((run / "manifest.json").read_text())["background"] == "background.png"
+
+
+def test_prepare_refuses_a_background_that_is_not_a_picture(tmp_path, hands_midi):
+    run = tmp_path / "run"
+    run.mkdir()
+    notes = tmp_path / "notes.txt"
+    notes.write_text("not a picture", encoding="utf-8")
+
+    with pytest.raises(video.VideoError, match="JPEG, PNG or WebP"):
+        video.prepare(
+            hands_midi([(0, 480, 72, 80)], [(0, 480, 48, 80)]),
+            "Title\n",
+            tmp_path / "font.sf2",
+            run,
+            0.5,
+            notes,
+        )
+    assert list(run.iterdir()) == []
 
 
 @pytest.fixture
@@ -183,6 +223,29 @@ def stopped(monkeypatch) -> list:
 
     monkeypatch.setattr(serve, "stop", spy)
     return servers
+
+
+def _png(width: int, height: int) -> bytes:
+    """An RGB PNG of a diagonal gradient, so scaling it has edges to smooth."""
+    rows = b"".join(
+        b"\x00"  # each row's filter byte: none
+        + b"".join(
+            bytes((x * 255 // width, y * 255 // height, (x + y) % 256)) for x in range(width)
+        )
+        for y in range(height)
+    )
+
+    def chunk(kind: bytes, data: bytes) -> bytes:
+        body = kind + data
+        return struct.pack(">I", len(data)) + body + struct.pack(">I", zlib.crc32(body))
+
+    header = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
+    return (
+        b"\x89PNG\r\n\x1a\n"
+        + chunk(b"IHDR", header)
+        + chunk(b"IDAT", zlib.compress(rows))
+        + chunk(b"IEND", b"")
+    )
 
 
 def _render(inputs: dict[str, Path], out: Path):
@@ -245,6 +308,20 @@ def test_render_video_refuses_to_overwrite_an_input(inputs, fake_fluidsynth, fak
     assert result.exit_code == 2
     assert "would overwrite an input" in " ".join(result.output.split())
     assert inputs[target].read_bytes() == before
+
+
+def test_render_video_refuses_to_overwrite_the_background(inputs, fake_fluidsynth, fake_tools):
+    picture = inputs["midi"].parent / "picture.jpg"
+    picture.write_bytes(b"jpg")
+    args = ["render-video", str(inputs["midi"]), "--cards", str(inputs["cards"])]
+    args += ["--soundfont", str(inputs["soundfont"]), "--background", str(picture)]
+
+    for out in (picture, picture.with_suffix(".mp4")):  # the video, then its thumbnail
+        result = CliRunner().invoke(app, [*args, "-o", str(out)])
+
+        assert result.exit_code == 2
+        assert "would overwrite an input" in " ".join(result.output.split())
+        assert picture.read_bytes() == b"jpg"
 
 
 def test_render_video_refuses_a_thumbnail_over_an_input(
@@ -436,11 +513,14 @@ def test_render_video_is_repeatable_and_in_format(
     tmp_path, hands_midi, fake_fluidsynth, real_tools, short_cards
 ):
     midi = hands_midi([(0, 480, 72, 80)], [(0, 480, 48, 80)])
+    # A background, so the frames' sameness covers its decode and scaling too.
+    picture = tmp_path / "picture.png"
+    picture.write_bytes(_png(640, 480))
     profiles = _profiles()
 
     for name in ("a.mp4", "b.mp4"):
         moments, _ = video.render_video(
-            midi, "Title\n---\nCredits\n", tmp_path / "font.sf2", tmp_path / name, 0.5
+            midi, "Title\n---\nCredits\n", tmp_path / "font.sf2", tmp_path / name, 0.5, picture
         )
 
     # If these ever differ, run once with ffmpeg's -threads 1 to tell the capture from the

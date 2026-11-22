@@ -10,7 +10,7 @@ export function drawFrame(ctx, t, data, style) {
   ctx.fillStyle = style.background;
   ctx.fillRect(0, 0, style.width, style.height);
   const tMusic = t - data.timeline.music_start;
-  drawRoll(ctx, data.layout, style);
+  drawRoll(ctx, data.layout, style, data.background);
   // The keys go over the notes, which slide under them, and the light where they meet goes
   // over both.
   drawNotes(ctx, data.notes, tMusic, data.layout, style);
@@ -74,12 +74,18 @@ export function drawThumbnail(ctx, data, style) {
   ctx.restore();
 }
 
-// The roll's background above the keys: its light, and a line up from each C.
-function drawRoll(ctx, layout, style) {
+// The roll's background above the keys: its light, over the run's picture if it has one (already
+// the roll's size), and a line up from each C.
+function drawRoll(ctx, layout, style, background) {
   const keyboardTop = layout[0].y;
+  let light = style.roll;
+  if (background) {
+    ctx.drawImage(background, 0, 0);
+    light = style.roll.over;
+  }
   const g = ctx.createLinearGradient(0, 0, 0, keyboardTop);
-  g.addColorStop(0, style.roll.top);
-  g.addColorStop(1, style.roll.bottom);
+  g.addColorStop(0, light.top);
+  g.addColorStop(1, light.bottom);
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, style.width, keyboardTop);
   ctx.fillStyle = style.roll.octaveLine;
@@ -104,4 +110,13 @@ function drawCard(ctx, lines, style, area) {
     ctx.fillText(line, style.width / 2, y + sizes[i] / 2);
     y += sizes[i] + cards.lineGap;
   });
+}
+
+// The part of a width × height picture that fills an area of areaWidth × areaHeight without
+// stretching: all of it one way, the middle of it the other.
+export function coverCrop(width, height, areaWidth, areaHeight) {
+  const scale = Math.max(areaWidth / width, areaHeight / height);
+  const w = areaWidth / scale;
+  const h = areaHeight / scale;
+  return { x: (width - w) / 2, y: (height - h) / 2, w, h };
 }
