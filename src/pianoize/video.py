@@ -3,6 +3,7 @@ the MP4 and its thumbnail."""
 
 import json
 import math
+import re
 import shutil
 import subprocess
 import tempfile
@@ -21,6 +22,11 @@ FALL_SECONDS = 3.0  # style.js's fall.seconds: how long a note is on screen befo
 # as the music starts.
 INTRO_SECONDS = FALL_SECONDS
 THUMBNAIL_SIZE = (1280, 720)  # YouTube's
+# The video's audio is raised or lowered by one gain to this integrated loudness (EBU R128),
+# short of YouTube's -14 so that a piano's peaks fit without a limiter, which would flatten its
+# attacks; and never past the true-peak ceiling, where the gain stops short of the target.
+LOUDNESS_TARGET = -16.0  # LUFS
+TRUE_PEAK_CEILING = -1.0  # dBTP
 # The pictures a background may be: what Chrome decodes and serve.py names the type of.
 BACKGROUND_SUFFIXES = (".jpg", ".jpeg", ".png", ".webp")
 MOMENT_STEP = 0.25  # seconds between the music times a thumbnail is chosen from
@@ -175,6 +181,52 @@ def tools() -> Tools:
     return Tools(node, ffmpeg)
 
 
+@dataclass(frozen=True)
+class Loudness:
+    before: float  # LUFS
+    gain: float  # dB
+    held: bool  # whether the true-peak ceiling stopped the gain short of the target
+
+
+def ebur128(text: str) -> tuple[float, float]:
+    """The integrated loudness (LUFS) and true peak (dBFS) in the summary ffmpeg's ebur128
+    filter prints with peak=true."""
+    summary = text[text.rfind("Summary:") :]
+    found = (
+        re.search(r"\bI:\s+(-?[\d.]+|-inf) LUFS", summary),
+        re.search(r"\bPeak:\s+(-?[\d.]+|-inf) dBFS", summary),
+    )
+    if "Summary:" not in text or None in found:
+        raise VideoError("ffmpeg's ebur128 printed no loudness summary")
+    return tuple(float(m.group(1)) for m in found)
+
+
+def loudness_gain(loudness: float, true_peak: float) -> tuple[float, bool]:
+    """The gain in dB that takes audio of this loudness to LOUDNESS_TARGET, or as far as its true
+    peak allows, and whether the peak held it back."""
+    want = LOUDNESS_TARGET - loudness
+    room = TRUE_PEAK_CEILING - true_peak
+    return (room, True) if room < want else (want, False)
+
+
+def match_loudness(ffmpeg: str, wav: Path) -> Loudness:
+    """Measure `wav` with ffmpeg and rewrite it at the gain loudness_gain gives."""
+    command = [
+        ffmpeg, "-nostats", "-hide_banner", "-i", str(wav),
+        "-af", "ebur128=peak=true", "-f", "null", "-",
+    ]  # fmt: skip
+    result = subprocess.run(command, capture_output=True, text=True)
+    if result.returncode != 0:
+        tail = "\n".join(result.stderr.strip().splitlines()[-5:])
+        raise VideoError(f"ffmpeg failed to measure the loudness ({result.returncode}): {tail}")
+    before, peak = ebur128(result.stderr)
+    gain, held = loudness_gain(before, peak)
+    info = soundfile.info(wav)
+    audio, rate = soundfile.read(wav, dtype="float64", always_2d=True)
+    soundfile.write(wav, audio * 10 ** (gain / 20), rate, subtype=info.subtype)
+    return Loudness(before, gain, held)
+
+
 def encode(tools: Tools, url: str, moments: Timeline, audio: Path, out: Path) -> None:
     """Capture the page at `url` frame by frame in Chrome and encode the frames, with the padded
     `audio`, into the MP4 `out`."""
@@ -262,9 +314,10 @@ def render_video(
     out: Path,
     gain: float,
     background: Path | None = None,
-) -> tuple[Timeline, float]:
+) -> tuple[Timeline, float, Loudness]:
     """Render the falling-notes MP4 to `out` and its thumbnail beside it (thumbnail_path), with
-    `background` behind the roll if given; return the timeline and the render's peak."""
+    `background` behind the roll if given and the audio matched to LOUDNESS_TARGET; return the
+    timeline, the render's peak and the loudness match."""
     if out == thumbnail_path(out):
         raise VideoError(f"{out}: a video's name must not end in .jpg, which its thumbnail takes")
     # Checked now, since the replace that would fail comes after the whole capture.
@@ -277,6 +330,7 @@ def render_video(
     with tempfile.TemporaryDirectory(dir=out.parent, prefix=".video-") as tmp:
         run_dir = Path(tmp)
         moments, peak = prepare(midi, cards_text, soundfont, run_dir, gain, background)
+        loudness = match_loudness(found.ffmpeg, run_dir / "audio.wav")
         partial, still = run_dir / "out.mp4", run_dir / "out.jpg"
         server = serve.start(VIEWER, run_dir)
         try:
@@ -286,4 +340,4 @@ def render_video(
             serve.stop(server)
         still.replace(thumbnail_path(out))
         partial.replace(out)
-    return moments, peak
+    return moments, peak, loudness

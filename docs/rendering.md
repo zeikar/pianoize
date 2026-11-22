@@ -94,22 +94,28 @@ It exports the notes, renders the audio with FluidSynth, pads it to the video's 
 
 1. Exports the notes, checks the cards, copies the background if there is one and picks the thumbnail's moment.
 2. Renders the audio with FluidSynth and pads it to the timeline.
-3. Starts the local server on 127.0.0.1.
-4. Captures the page in Chrome, a PNG per frame.
-5. Pipes the frames and the audio into ffmpeg.
-6. Captures the thumbnail once, and has ffmpeg encode it as a JPEG.
-7. Replaces `OUT.jpg` and `OUT.mp4` with the results.
+3. Matches its loudness ([below](#the-loudness)).
+4. Starts the local server on 127.0.0.1.
+5. Captures the page in Chrome, a PNG per frame.
+6. Pipes the frames and the audio into ffmpeg.
+7. Captures the thumbnail once, and has ffmpeg encode it as a JPEG.
+8. Replaces `OUT.jpg` and `OUT.mp4` with the results.
 
-Its scratch directory, `.video-*`, sits beside `OUT.mp4` and is removed when the run ends. The files are replaced only at the end, so a failed or interrupted run leaves any existing ones as they were. It prints the peak, the same warning, then the frame count, the video's length and the thumbnail:
+Its scratch directory, `.video-*`, sits beside `OUT.mp4` and is removed when the run ends. The files are replaced only at the end, so a failed or interrupted run leaves any existing ones as they were. It prints the peak, the same warning, the loudness match, then the frame count, the video's length and the thumbnail:
 
 ```
 peak 0.412
+loudness: -24.2 LUFS, +7.9 dB to -16.3 LUFS, held by the -1 dBTP ceiling
 frames: 5400
 length: 90.0 s
 thumbnail: video.jpg
 ```
 
 A video named with `.jpg` is refused, since its thumbnail would take its name.
+
+### The loudness
+
+ffmpeg's `ebur128` filter measures the padded audio's integrated loudness and true peak, and the audio is scaled by one gain to -16 LUFS (`LOUDNESS_TARGET` in `video.py`), up or down. Where that would take the true peak past -1 dBTP (`TRUE_PEAK_CEILING`), the gain stops there, short of the target, and the line says `held by the -1 dBTP ceiling`. There is no compressor or limiter, so the piano's attacks and its balance stay as rendered. `--gain` still sets FluidSynth's level, and the peak warning still means the render itself may clip. The preview and `render`'s WAV are not matched.
 
 ### The thumbnail
 
@@ -142,6 +148,7 @@ Usage errors exit 2: an `-o` that is the MIDI, the cards file, the SoundFont or 
 - `node not found on PATH; install Node.js`;
 - `ffmpeg not found on PATH; install ffmpeg`;
 - `playwright-core is not installed; run npm ci in …/viewer`;
+- `ffmpeg failed to measure the loudness (N): …`;
 - the arrangement, cards and background errors above, a SoundFont FluidSynth can't load, a missing FluidSynth, and a failed ffmpeg, whose last lines are printed;
 - `node failed (N); its error is above`, when Chrome did not start or the page did not load.
 

@@ -127,10 +127,17 @@ def render_video(
     midi = _read_midi(midi_path)
     cards_text = _read_cards(cards)
     try:
-        moments, peak = video.render_video(midi, cards_text, soundfont, out, gain, background)
+        moments, peak, loudness = video.render_video(
+            midi, cards_text, soundfont, out, gain, background
+        )
     except (roll.RollError, video.VideoError, RenderError, OSError) as exc:
         raise _fail(str(exc)) from exc
     _report_peak(peak)
+    after = loudness.before + loudness.gain
+    held = f", held by the {video.TRUE_PEAK_CEILING:g} dBTP ceiling" if loudness.held else ""
+    typer.echo(
+        f"loudness: {loudness.before:.1f} LUFS, {loudness.gain:+.1f} dB to {after:.1f} LUFS{held}"
+    )
     typer.echo(f"frames: {moments.frames}")
     typer.echo(f"length: {moments.end:.1f} s")
     typer.echo(f"thumbnail: {video.thumbnail_path(out)}")

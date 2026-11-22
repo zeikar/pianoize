@@ -198,14 +198,65 @@ def _script(path: Path, body: str) -> str:
     return str(path)
 
 
+# What ffmpeg's ebur128 filter prints last, with peak=true.
+EBU_SUMMARY = """[Parsed_ebur128_0 @ 0x1] Summary:
+
+  Integrated loudness:
+    I:         -24.2 LUFS
+    Threshold: -34.3 LUFS
+
+  Loudness range:
+    LRA:         2.6 LU
+
+  True peak:
+    Peak:       -8.9 dBFS
+"""
+
+
+def test_ebur128_reads_the_summary():
+    assert video.ebur128("I: -1.0 LUFS (momentary)\n" + EBU_SUMMARY) == (-24.2, -8.9)
+
+
+def test_ebur128_refuses_output_without_a_summary():
+    with pytest.raises(video.VideoError, match="no loudness summary"):
+        video.ebur128("Input #0, wav\n")
+
+
+def test_loudness_gain_reaches_the_target_where_the_peak_allows():
+    assert video.loudness_gain(-24.2, -12.0) == (pytest.approx(8.2), False)
+    assert video.loudness_gain(-10.0, -0.5) == (pytest.approx(-6.0), False)
+
+
+def test_loudness_gain_stops_at_the_true_peak_ceiling():
+    assert video.loudness_gain(-24.2, -8.9) == (pytest.approx(7.9), True)
+
+
+def test_match_loudness_scales_the_audio(tmp_path, synth):
+    wav = tmp_path / "audio.wav"
+    soundfile.write(wav, synth, SAMPLE_RATE, subtype="FLOAT")
+    before, _ = soundfile.read(wav)
+    ffmpeg = _script(tmp_path / "ffmpeg", f"import sys\nsys.stderr.write({EBU_SUMMARY!r})\n")
+
+    loudness = video.match_loudness(ffmpeg, wav)
+
+    assert loudness == video.Loudness(-24.2, pytest.approx(7.9), True)
+    after, _ = soundfile.read(wav)
+    assert after == pytest.approx(before * 10 ** (7.9 / 20), abs=1e-6)
+
+
 def _encoders(monkeypatch, tmp_path: Path, ffmpeg_exit: int) -> None:
     """Make video.tools give a node that writes a few bytes and an ffmpeg that reads them, writes
-    b"encoded" to its output and exits with `ffmpeg_exit`."""
+    b"encoded" to its output and exits with `ffmpeg_exit`; asked to measure the loudness, it
+    prints EBU_SUMMARY."""
     (tmp_path / "bin").mkdir()
     node = _script(tmp_path / "bin" / "node", "import sys\nsys.stdout.buffer.write(b'frames')\n")
     ffmpeg = _script(
         tmp_path / "bin" / "ffmpeg",
-        "import sys\nsys.stdin.buffer.read()\n"
+        "import sys\n"
+        "if any('ebur128' in a for a in sys.argv):\n"
+        f"    sys.stderr.write({EBU_SUMMARY!r})\n"
+        "    sys.exit(0)\n"
+        "sys.stdin.buffer.read()\n"
         f"open(sys.argv[-1], 'wb').write(b'encoded')\nsys.exit({ffmpeg_exit})\n",
     )
     monkeypatch.setattr(video, "tools", lambda: video.Tools(node, ffmpeg))
@@ -262,6 +313,9 @@ def test_render_video_replaces_the_output(inputs, tmp_path, monkeypatch, fake_fl
 
     assert result.exit_code == 0, result.output
     # The one-second clip outlasts the half-second MIDI: 3 + 1 seconds at 60 frames.
+    assert "loudness: -24.2 LUFS, +7.9 dB to -16.3 LUFS, held by the -1 dBTP ceiling\n" in (
+        result.output
+    )
     assert "frames: 240\nlength: 4.0 s\n" in result.output
     assert f"thumbnail: {tmp_path / 'out.jpg'}\n" in result.output
     assert out.read_bytes() == b"encoded"
@@ -519,7 +573,7 @@ def test_render_video_is_repeatable_and_in_format(
     profiles = _profiles()
 
     for name in ("a.mp4", "b.mp4"):
-        moments, _ = video.render_video(
+        moments, _, loudness = video.render_video(
             midi, "Title\n---\nCredits\n", tmp_path / "font.sf2", tmp_path / name, 0.5, picture
         )
 
@@ -533,6 +587,15 @@ def test_render_video_is_repeatable_and_in_format(
     assert (picture["codec_name"], picture["pix_fmt"]) == ("h264", "yuv420p")
     assert sound["codec_name"] == "aac"
     assert int(picture["nb_frames"]) == moments.frames
+    # The encoded audio is at the loudness the match aimed for, give or take the AAC encode.
+    measured = subprocess.run(
+        [FFMPEG, "-nostats", "-i", str(tmp_path / "a.mp4"), "-vn", "-af", "ebur128=peak=true"]
+        + ["-f", "null", "-"],
+        capture_output=True,
+        text=True,
+    )
+    after, _ = video.ebur128(measured.stderr)
+    assert after == pytest.approx(loudness.before + loudness.gain, abs=0.5)
     assert float(probe["format"]["duration"]) == pytest.approx(moments.end, abs=1 / video.FPS)
     [still] = _probe(tmp_path / "a.jpg")["streams"]
     assert (still["codec_name"], still["width"], still["height"]) == (
