@@ -65,7 +65,8 @@ Piano sound: a made-up credit line
 `--background PICTURE`, on `preview-video` and `render-video`, draws a picture behind the falling notes: a JPEG, PNG or WebP (`.jpg`, `.jpeg`, `.png`, `.webp`). Without it the roll is its dark gradient, as before.
 
 - **Fit.** The picture fills the roll, the frame above the keys, without stretching: scaled to cover it, and its middle kept where it is wider or taller than the roll. A square picture loses its top and bottom, so its subject should sit in its middle band.
-- **Dimmed.** The roll's light goes over it, see-through: `style.js`'s `roll.over`, darker at the top. The octave lines, the notes and their light are drawn over both. The thumbnail shows it too, since it is drawn from a frame.
+- **Dimmed.** The roll's light goes over it, see-through: `style.js`'s `roll.over`, darker at the top. The octave lines, the notes and their light are drawn over both.
+- **On the thumbnail** the picture is not zoomed with the frame, which would leave only its bottom: it spans the thumbnail's width from just under the title card's lines, its top kept and its bottom cut at the keys, its top edge fading in from the dark (`thumbnail.pictureFade`), under the same light. A subject at the picture's top, a face say, so shows under the title rather than behind it.
 - **Where it lives.** The picture is the user's, like the cards file: it stays in `work/` and is copied into the run's directory, never into the repository. Its credit goes in the upload's description.
 - **Errors.** A file with another suffix is refused with `error: …` and exit 1, before anything renders. A picture Chrome can't decode stops the page, so `render-video` ends with `node failed`. A `--background` that does not exist, or an `-o` that is the picture, is a usage error.
 
@@ -119,7 +120,7 @@ ffmpeg's `ebur128` filter measures the padded audio's integrated loudness and tr
 
 ### The thumbnail
 
-1280×720, YouTube's size, as a JPEG. It shows the moment with the most notes on screen, falling or sounding, among the music's quarter-seconds, the earliest on a tie. The frame there is zoomed in by 4/3, the keys kept at the bottom, and centred on the middle pitch of those notes. A dark band fades down over its top, and the title card's lines go on it: the first large, the last as a small tag in the right hand's light, any between them as a subtitle. A line too wide for the band shrinks to fit. Its sizes and colours are `style.js`'s `thumbnail`; it is drawn at the frame's size and scaled down by ffmpeg.
+1280×720, YouTube's size, as a JPEG. It shows the moment with the most notes on screen, falling or sounding, among the music's quarter-seconds, the earliest on a tie. The frame there is zoomed in by 4/3, the keys kept at the bottom, and centred on the middle pitch of those notes. A dark band fades down over its top, and the title card's lines go on it: the first large, the last as a small tag in the right hand's light, any between them as a subtitle. A line too wide for the band shrinks to fit. A [background picture](#the-background) goes under the zoomed notes whole, not zoomed. Its sizes and colours are `style.js`'s `thumbnail`; it is drawn at the frame's size and scaled down by ffmpeg.
 
 ### The timeline
 

@@ -151,6 +151,8 @@ export const style = {
     },
     top: 72,
     lineGap: 30,
+    // With a background picture: how far down from under the lines its top edge fades in.
+    pictureFade: 160,
     maxWidth: 1760,
     title: { size: 168, weight: 700, colour: "#ffffff" },
     subtitle: { size: 87, weight: 500, colour: "#e8e8e8" },

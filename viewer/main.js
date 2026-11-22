@@ -86,7 +86,8 @@ function show(notes, { cards, timeline, thumbnail: moment }, background = null) 
 }
 
 // The run's background picture, decoded and scaled to the roll once, before the first frame is
-// drawn, rather than scaled down from its own size on every frame.
+// drawn, rather than scaled down from its own size on every frame: the picture itself, for the
+// thumbnail, and the roll's copy of it.
 async function picture(path) {
   const image = new Image();
   image.src = path;
@@ -102,7 +103,7 @@ async function picture(path) {
   ctx.imageSmoothingQuality = "high";
   const { x, y, w, h } = coverCrop(image.width, image.height, roll.width, roll.height);
   ctx.drawImage(image, x, y, w, h, 0, 0, roll.width, roll.height);
-  return roll;
+  return { image, roll };
 }
 
 // The controls under the picture: the player and the effects panel.
